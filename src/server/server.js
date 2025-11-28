@@ -1,12 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 
 // ES modules don't have __dirname, so recreate it
 const __filename = fileURLToPath(import.meta.url);
@@ -25,13 +23,22 @@ app.use(express.json());
 // Setup real-time listener
 console.log('Setting up real-time SMS alert listener...');
 const unsubscribe = alertService.setupRealtimeAlertListener(realtimeDb, db);
-
 console.log('SMS Alert Service is active - monitoring for new sensor readings...');
 
+// Setup alert routes
 alertService.setupAlertRoute(app, realtimeDb, db);
 
 // Register analytics routes
 app.use('/api/analytics', analyticsRoutes);
+
+// ========================
+// API Endpoints
+// ========================
+
+// Root route to serve the React app's index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -100,7 +107,9 @@ app.get('/api/test/latest-reading', async (req, res) => {
   }
 });
 
-// Graceful shutdown
+// ========================
+// Graceful Shutdown
+// ========================
 process.on('SIGINT', () => {
   console.log('\nShutting down gracefully...');
   unsubscribe();
@@ -114,7 +123,21 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-// Start server
+// ========================
+// Serve Frontend
+// ========================
+
+// Serve the static files from the React build folder (Vite dist)
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// For all other routes, serve index.html (this is important for SPAs like React)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// ========================
+// Start Server
+// ========================
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
