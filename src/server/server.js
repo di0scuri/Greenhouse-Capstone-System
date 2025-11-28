@@ -17,7 +17,6 @@ import alertService from './services/smsAlertService.js';
 import analyticsRoutes from './services/analyticsRoutes.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
@@ -116,12 +115,8 @@ process.on('SIGTERM', () => {
 });
 
 // Start server
+const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
-  console.log('═══════════════════════════════════════════');
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`Monitoring: Realtime Database (SoilSensor)`);
-  console.log(`User data from: Firestore (users collection)`);
-  console.log(`SMS alerts will be sent automatically`);
-  console.log(`Analytics API: http://localhost:${PORT}/api/analytics`);
-  console.log('═══════════════════════════════════════════');
+  console.log(`Server running on port ${PORT}`);
 });
