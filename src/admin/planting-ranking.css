@@ -1,0 +1,369 @@
+/* ============================================ */
+/* SENSOR STATUS INDICATORS */
+/* ============================================ */
+
+.sensor-status-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #f0f9ff;
+  border-radius: 8px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: #0369a1;
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sensor-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.sensor-status.online {
+  background: #dcfce7;
+  color: #166534;
+  border: 2px solid #86efac;
+}
+
+.sensor-status.offline {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 2px solid #fca5a5;
+}
+
+.status-icon {
+  font-size: 1.2rem;
+}
+
+.status-text {
+  flex: 1;
+}
+
+/* ============================================ */
+/* RANKED PLANTS LIST */
+/* ============================================ */
+
+.ranking-indicator {
+  font-size: 0.75rem;
+  color: #3b82f6;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.ranked-plants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.ranked-plants-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ranked-plants-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.ranked-plants-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.ranked-plants-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.ranked-plant-item {
+  padding: 16px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.ranked-plant-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #d1d5db;
+}
+
+.ranked-plant-item.selected {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.plant-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.plant-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1a202c;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compatibility-badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  color: white;
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-width: 55px;
+  text-align: center;
+}
+
+.plant-item-details {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stars {
+  font-size: 1rem;
+  letter-spacing: 2px;
+}
+
+.rating-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.plant-quick-info {
+  display: flex;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.plant-quick-info span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ============================================ */
+/* COMPATIBILITY DETAILS */
+/* ============================================ */
+
+.compatibility-details {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+}
+
+.compatibility-card h4 {
+  margin: 0 0 12px 0;
+  font-size: 1.2rem;
+  color: #1a202c;
+}
+
+.compatibility-explanation {
+  margin: 0 0 20px 0;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #475569;
+  border-left: 4px solid #3b82f6;
+}
+
+.soil-comparison h5 {
+  margin: 0 0 12px 0;
+  font-size: 1rem;
+  color: #1a202c;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.comparison-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.comparison-item span:first-child {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.comparison-item span:nth-child(2) {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1a202c;
+}
+
+.comparison-item .ideal {
+  font-size: 0.8rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+/* ============================================ */
+/* RANKING LEGEND (Optional) */
+/* ============================================ */
+
+.ranking-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.legend-color-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.legend-text {
+  font-weight: 600;
+  color: #475569;
+}
+
+/* ============================================ */
+/* SENSOR WARNING MESSAGES */
+/* ============================================ */
+
+.sensor-offline-warning {
+  padding: 16px;
+  background: #fef2f2;
+  border: 2px solid #fca5a5;
+  border-radius: 12px;
+  margin: 16px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sensor-offline-warning .warning-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.sensor-offline-warning .warning-content {
+  flex: 1;
+}
+
+.sensor-offline-warning .warning-title {
+  font-weight: 700;
+  color: #991b1b;
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+}
+
+.sensor-offline-warning .warning-message {
+  color: #7f1d1d;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ============================================ */
+/* RESPONSIVE DESIGN */
+/* ============================================ */
+
+@media (max-width: 768px) {
+  .ranked-plants-list {
+    max-height: 400px;
+  }
+  
+  .plant-item-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .compatibility-badge {
+    align-self: flex-start;
+  }
+  
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .plant-quick-info {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ranked-plant-item {
+    padding: 12px;
+  }
+  
+  .plant-name {
+    font-size: 1rem;
+  }
+  
+  .compatibility-badge {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    min-width: 50px;
+  }
+  
+  .stars {
+    font-size: 0.9rem;
+  }
+  
+  .rating-text {
+    font-size: 0.75rem;
+  }
+}

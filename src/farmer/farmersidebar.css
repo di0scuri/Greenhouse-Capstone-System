@@ -1,0 +1,226 @@
+/* ============ FARMER SIDEBAR ============ */
+.farmer-sidebar {
+  width: 280px;
+  background: linear-gradient(180deg, #2E5233 0%, #1a3009 100%);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.farmer-sidebar-header {
+  padding: 25px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.farmer-logo-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.farmer-logo-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8BC34A;
+}
+
+.farmer-logo-text h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  letter-spacing: 1px;
+}
+
+.farmer-logo-text p {
+  font-size: 13px;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+.farmer-sidebar-nav {
+  flex: 1;
+  padding: 20px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.farmer-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.farmer-nav-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.farmer-nav-item.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-weight: 600;
+}
+
+.farmer-nav-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.farmer-sidebar-footer {
+  padding: 20px 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.farmer-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.farmer-logout-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+/* ============ RESPONSIVE DESIGN ============ */
+@media (max-width: 768px) {
+  .farmer-sidebar {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  
+  .farmer-sidebar-header {
+    min-width: 200px;
+    border-bottom: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .farmer-sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 10px;
+    min-width: 480px;
+  }
+  
+  .farmer-nav-item {
+    min-width: 120px;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  .farmer-nav-text {
+    display: none;
+  }
+  
+  .farmer-sidebar-footer {
+    min-width: 80px;
+    border-top: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .farmer-logout-btn .farmer-nav-text {
+    display: none;
+  }
+  
+  .farmer-logout-btn {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .farmer-sidebar-header {
+    min-width: 150px;
+    padding: 15px 10px;
+  }
+  
+  .farmer-logo-text h2 {
+    font-size: 16px;
+  }
+  
+  .farmer-logo-text p {
+    font-size: 12px;
+  }
+  
+  .farmer-logo-icon {
+    width: 35px;
+    height: 35px;
+  }
+  
+  .farmer-sidebar-nav {
+    min-width: 400px;
+    padding: 8px;
+  }
+  
+  .farmer-nav-item {
+    min-width: 80px;
+    padding: 10px 8px;
+  }
+  
+  .farmer-nav-icon {
+    font-size: 18px;
+  }
+  
+  .farmer-sidebar-footer {
+    min-width: 60px;
+    padding: 8px;
+  }
+  
+  .farmer-logout-btn {
+    padding: 10px 8px;
+  }
+}
+
+/* ============ ANIMATIONS ============ */
+@keyframes farmerSlideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.farmer-sidebar {
+  animation: farmerSlideInLeft 0.3s ease-out;
+}
+
+/* ============ FOCUS STYLES ============ */
+.farmer-nav-item:focus,
+.farmer-logout-btn:focus {
+  outline: 2px solid #8BC34A;
+  outline-offset: -2px;
+}

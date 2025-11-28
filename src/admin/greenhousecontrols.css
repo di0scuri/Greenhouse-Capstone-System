@@ -1,0 +1,358 @@
+/* ============ GREENHOUSE CONTROL STYLES ============ */
+
+/* Main Container */
+.greenhouse-main {
+  flex: 1;
+  padding: 32px 40px;
+  background: #f8fafc;
+  overflow-y: auto;
+  min-height: 100vh;
+}
+
+/* Refresh Button */
+.refresh-button {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 20px;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.refresh-button:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.refresh-button:active {
+  transform: scale(0.95);
+}
+
+/* Control Actions */
+.control-actions {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.control-button {
+  flex: 1;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.control-button svg {
+  font-size: 20px;
+}
+
+.control-button.all-on {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.control-button.all-on:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+}
+
+.control-button.all-off {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.control-button.all-off:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  transform: translateY(-2px);
+}
+
+.control-button:active {
+  transform: translateY(0);
+}
+
+/* Grid Layout */
+.sensors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+/* Loading and Empty States */
+.loading-state,
+.no-sensors {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+  font-size: 15px;
+}
+
+/* Device Card */
+.device-card {
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.device-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #e2e8f0 0%, #cbd5e1 100%);
+  transition: all 0.3s ease;
+}
+
+.device-card.active::before {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.device-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.device-card.active {
+  border-color: #86efac;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+}
+
+/* Device Icon and Name */
+.device-icon-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.device-type-icon {
+  font-size: 24px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+
+.device-type-icon.sprinkler-icon {
+  color: #2563eb;
+  background: #dbeafe;
+}
+
+.device-type-icon.fan-icon {
+  color: #6366f1;
+  background: #e0e7ff;
+}
+
+.device-card.active .device-type-icon.sprinkler-icon {
+  color: #2563eb;
+  background: #bfdbfe;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.device-card.active .device-type-icon.fan-icon {
+  color: #6366f1;
+  background: #c7d2fe;
+  animation: spin 3s linear infinite;
+}
+
+/* Device Status */
+.device-status {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Device Info Grid */
+.device-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.info-item {
+  background: #fafbfc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.info-item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.info-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Inter', sans-serif;
+}
+
+.info-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  align-items: center;
+}
+
+/* Toggle Button */
+.toggle-button {
+  width: 100%;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  margin-top: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-button svg {
+  font-size: 18px;
+}
+
+.toggle-button.turn-on {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.toggle-button.turn-on:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+}
+
+.toggle-button.turn-off {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.toggle-button.turn-off:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+  transform: translateY(-2px);
+}
+
+.toggle-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #94a3b8;
+}
+
+.toggle-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .control-actions {
+    flex-direction: column;
+  }
+
+  .device-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sensors-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .greenhouse-main {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .control-button {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  .device-card {
+    padding: 16px;
+  }
+
+  .greenhouse-main {
+    padding: 20px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .control-actions,
+  .toggle-button,
+  .refresh-button {
+    display: none;
+  }
+}

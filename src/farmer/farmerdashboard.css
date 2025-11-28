@@ -1,0 +1,497 @@
+/* ============ FARMER DASHBOARD STYLES ============ */
+
+.farmer-dashboard {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ============ FARMER MAIN ============ */
+.farmer-main {
+  flex: 1;
+  background: #F5F5F5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.farmer-header {
+  background: white;
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #E0E0E0;
+}
+
+.farmer-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #000;
+  margin: 0;
+}
+
+.farmer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.farmer-search-box {
+  position: relative;
+}
+
+.farmer-search {
+  width: 300px;
+  padding: 8px 40px 8px 16px;
+  border: 2px solid #E0E0E0;
+  border-radius: 25px;
+  font-size: 14px;
+  background: #F9F9F9;
+  outline: none;
+}
+
+.farmer-search:focus {
+  border-color: #8BC34A;
+  background: white;
+}
+
+.farmer-search-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+}
+
+.farmer-bell {
+  font-size: 20px;
+  color: #666;
+  cursor: pointer;
+}
+
+/* ============ FARMER CONTENT ============ */
+.farmer-content {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 30px;
+  padding: 30px;
+  overflow-y: auto;
+}
+
+/* ============ LEFT SECTION ============ */
+.farmer-left-section {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+/* ============ CHART CARD ============ */
+.farmer-chart-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.chart-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #666;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.legend-dot.nitrogen { background: #2c3e50; }
+.legend-dot.phosphorus { background: #95a5a6; }
+.legend-dot.potassium { background: #8BC34A; }
+.legend-dot.ph { background: #27ae60; }
+
+.chart-container {
+  display: flex;
+  align-items: end;
+  height: 250px;
+  position: relative;
+}
+
+.chart-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 200px;
+  margin-right: 15px;
+  font-size: 12px;
+  color: #666;
+}
+
+.chart-bars {
+  display: flex;
+  justify-content: space-around;
+  align-items: end;
+  flex: 1;
+  height: 200px;
+  gap: 20px;
+}
+
+.bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.bars {
+  display: flex;
+  align-items: end;
+  gap: 3px;
+  height: 200px;
+}
+
+.bar {
+  width: 12px;
+  border-radius: 2px 2px 0 0;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  min-height: 20px;
+}
+
+.bar:hover {
+  opacity: 0.8;
+  transform: scale(1.1);
+}
+
+.nitrogen-bar { background: #2c3e50; }
+.phosphorus-bar { background: #95a5a6; }
+.potassium-bar { background: #8BC34A; }
+.ph-bar { background: #27ae60; }
+
+.bar-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* ============ SENSOR CARD ============ */
+.farmer-sensor-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.farmer-sensor-card h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 20px 0;
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.sensor-item {
+  padding: 16px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: transform 0.3s ease;
+}
+
+.sensor-item:hover {
+  transform: translateY(-2px);
+}
+
+.sensor-icon {
+  font-size: 24px;
+}
+
+.sensor-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.sensor-type {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+.sensor-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+}
+
+/* ============ RIGHT SECTION ============ */
+.farmer-right-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.farmer-calendar-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  height: fit-content;
+}
+
+/* ============ CALENDAR ============ */
+.calendar-header {
+  background: #8BC34A;
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.calendar-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.calendar-dates {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.calendar-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.calendar-date:hover {
+  background: #f0f0f0;
+}
+
+.calendar-date.today {
+  background: #8BC34A;
+  color: white;
+}
+
+.calendar-date.selected {
+  background: #2E5233;
+  color: white;
+}
+
+.date-number {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.date-day {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* ============ SCHEDULE ============ */
+.schedule-section {
+  margin-bottom: 24px;
+}
+
+.schedule-section h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 12px 0;
+}
+
+.schedule-timeline {
+  display: flex;
+  gap: 12px;
+}
+
+.timeline-hours {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  font-size: 12px;
+  color: #666;
+  width: 40px;
+}
+
+.schedule-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.schedule-item {
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: white;
+}
+
+.schedule-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.schedule-participants {
+  display: flex;
+  gap: 4px;
+}
+
+.participant {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+/* ============ REMINDER ============ */
+.reminder-section h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 4px 0;
+}
+
+.reminder-subtitle {
+  font-size: 12px;
+  color: #666;
+  margin: 0 0 12px 0;
+}
+
+.reminder-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reminder-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: white;
+}
+
+.reminder-icon {
+  font-size: 16px;
+}
+
+.reminder-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.reminder-title {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.reminder-time {
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+/* ============ RESPONSIVE DESIGN ============ */
+@media (max-width: 1200px) {
+  .farmer-content {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .sensor-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .farmer-header {
+    padding: 15px 20px;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .farmer-search {
+    width: 250px;
+  }
+  
+  .farmer-content {
+    padding: 20px;
+  }
+  
+  .sensor-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .calendar-dates {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .farmer-content {
+    padding: 15px;
+  }
+  
+  .farmer-search {
+    width: 200px;
+  }
+  
+  .chart-legend {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .sensor-grid {
+    grid-template-columns: 1fr;
+  }
+}

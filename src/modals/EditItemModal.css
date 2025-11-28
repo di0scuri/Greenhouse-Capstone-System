@@ -1,0 +1,13 @@
+/* Import or copy all styles from AddItemModal.css */
+@import './AddItemModal.css';
+
+/* Additional styles specific to EditItemModal if needed */
+.edit-modal-container {
+  /* Any specific styling for edit modal */
+}
+
+.edit-form-group {
+  /* Any specific form group styling for edit modal */
+}
+
+/* You can add more specific styles here if needed */

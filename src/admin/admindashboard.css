@@ -1,0 +1,724 @@
+/*Admin Dashboard CSS*/
+
+.dashboard-container-ad {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: auto;
+}
+
+/* ============ MAIN CONTENT ============ */
+.main-content {
+  flex: 1;
+  background: #f5f7fa;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.dashboard-header {
+  background: white;
+  padding: 24px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.header-left h1 {
+  font-size: 26px;
+  font-weight: 600;
+  color: #1f2937;
+  letter-spacing: -0.5px;
+}
+
+.date-text {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 400;
+  margin-top: 4px;
+}
+
+.time-text {
+  font-size: 13px;
+  color: #9ca3af;
+  font-weight: 400;
+  margin-top: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.search-container-ad {
+  position: relative;
+}
+
+.search-input-ad {
+    width: 320px;
+    padding: 10px 42px 10px 18px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #ffffff;
+    outline: none;
+    transition: all 0.2s ease;
+} 
+
+.search-input-ad:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+} 
+
+.search-bar input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 14px;
+}
+
+.search-icon-ad {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.notification-btn {
+  position: relative;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.notification-btn:hover {
+  background: #f3f4f6;
+}
+
+.notification-icon {
+  font-size: 20px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-icon:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #e74c3c;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-icon {
+  font-size: 20px;
+  color: #7f8c8d;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.settings-icon:hover {
+  background: #f1f3f4;
+  transform: rotate(90deg);
+}
+
+/* ============ COSTING BODY ============ */
+.admindashboard-body {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+/* ============ TOP SECTION ============ */
+.admindashboard-top {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 30px;
+}
+
+/* ============ CONTENT AREA ============ */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  padding: 30px;
+  padding-bottom: 20px;
+}
+
+.stat-card {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.stat-content-ad {
+  flex: 1;
+}
+
+.stat-title {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 6px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-amount-10{
+  font-size: 22px;
+  font-weight: 600;
+  color: #1f2937;
+  font-family: 'Inter', -apple-system, sans-serif;
+}
+
+.loading-indicator {
+  font-size: 12px;
+  color: #95a5a6;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* ============ CONTENT GRID ============ */
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 30px;
+  padding: 0 30px 30px;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.content-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 20px;
+  letter-spacing: -0.3px;
+}
+
+/* ============ TASKS CARD ============ */
+.tasks-card {
+  padding: 24px;
+  overflow: auto;
+}
+
+.tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.task-item:hover {
+  border-color: #2E7D32;
+  background: #f0fdf4;
+}
+
+.task-checkbox {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 20px;
+}
+
+.task-checkbox:hover {
+  color: #2E7D32;
+}
+
+.task-text {
+  font-size: 14px;
+  color: #374151;
+  flex: 1;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.events-summary {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e1e8ed;
+  color: #7f8c8d;
+  font-size: 13px;
+}
+
+/* ============ CHART CARD ============ */
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.chart-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Legend status with correct colors */
+.legend-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.status-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+.last-update {
+  font-size: 12px;
+  color: #95a5a6;
+  font-style: italic;
+  text-align: center;
+}
+
+/* ============ CHART CONTAINER - CENTERED ============ */
+.chart-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 20px 0;
+  flex: 1;
+  min-height: 350px;
+  position: relative;
+}
+
+/* Y-Axis for Chart - aligned with bars */
+.chart-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 280px;
+  padding-right: 12px;
+  padding-left: 8px;
+  margin-right: 16px;
+  border-right: 2px solid #e5e7eb;
+  flex-shrink: 0;
+  padding-bottom: 60px; /* Space for labels at bottom */
+}
+
+.y-axis-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 600;
+  text-align: right;
+  min-width: 35px;
+  line-height: 1;
+  padding-right: 8px;
+}
+
+/* Chart bars wrapper - to align with Y-axis */
+.chart-bars-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  max-width: 800px;
+}
+
+/* Chart bars - CENTERED and aligned with Y-axis */
+.chart-bars {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 32px;
+  height: 280px; /* Must match Y-axis height exactly */
+  padding-bottom: 60px; /* Same as Y-axis padding for alignment */
+  flex: 1;
+  max-width: 800px;
+  position: relative;
+}
+
+/* Add a baseline indicator */
+.chart-bars::after {
+  content: '';
+  position: absolute;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #e5e7eb;
+  z-index: 0;
+}
+
+.bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 220px; /* Height for actual bars (280px - 60px padding) */
+  position: relative;
+}
+
+/* Individual bars - aligned to bottom */
+.bar {
+  position: relative;
+  width: 22px;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  min-height: 3px; /* Very small minimum for low values */
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.bar:hover {
+  opacity: 0.85;
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Bar value on hover */
+.bar-value-hover {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.bar:hover .bar-value-hover {
+  opacity: 1;
+}
+
+/* Sensor labels - PROPERLY AT THE BOTTOM */
+.bar-label {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.4;
+  margin-top: 12px;
+  width: 100%;
+  word-wrap: break-word;
+  white-space: nowrap;
+}
+
+.bar-label small {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  display: block;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.chart-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #95a5a6;
+  font-size: 14px;
+  font-style: italic;
+  min-height: 300px;
+}
+
+/* ============ RESPONSIVE DESIGN ============ */
+@media (max-width: 1200px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .chart-bars {
+    gap: 24px;
+  }
+  
+  .bar {
+    width: 20px;
+  }
+
+  .legend-status {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+    margin-top: 8px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-container-ad {
+    flex-direction: column;
+  }
+  
+  .dashboard-header {
+    padding: 15px 20px;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .search-input-ad {
+    width: 200px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    padding: 20px;
+  }
+
+  .chart-y-axis {
+    height: 240px;
+    padding-bottom: 55px;
+  }
+
+  .chart-bars {
+    height: 240px;
+    gap: 20px;
+    padding-bottom: 55px;
+  }
+
+  .chart-bars::after {
+    bottom: 55px;
+  }
+
+  .bars {
+    height: 185px;
+    gap: 4px;
+  }
+
+  .y-axis-label {
+    font-size: 11px;
+    min-width: 30px;
+  }
+  
+  .content-grid {
+    padding: 0 20px 20px;
+  }
+
+  .bar {
+    width: 18px;
+  }
+
+  .bar-label {
+    font-size: 11px;
+  }
+
+  .bar-label small {
+    font-size: 10px;
+  }
+
+  .chart-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 15px;
+  }
+  
+  .content-grid {
+    gap: 15px;
+    padding: 0 15px 15px;
+  }
+  
+  .search-input-ad {
+    width: 150px;
+  }
+
+  .header-left h1 {
+    font-size: 20px;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .stat-title {
+    font-size: 12px;
+  }
+
+  .stat-amount-10 {
+    font-size: 16px;
+  }
+
+  .chart-y-axis {
+    height: 220px;
+    padding-bottom: 50px;
+  }
+
+  .chart-bars {
+    height: 220px;
+    gap: 16px;
+    overflow-x: auto;
+    padding: 0 12px 50px 12px;
+  }
+
+  .chart-bars::after {
+    bottom: 50px;
+  }
+
+  .bars {
+    height: 170px;
+  }
+
+  .bar {
+    width: 16px;
+  }
+
+  .bar-label {
+    font-size: 10px;
+  }
+
+  .bar-label small {
+    font-size: 9px;
+  }
+}
