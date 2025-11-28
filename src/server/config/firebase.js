@@ -1,64 +1,32 @@
-// server/config/firebase.js
+// src/server/config/firebase.js - SAFE VERSION
 import admin from 'firebase-admin';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { readFileSync } from 'fs';
+import dotenv from 'dotenv';
 
-// ES modules don't have __dirname, so recreate it
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+dotenv.config();
 
-// Load service account key from project root
-const serviceAccountPath = join(__dirname, '../../serviceAccountKey.json');
+// ✅ SAFE - Uses environment variables
+const serviceAccount = {
+  type: "service_account",
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  client_email: process.env.FIREBASE_CLIENT_EMAIL,
+  client_id: process.env.FIREBASE_CLIENT_ID,
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+  client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
+  universe_domain: "googleapis.com"
+};
 
-try {
-  const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
-  
-  // Initialize Firebase Admin (only if not already initialized)
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: "https://greenhouse-management-sy-7713b-default-rtdb.firebaseio.com"
-    });
-    console.log('✅ Firebase Admin initialized successfully');
-    console.log('📊 Realtime Database: https://greenhouse-management-sy-7713b-default-rtdb.firebaseio.com');
-    console.log('🗄️  Firestore: greenhouse-management-sy-7713b');
-  } else {
-    console.log('ℹ️  Firebase Admin already initialized');
-  }
-} catch (error) {
-  console.error('❌ Error initializing Firebase Admin:', error.message);
-  console.error('\n📋 Setup Instructions:');
-  console.error('1. Go to: https://console.firebase.google.com/project/greenhouse-management-sy-7713b/settings/serviceaccounts/adminsdk');
-  console.error('2. Click "Generate new private key"');
-  console.error('3. Save the downloaded file as "serviceAccountKey.json" in your project root');
-  console.error('\nProject structure should be:');
-  console.error('your-project/');
-  console.error('├── serviceAccountKey.json  ← Place here');
-  console.error('├── server/');
-  console.error('│   ├── config/');
-  console.error('│   │   └── firebase.js     ← This file');
-  console.error('│   └── server.js');
-  console.error('└── src/');
-  process.exit(1);
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: process.env.FIREBASE_DATABASE_URL
+  });
 }
 
-// Get Firestore instance (for user data)
 const db = admin.firestore();
-
-// Get Realtime Database instance (for sensor readings)
 const realtimeDb = admin.database();
 
-// Optional: Set Firestore settings
-db.settings({
-  timestampsInSnapshots: true
-});
-
-console.log('✅ Firestore connected - for user data (Admin/Farmer)');
-console.log('✅ Realtime Database connected - for sensor readings (SoilSensor)');
-
-export { 
-  admin,        // Firebase Admin SDK
-  db,           // Firestore (for users collection)
-  realtimeDb    // Realtime Database (for SoilSensor path)
-};
+export { admin, db, realtimeDb };
