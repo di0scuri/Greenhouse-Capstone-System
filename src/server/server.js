@@ -107,11 +107,17 @@ app.get('/api/test/latest-reading', async (req, res) => {
 // ========================
 
 // Serve the static files from the React build folder (Vite dist)
-app.use(express.static(path.join(__dirname, 'dist')));
+// The dist folder should be at the project root after build
+const distPath = path.join(__dirname, '..', '..', 'dist');
+app.use(express.static(distPath));
 
-// For all other routes, serve index.html (this handles React Router)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+// For all other routes not starting with /api, serve index.html (this handles React Router)
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(distPath, 'index.html'));
+  } else {
+    next();
+  }
 });
 
 // ========================
