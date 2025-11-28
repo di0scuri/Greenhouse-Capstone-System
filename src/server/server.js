@@ -35,11 +35,6 @@ app.use('/api/analytics', analyticsRoutes);
 // API Endpoints
 // ========================
 
-// Root route to serve the React app's index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -108,6 +103,18 @@ app.get('/api/test/latest-reading', async (req, res) => {
 });
 
 // ========================
+// Serve Frontend (MUST come AFTER API routes)
+// ========================
+
+// Serve the static files from the React build folder (Vite dist)
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// For all other routes, serve index.html (this handles React Router)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// ========================
 // Graceful Shutdown
 // ========================
 process.on('SIGINT', () => {
@@ -121,18 +128,6 @@ process.on('SIGTERM', () => {
   console.log('\nShutting down gracefully...');
   unsubscribe();
   process.exit(0);
-});
-
-// ========================
-// Serve Frontend
-// ========================
-
-// Serve the static files from the React build folder (Vite dist)
-app.use(express.static(path.join(__dirname, 'dist')));
-
-// For all other routes, serve index.html (this is important for SPAs like React)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // ========================
