@@ -26,6 +26,9 @@ const Settings = ({ userType = 'admin' }) => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [popup, setPopup] = useState({ show: false, message: '', type: 'success' })
   const [error, setError] = useState('')
   const [addUserData, setAddUserData] = useState({
     displayName: '',
@@ -76,6 +79,36 @@ const Settings = ({ userType = 'admin' }) => {
     
     return matchesSearch && matchesFilter
   })
+
+  const showPopup = (message, type = 'success') => {
+    setPopup({ show: true, message, type })
+  }
+
+  const closePopup = () => {
+    setPopup({ show: false, message: '', type: 'success' })
+  }
+
+  // Custom Popup Component - Add after imports, before Settings component
+const CustomPopup = ({ message, type = 'success', onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose()
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [onClose])
+
+  return (
+    <div className="custom-popup-overlay">
+      <div className={`custom-popup ${type}`}>
+        <div className="popup-icon">
+          {type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}
+        </div>
+        <p className="popup-message">{message}</p>
+        <button className="popup-close" onClick={onClose}>×</button>
+      </div>
+    </div>
+  )
+}
 
   // Calculate user counts for each filter
   const userCounts = {
@@ -173,7 +206,7 @@ const Settings = ({ userType = 'admin' }) => {
     return cleaned
   }
 
-  const handleCreateUser = async () => {
+ const handleCreateUser = async () => {
     if (!addUserData.displayName.trim() || !addUserData.email.trim() || !addUserData.mobile.trim() || !addUserData.password.trim() || !addUserData.confirmPassword.trim()) {
       setError('Please fill in all required fields')
       return
@@ -194,21 +227,23 @@ const Settings = ({ userType = 'admin' }) => {
       return
     }
 
+    // Confirmation dialog
+    const confirmCreate = window.confirm(
+      `Are you sure you want to create this user?\n\nName: ${addUserData.displayName}\nEmail: ${addUserData.email}\nRole: ${addUserData.role}`
+    )
+    
+    if (!confirmCreate) return
+
     setAddUserLoading(true)
     setError('')
 
-    // Save current user's auth state
     const currentUser = auth.currentUser
 
     try {
-      // Create a secondary Firebase app instance to avoid logging out the current user
       const firebaseConfig = auth.app.options
-      
-      // Create temporary app for user creation
       const secondaryApp = initializeApp(firebaseConfig, 'Secondary')
       const secondaryAuth = getAuth(secondaryApp)
 
-      // Create user with secondary auth instance
       const userCredential = await createUserWithEmailAndPassword(
         secondaryAuth,
         addUserData.email,
@@ -218,7 +253,6 @@ const Settings = ({ userType = 'admin' }) => {
       const newUser = userCredential.user
       const formattedMobile = formatMobileNumber(addUserData.mobile)
 
-      // Create user document in Firestore
       const userDocData = {
         displayName: addUserData.displayName,
         email: addUserData.email,
@@ -231,14 +265,9 @@ const Settings = ({ userType = 'admin' }) => {
       }
 
       await setDoc(doc(db, 'users', newUser.uid), userDocData)
-
-      // Sign out the newly created user from secondary auth
       await signOut(secondaryAuth)
-      
-      // Delete the secondary app
       await secondaryApp.delete()
 
-      // Update local state
       const userToAdd = {
         id: newUser.uid,
         ...userDocData,
@@ -250,11 +279,11 @@ const Settings = ({ userType = 'admin' }) => {
       setUsers(prev => [...prev, userToAdd])
       handleCloseModal()
 
-      alert('User created successfully! The new user can now log in with their credentials.')
+      // Show custom popup instead of alert
+      showPopup(`User "${addUserData.displayName}" created successfully!`, 'success')
     } catch (error) {
       console.error('Error creating user:', error)
       
-      // Handle specific Firebase Auth errors
       if (error.code === 'auth/email-already-in-use') {
         setError('Email is already in use')
       } else if (error.code === 'auth/invalid-email') {
@@ -282,23 +311,33 @@ const Settings = ({ userType = 'admin' }) => {
   }, [showFilterDropdown])
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return
+    const user = users.find(u => u.id === userId)
+    
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete this user?\n\nName: ${user?.displayName || 'Unknown'}\nEmail: ${user?.email || 'Unknown'}\n\nThis action cannot be undone.`
+    )
+    
+    if (!confirmDelete) return
 
     try {
       await deleteDoc(doc(db, 'users', userId))
       setUsers(prev => prev.filter(user => user.id !== userId))
       setSelectedUsers(prev => prev.filter(id => id !== userId))
-      alert('User deleted successfully')
+      showPopup('User deleted successfully', 'success')
     } catch (error) {
       console.error('Error deleting user:', error)
-      alert('Failed to delete user. Please try again.')
+      showPopup('Failed to delete user. Please try again.', 'error')
     }
-  }
+}
 
   const handleBulkDelete = async () => {
     if (selectedUsers.length === 0) return
     
-    if (!window.confirm(`Are you sure you want to delete ${selectedUsers.length} user(s)?`)) return
+    const confirmBulkDelete = window.confirm(
+      `Are you sure you want to delete ${selectedUsers.length} user(s)?\n\nThis action cannot be undone.`
+    )
+    
+    if (!confirmBulkDelete) return
 
     try {
       const deletePromises = selectedUsers.map(userId => 
@@ -309,10 +348,10 @@ const Settings = ({ userType = 'admin' }) => {
       
       setUsers(prev => prev.filter(user => !selectedUsers.includes(user.id)))
       setSelectedUsers([])
-      alert(`Successfully deleted ${selectedUsers.length} user(s)`)
+      showPopup(`Successfully deleted ${selectedUsers.length} user(s)`, 'success')
     } catch (error) {
       console.error('Error deleting users:', error)
-      alert('Failed to delete some users. Please try again.')
+      showPopup('Failed to delete some users. Please try again.', 'error')
     }
   }
 
@@ -573,28 +612,46 @@ const Settings = ({ userType = 'admin' }) => {
 
               <div className="form-group">
                 <label>Password *</label>
-                <input
-                  type="password"
-                  value={addUserData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className="form-input"
-                  placeholder="Enter password (min. 6 characters)"
-                  minLength="6"
-                  required
-                />
+                <div className="password-input-wrapper">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={addUserData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    className="form-input"
+                    placeholder="Enter password (min. 6 characters)"
+                    minLength="6"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                  </button>
+                </div>
               </div>
 
               <div className="form-group">
                 <label>Confirm Password *</label>
-                <input
-                  type="password"
-                  value={addUserData.confirmPassword}
-                  onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                  className="form-input"
-                  placeholder="Confirm password"
-                  minLength="6"
-                  required
-                />
+                <div className="password-input-wrapper">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={addUserData.confirmPassword}
+                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                    className="form-input"
+                    placeholder="Confirm password"
+                    minLength="6"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+                  </button>
+                </div>
                 {addUserData.password && addUserData.confirmPassword && addUserData.password !== addUserData.confirmPassword && (
                   <small className="password-mismatch">Passwords do not match</small>
                 )}
@@ -634,7 +691,16 @@ const Settings = ({ userType = 'admin' }) => {
           </div>
         </div>
       )}
+
+      {popup.show && (
+        <CustomPopup
+          message={popup.message}
+          type={popup.type}
+          onClose={closePopup}
+        />
+      )}
     </div>
+    
   )
 }
 

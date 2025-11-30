@@ -171,7 +171,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, userType = 'admin' }) => {
         { name: 'Planting', icon: RiSeedlingLine },
         { name: 'Sensors', icon: AiOutlineDatabase },
         { name: 'Plant List', icon: HiOutlineClipboardList },
-        { name: 'Settings', icon: HiOutlineCog },
+        { name: 'User Management', icon: HiOutlineCog },
       ]
     }
   }

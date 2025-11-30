@@ -566,6 +566,129 @@ html, body {
   font-weight: 500;
 }
 
+.password-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-input-wrapper .form-input {
+  padding-right: 45px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: #0f172a;
+}
+
+
+.custom-popup-overlay {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  animation: slideInRight 0.3s ease-out;
+}
+
+.custom-popup {
+  background: white;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 320px;
+  max-width: 400px;
+  border-left: 4px solid;
+  position: relative;
+}
+
+.custom-popup.success {
+  border-left-color: #10b981;
+}
+
+.custom-popup.error {
+  border-left-color: #ef4444;
+}
+
+.custom-popup.info {
+  border-left-color: #3b82f6;
+}
+
+.popup-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.custom-popup.success .popup-icon {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.custom-popup.error .popup-icon {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.custom-popup.info .popup-icon {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.popup-message {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0f172a;
+  font-family: 'Inter', sans-serif;
+}
+
+.popup-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.popup-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -685,6 +808,17 @@ html, body {
     font-size: 10px;
   }
 
+  .custom-popup-overlay {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+  }
+
+  .custom-popup {
+    min-width: auto;
+    width: 100%;
+  }
+
   /* Hide more columns on very small screens */
   .settings-table-header .header-cell:nth-child(5),
   .settings-table-header .header-cell:nth-child(6),
@@ -717,6 +851,17 @@ html, body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
 
