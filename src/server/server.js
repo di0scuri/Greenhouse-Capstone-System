@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 
 import { db, realtimeDb } from './config/firebase.js';
 import alertService from './services/smsAlertService.js';
-import analyticsRoutes from './services/analyticsRoutes.js';
+import plantAgeScheduler from './services/plantAgeScheduler.js';
 
 const app = express();
 
@@ -28,8 +28,11 @@ console.log('SMS Alert Service is active - monitoring for new sensor readings...
 // Setup alert routes
 alertService.setupAlertRoute(app, realtimeDb, db);
 
-// Register analytics routes
-app.use('/api/analytics', analyticsRoutes);
+// Setup plant age scheduler
+console.log('Setting up plant age update scheduler...');
+plantAgeScheduler.setupDailyScheduler(db);
+plantAgeScheduler.setupRoutes(app, db);
+console.log('Plant Age Scheduler is active - will run daily at midnight');
 
 // ========================
 // API Endpoints
@@ -40,6 +43,7 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'Server is running',
     alertService: 'active',
+    plantAgeScheduler: 'active',
     timestamp: new Date().toISOString()
   });
 });
@@ -126,13 +130,15 @@ app.use((req, res, next) => {
 process.on('SIGINT', () => {
   console.log('\nShutting down gracefully...');
   unsubscribe();
-  console.log('Listener stopped');
+  plantAgeScheduler.stopScheduler();
+  console.log('Listeners and schedulers stopped');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   console.log('\nShutting down gracefully...');
   unsubscribe();
+  plantAgeScheduler.stopScheduler();
   process.exit(0);
 });
 
@@ -143,4 +149,7 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log('Services active:');
+  console.log('  ✓ SMS Alert Service (real-time monitoring)');
+  console.log('  ✓ Plant Age Scheduler (daily at midnight)');
 });
