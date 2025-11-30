@@ -2151,6 +2151,49 @@
     border-radius: 0;
   }
 
+  .harvest-confirm-btn {
+  background: #f59e0b;
+}
+
+.harvest-confirm-btn:hover {
+  background: #d97706;
+}
+
+/* Delete Button */
+.delete-btn {
+  background: #ef4444 !important;
+  color: white !important;
+  border-color: #ef4444 !important;
+}
+
+.delete-btn:hover {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
+/* Age Input Styles */
+.planting-form-group small {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.planting-form-group small.stage-indicator {
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border-left: 3px solid #10b981;
+  border-radius: 4px;
+  color: #065f46;
+  font-weight: 500;
+}
+
+.planting-form-group small strong {
+  color: #1e293b;
+  font-weight: 600;
+}
+
   .planting-modal-header {
     padding: 1.5rem 1rem 1rem;
   }

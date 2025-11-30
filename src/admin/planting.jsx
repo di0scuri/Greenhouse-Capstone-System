@@ -36,6 +36,7 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
   const [showAddPlotModal, setShowAddPlotModal] = useState(false)
+  const [jobOrderFilter, setJobOrderFilter] = useState('all')
   const [showFertilizerModal, setShowFertilizerModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showPriceModal, setShowPriceModal] = useState(false)
@@ -45,6 +46,7 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const [plantsList, setPlantsList] = useState({})
   const [loading, setLoading] = useState(true)
   const [isGeneratingJobOrders, setIsGeneratingJobOrders] = useState(false)
+  const [plantAge, setPlantAge] = useState(0)
   const [priceRecommendation, setPriceRecommendation] = useState(null)
   const [harvestData, setHarvestData] = useState({
     actualYield: '',
@@ -709,6 +711,7 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     setEditFormData({
       locationZone: plant.locationZone || '',
       status: plant.status || '',
+      age: (plant.age || 0).toString(),
       currentSellingPrice: plant.currentSellingPrice || '',
       unit: plant.unit || '',
       survivingPlants: (plant.survivingPlants ?? plant.recommendedSeedlings)?.toString() || ''
@@ -759,16 +762,50 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
           return
         }
 
+        // Calculate new stage if age changed
+        const newAge = parseInt(editFormData.age || selectedPlant.age || 0)
+        const plantInfo = plantsList[selectedPlant.plantType]
+        let newStage = editFormData.status
+        
+        if (newAge !== selectedPlant.age && plantInfo?.stages) {
+          const calculatedStage = getStageFromAge(newAge, plantInfo.stages)
+          if (calculatedStage) {
+            newStage = calculatedStage
+          }
+        }
+
         const plantRef = doc(db, 'plants', selectedPlant.id)
         const updateData = {
-          ...editFormData,
+          locationZone: editFormData.locationZone,
+          status: newStage,
+          age: newAge,
+          currentSellingPrice: editFormData.currentSellingPrice,
+          unit: editFormData.unit,
           survivingPlants: survivingPlants,
           updatedAt: serverTimestamp()
         }
 
+        // Track changes for event logging
+        const changes = []
+        
         if (selectedPlant.survivingPlants !== survivingPlants) {
           const previousCount = selectedPlant.survivingPlants ?? selectedPlant.recommendedSeedlings
           const difference = survivingPlants - previousCount
+          changes.push(`Plant count: ${previousCount} → ${survivingPlants} (${difference >= 0 ? '+' : ''}${difference})`)
+        }
+        
+        if (selectedPlant.age !== newAge) {
+          changes.push(`Age: ${selectedPlant.age || 0} → ${newAge} days`)
+        }
+        
+        if (selectedPlant.status !== newStage) {
+          changes.push(`Stage: ${selectedPlant.status} → ${newStage}`)
+        }
+
+        await updateDoc(plantRef, updateData)
+
+        // Create event if there are changes
+        if (changes.length > 0) {
           const survivalRate = calculateSurvivalRate({ 
             ...selectedPlant, 
             survivingPlants 
@@ -777,22 +814,18 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
           await addDoc(collection(db, 'events'), {
             plantId: selectedPlant.id,
             type: 'PLANT_UPDATE',
-            status: difference < 0 ? 'warning' : 'info',
-            message: `Plant count updated: ${previousCount} → ${survivingPlants} (${difference >= 0 ? '+' : ''}${difference})`,
+            status: 'info',
+            message: `Plant updated: ${changes.join(', ')}`,
             timestamp: serverTimestamp(),
             createdAt: serverTimestamp(),
             userId: userId,
             details: {
-              previousCount,
-              newCount: survivingPlants,
-              difference,
+              changes,
               survivalRate: `${survivalRate}%`,
               survivalRating: getSurvivalRateLabel(survivalRate)
             }
           })
         }
-
-        await updateDoc(plantRef, updateData)
         
         setPlantsData(prev =>
           prev.map(plant =>
@@ -806,6 +839,7 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
           type: 'success',
           title: 'Plant Updated',
           message: 'Plant information has been successfully updated.',
+          details: changes.map((change, i) => ({ label: `Change ${i + 1}`, value: change })),
           confirmText: 'OK'
         })
         
@@ -821,6 +855,19 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
         confirmText: 'OK'
       })
     }
+  }
+
+  const getStageFromAge = (plantAge, stages) => {
+    if (!stages || stages.length === 0) return null
+    
+    for (const stage of stages) {
+      if (plantAge >= stage.startDuration && plantAge <= stage.endDuration) {
+        return stage.stage
+      }
+    }
+    
+    // If age exceeds all stages, return last stage
+    return stages[stages.length - 1].stage
   }
 
   const handleOpenAddPlotModal = () => {
@@ -846,6 +893,7 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     setSelectedPlotNumber('')
     setSelectedSoilSensor('')
     setSelectedPlantType('')
+    setPlantAge(0) // Add this line
     setCustomPlotSize({ length: 30, width: 20 })
     setSensorData(null)
     setScanProgress(0)
@@ -1074,9 +1122,16 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
         return
       }
 
-      const plantedDate = new Date()
+      // Calculate planted date based on age
+      const currentDate = new Date()
+      const plantedDate = new Date(currentDate.getTime() - (plantAge * 24 * 60 * 60 * 1000))
+      
       const daysToHarvest = parseInt(plantInfo.daysToHarvest) || 30
-      const expectedHarvestDate = new Date(plantedDate.getTime() + daysToHarvest * 24 * 60 * 60 * 1000)
+      const remainingDaysToHarvest = Math.max(0, daysToHarvest - plantAge)
+      const expectedHarvestDate = new Date(currentDate.getTime() + remainingDaysToHarvest * 24 * 60 * 60 * 1000)
+
+      // Determine current stage based on age
+      const currentStage = getStageFromAge(plantAge, plantInfo.stages) || 'Germination'
 
       const formattedDate = plantedDate.toISOString().split('T')[0]
       const generatedPlantName = `${plantInfo.name} - Plot ${selectedPlotNumber} - ${formattedDate}`
@@ -1092,7 +1147,8 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
         recommendedSeedlings,
         survivingPlants: recommendedSeedlings,
         locationZone: 'Nursery 1',
-        status: 'Germination',
+        status: currentStage,
+        age: plantAge, // Store the age
         plantedDate: plantedDate.toISOString(),
         expectedHarvestDate: expectedHarvestDate.toISOString(),
         daysToHarvest: daysToHarvest,
@@ -1104,38 +1160,28 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
         description: plantInfo.description || '',
         stages: plantInfo.stages || [],
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         userId: userId
       }
 
       const docRef = await addDoc(collection(db, 'plants'), newPlant)
       
+      // Create initial stage event
       await addDoc(collection(db, 'events'), {
         plantId: docRef.id,
         type: 'LIFECYCLE_STAGE',
         status: 'info',
-        message: `Stage start: Germination for ${plantInfo.name} - ${plantedDate.toLocaleDateString()}`,
+        message: `Plant added at ${currentStage} stage (Day ${plantAge}) - ${plantInfo.name}`,
         timestamp: serverTimestamp(),
         createdAt: serverTimestamp(),
-        userId: userId
+        userId: userId,
+        details: {
+          age: plantAge,
+          stage: currentStage,
+          plantedDate: plantedDate.toLocaleDateString()
+        }
       })
 
-      if (plantInfo.stages && plantInfo.stages.length > 0) {
-        for (let i = 1; i < plantInfo.stages.length; i++) {
-          const stage = plantInfo.stages[i]
-          const stageDate = new Date(plantedDate.getTime() + stage.startDuration * 24 * 60 * 60 * 1000)
-          
-          await addDoc(collection(db, 'events'), {
-            plantId: docRef.id,
-            type: 'LIFECYCLE_STAGE',
-            status: 'info',
-            message: `Stage start: ${stage.stage} for ${plantInfo.name} - ${stageDate.toLocaleDateString()}`,
-            timestamp: stageDate.toISOString(),
-            createdAt: serverTimestamp(),
-            userId: userId
-          })
-        }
-      }
-      
       setPlantsData(prev => [...prev, { id: docRef.id, ...newPlant }])
       
       handleCloseAddPlotModal()
@@ -1143,14 +1189,17 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
       showAlert({
         type: 'success',
         title: 'Plot Added Successfully!',
-        message: `${plantInfo.name} has been planted in Plot ${selectedPlotNumber}.`,
+        message: `${plantInfo.name} has been added to Plot ${selectedPlotNumber}.`,
         details: [
           { label: 'Plant', value: plantInfo.name },
           { label: 'Plot', value: `Plot ${selectedPlotNumber}` },
           { label: 'Plot Size', value: displaySize },
+          { label: 'Age', value: `${plantAge} days old` },
+          { label: 'Current Stage', value: currentStage },
           { label: 'Seedlings', value: recommendedSeedlings.toString() },
+          { label: 'Planted Date', value: plantedDate.toLocaleDateString() },
           { label: 'Expected Harvest', value: expectedHarvestDate.toLocaleDateString() },
-          { label: 'Days to Harvest', value: `${daysToHarvest} days` }
+          { label: 'Days to Harvest', value: `${remainingDaysToHarvest} days` }
         ],
         confirmText: 'View Plants'
       })
@@ -1427,6 +1476,57 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
       })
     }
   }
+
+  const handleDeletePlant = async (plant) => {
+    showAlert({
+      type: 'warning',
+      title: 'Delete Plant?',
+      message: `Are you sure you want to permanently delete "${plant.plantName}"? This action cannot be undone.`,
+      details: [
+        { label: 'Plant', value: plant.plantName },
+        { label: 'Plot', value: `Plot ${plant.plotNumber}` },
+        { label: 'Stage', value: plant.status },
+        { label: 'Age', value: `${plant.age || 0} days` }
+      ],
+      showCancel: true,
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          // Delete plant document
+          await deleteDoc(doc(db, 'plants', plant.id))
+          
+          // Delete associated events
+          const eventsQuery = query(collection(db, 'events'), where('plantId', '==', plant.id))
+          const eventsSnapshot = await getDocs(eventsQuery)
+          const deletePromises = eventsSnapshot.docs.map(doc => deleteDoc(doc.ref))
+          await Promise.all(deletePromises)
+          
+          // Update local state
+          setPlantsData(prev => prev.filter(p => p.id !== plant.id))
+          
+          closeAlert()
+          showAlert({
+            type: 'success',
+            title: 'Plant Deleted',
+            message: `${plant.plantName} and all associated records have been deleted.`,
+            confirmText: 'OK'
+          })
+        } catch (error) {
+          console.error('Error deleting plant:', error)
+          closeAlert()
+          showAlert({
+            type: 'error',
+            title: 'Delete Failed',
+            message: 'Failed to delete plant. Please try again.',
+            details: [{ label: 'Error', value: error.message }],
+            confirmText: 'OK'
+          })
+        }
+      }
+    })
+  }
+
 
   const handleOpenDetailModal = async (plant) => {
     setSelectedPlant(plant)
@@ -2076,7 +2176,7 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                   <div className="planting-card-footer" onClick={(e) => e.stopPropagation()}>
                     {plant.status === 'Harvested' ? (
                       <div className="harvested-badge">
-                        ✅ Harvested on {plant.harvestDate ? new Date(plant.harvestDate).toLocaleDateString() : 'N/A'}
+                        Harvested on {plant.harvestDate ? new Date(plant.harvestDate).toLocaleDateString() : 'N/A'}
                       </div>
                     ) : isReadyForHarvest ? (
                       <>
@@ -2084,13 +2184,20 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                           className="planting-card-btn harvest-btn"
                           onClick={() => handleOpenHarvestModal(plant)}
                         >
-                          🌾 Harvest
+                          Harvest
                         </button>
                         <button
                           className="planting-card-btn"
                           onClick={() => handleOpenEditModal(plant)}
                         >
                           Edit
+                        </button>
+                        <button
+                          className="planting-card-btn delete-btn"
+                          onClick={() => handleDeletePlant(plant)}
+                          style={{ background: '#ef4444' }}
+                        >
+                          Delete
                         </button>
                       </>
                     ) : (
@@ -2112,6 +2219,13 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                           onClick={() => handleOpenPriceModal(plant)}
                         >
                           Price
+                        </button>
+                        <button
+                          className="planting-card-btn delete-btn"
+                          onClick={() => handleDeletePlant(plant)}
+                          style={{ background: '#ef4444' }}
+                        >
+                          Delete
                         </button>
                       </>
                     )}
@@ -2138,6 +2252,35 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
               </div>
 
               <div className="planting-modal-body">
+                <div className="planting-form-group">
+                  <label>
+                    <MdCalendarToday style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                    Plant Age (Days) 🌱
+                  </label>
+                  <input
+                    type="number"
+                    name="age"
+                    value={editFormData.age}
+                    onChange={handleEditInputChange}
+                    className="planting-form-input"
+                    placeholder="Enter plant age in days"
+                    min="0"
+                  />
+                  {editFormData.age && plantsList[selectedPlant.plantType]?.stages && (
+                    <small style={{ 
+                      display: 'block', 
+                      marginTop: '0.5rem',
+                      padding: '8px',
+                      background: '#f0fdf4',
+                      borderLeft: '3px solid #10b981',
+                      borderRadius: '4px',
+                      color: '#065f46'
+                    }}>
+                      <strong>Stage for this age:</strong> {getStageFromAge(parseInt(editFormData.age), plantsList[selectedPlant.plantType].stages) || 'Unknown'}
+                    </small>
+                  )}
+                </div>
+
                 <div className="planting-form-group">
                   <label>
                     <MdLocalFlorist style={{ marginRight: '6px', verticalAlign: 'middle' }} />
@@ -2190,6 +2333,26 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                     <option value="">Select location</option>
                     {locationZoneOptions.map(option => (
                       <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="planting-form-group">
+                  <label>
+                    <MdEco style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                    Current Stage
+                  </label>
+                  <select
+                    name="status"
+                    value={editFormData.status}
+                    onChange={handleEditInputChange}
+                    className="planting-form-select"
+                  >
+                    <option value="">Select stage</option>
+                    {plantsList[selectedPlant.plantType]?.stages?.map(stage => (
+                      <option key={stage.stage} value={stage.stage}>
+                        {stage.stage} (Day {stage.startDuration}-{stage.endDuration})
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -2452,33 +2615,72 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                         </div>
 
                         {selectedPlantType && plantsList[selectedPlantType] && (
-                          <div className="plant-info-display">
-                            <h3>Plant Information</h3>
-                            <div className="plant-info-grid">
-                              <div className="plant-info-item">
-                                <span className="info-label">Scientific Name:</span>
-                                <span className="info-value">{plantsList[selectedPlantType].sName}</span>
-                              </div>
-                              <div className="plant-info-item">
-                                <span className="info-label">Description:</span>
-                                <span className="info-value">{plantsList[selectedPlantType].description}</span>
-                              </div>
-                              <div className="plant-info-item">
-                                <span className="info-label">Days to Harvest:</span>
-                                <span className="info-value">{plantsList[selectedPlantType].daysToHarvest} days</span>
-                              </div>
-                              <div className="plant-info-item">
-                                <span className="info-label">Recommended Seedlings:</span>
-                                <span className="info-value highlight">{recommendedSeedlings} seedlings</span>
-                              </div>
-                              <div className="plant-info-item">
-                                <span className="info-label">Market Price:</span>
-                                <span className="info-value">
-                                  ₱{plantsList[selectedPlantType].pricing} {plantsList[selectedPlantType].pricingUnit}
-                                </span>
+                          <>
+                            <div className="planting-form-group">
+                              <label>
+                                <MdCalendarToday style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                                Plant Age (Days Since Planted)
+                              </label>
+                              <input
+                                type="number"
+                                value={plantAge}
+                                onChange={(e) => {
+                                  const age = parseInt(e.target.value) || 0
+                                  setPlantAge(age)
+                                }}
+                                className="planting-form-input"
+                                placeholder="Enter plant age in days"
+                                min="0"
+                                max={plantsList[selectedPlantType].daysToHarvest || 365}
+                              />
+                              <small style={{ display: 'block', marginTop: '0.5rem', color: '#666' }}>
+                                {plantAge === 0 
+                                  ? 'Enter 0 if planting seeds/seedlings today' 
+                                  : `Plant is ${plantAge} day${plantAge !== 1 ? 's' : ''} old`}
+                              </small>
+                              {plantAge > 0 && plantsList[selectedPlantType].stages && (
+                                <small style={{ 
+                                  display: 'block', 
+                                  marginTop: '0.5rem', 
+                                  padding: '8px',
+                                  background: '#f0fdf4',
+                                  borderLeft: '3px solid #10b981',
+                                  borderRadius: '4px',
+                                  color: '#065f46'
+                                }}>
+                                  <strong>Current Stage:</strong> {getStageFromAge(plantAge, plantsList[selectedPlantType].stages) || 'Unknown'}
+                                </small>
+                              )}
+                            </div>
+
+                            <div className="plant-info-display">
+                              <h3>Plant Information</h3>
+                              <div className="plant-info-grid">
+                                <div className="plant-info-item">
+                                  <span className="info-label">Scientific Name:</span>
+                                  <span className="info-value">{plantsList[selectedPlantType].sName}</span>
+                                </div>
+                                <div className="plant-info-item">
+                                  <span className="info-label">Description:</span>
+                                  <span className="info-value">{plantsList[selectedPlantType].description}</span>
+                                </div>
+                                <div className="plant-info-item">
+                                  <span className="info-label">Days to Harvest:</span>
+                                  <span className="info-value">{plantsList[selectedPlantType].daysToHarvest} days</span>
+                                </div>
+                                <div className="plant-info-item">
+                                  <span className="info-label">Recommended Seedlings:</span>
+                                  <span className="info-value highlight">{recommendedSeedlings} seedlings</span>
+                                </div>
+                                <div className="plant-info-item">
+                                  <span className="info-label">Market Price:</span>
+                                  <span className="info-value">
+                                    ₱{plantsList[selectedPlantType].pricing} {plantsList[selectedPlantType].pricingUnit}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          </>
                         )}
 
                         <button
