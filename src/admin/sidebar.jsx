@@ -163,13 +163,13 @@ const Sidebar = ({ activeMenu, setActiveMenu, userType = 'admin' }) => {
       // Admin menu
       return [
         { name: 'Overview', icon: HiOutlineHome },
+        { name: 'Plant Management', icon: RiSeedlingLine },
+        { name: 'Calendar', icon: HiOutlineCalendar },
         { name: 'Inventory', icon: BsBox },
+        { name: 'Sensors', icon: AiOutlineDatabase },
         { name: 'Production', icon: HiOutlineChartBar },
         { name: 'Greenhouse', icon: GiGreenhouse },
-        { name: 'Calendar', icon: HiOutlineCalendar },
-        { name: 'Costing & Pricing', icon: HiOutlineCurrencyDollar },
-        { name: 'Planting', icon: RiSeedlingLine },
-        { name: 'Sensors', icon: AiOutlineDatabase },
+        { name: 'Costing & Pricing', icon: HiOutlineCurrencyDollar },        
         { name: 'Plant List', icon: HiOutlineClipboardList },
         { name: 'User Management', icon: HiOutlineCog },
       ]
