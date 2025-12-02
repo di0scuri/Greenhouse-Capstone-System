@@ -276,7 +276,7 @@ function generateAlertMessage(plant, plantRequirements, alerts) {
     message += `${index + 1}. ${alert.message}\n`;
   });
   
-  message += `\nPlease check your farm immediately.`;
+  message += `\nPlease check the system to see appropriate actions immediately.`;
   
   // SMS limit is typically 160 characters for single message
   // Semaphore allows longer messages but charges per segment (160 chars)

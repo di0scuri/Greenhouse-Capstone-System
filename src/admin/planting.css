@@ -493,7 +493,7 @@
   cursor: not-allowed;
 }
 
-/* Job Order Filter Styles */
+/* Job Order Filter */
 .job-order-filter {
   display: flex;
   align-items: center;
@@ -504,6 +504,7 @@
   margin: 0;
   font-size: 0.9em;
   color: #64748b;
+  font-weight: 500;
 }
 
 .job-order-filter select {
@@ -513,6 +514,8 @@
   font-size: 0.9em;
   cursor: pointer;
   transition: all 0.2s;
+  background: white;
+  color: #1e293b;
 }
 
 .job-order-filter select:hover {
@@ -523,6 +526,193 @@
   outline: none;
   border-color: #0ea5e9;
   box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+/* Job Order Timeline Item */
+.timeline-item.job-order-item {
+  background: transparent;
+}
+
+.job-order-card {
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.job-order-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Job Order Details */
+.job-order-details {
+  font-size: 0.85em;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.job-order-details > div {
+  margin-bottom: 6px;
+  padding: 4px 0;
+}
+
+.job-order-details strong {
+  color: #1e293b;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+/* Job Status Badges */
+.job-status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.job-status-badge.pending {
+  background: #3b82f6;
+  color: white;
+}
+
+.job-status-badge.in-progress {
+  background: #f59e0b;
+  color: white;
+}
+
+.job-status-badge.completed {
+  background: #10b981;
+  color: white;
+}
+
+.job-status-badge.cancelled {
+  background: #ef4444;
+  color: white;
+}
+
+/* Job Order Actions */
+.job-order-actions {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+  padding-top: 15px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.job-order-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.job-order-actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.job-order-actions button:active {
+  transform: translateY(0);
+}
+
+/* Job Order Generation Section */
+.job-order-section {
+  margin-top: 30px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 12px;
+  border: 2px solid #0ea5e9;
+}
+
+.job-order-section h4 {
+  color: #0369a1;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  font-size: 1.1em;
+}
+
+.job-order-section p {
+  font-size: 0.9em;
+  color: #475569;
+  margin-bottom: 15px;
+  line-height: 1.6;
+}
+
+.generate-job-order-btn {
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s;
+  box-shadow: 0 4px 6px rgba(14, 165, 233, 0.3);
+}
+
+.generate-job-order-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(14, 165, 233, 0.4);
+}
+
+.generate-job-order-btn:disabled {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.generate-job-order-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Application Schedule Styles */
+.applications-section {
+  padding: 0 20px 20px;
+}
+
+.applications-section h4 {
+  margin-bottom: 20px;
+  color: #0f172a;
+  font-size: 1.2em;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 10px;
+}
+
+.application-card {
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 2px solid #e2e8f0;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.application-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+
+/* Priority Badge */
+.application-card > div[style*="position: absolute"] {
+  animation: pulse 2s ease-in-out infinite;
 }
 
 /* Job Order Card Styles */
