@@ -2236,10 +2236,6 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
           )}
         </div>
 
-        {/* The rest of the modals will continue in the next part due to character limits... */}
-        // CONTINUATION OF PLANTING.JSX - MODALS SECTION
-// This should be appended after the planting grid closing div
-
         {/* Edit Modal - Updated with surviving plants */}
         {showEditModal && selectedPlant && (
           <div className="planting-modal-overlay" onClick={handleCloseEditModal}>

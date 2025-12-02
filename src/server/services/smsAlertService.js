@@ -454,10 +454,10 @@ export async function processSoilSensorAlert(sensorId, sensorData, db) {
 }
 
 /**
- * Setup API routes for sensor readings and alerts
+ * Setup API routes for sensor readings and alerts - MODIFIED FOR YOUR STRUCTURE
  */
 export function setupAlertRoute(app, realtimeDb, firestoreDb) {
-  // POST endpoint for sensor readings
+  // POST endpoint for sensor readings - SAVES TO YOUR STRUCTURE
   app.post('/api/soil-sensor/reading', async (req, res) => {
     try {
       const { sensorId, ...sensorData } = req.body;
@@ -466,21 +466,25 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
         return res.status(400).json({ error: 'sensorId is required' });
       }
 
-      const dataToSave = {
-        ...sensorData,
-        timestamp: sensorData.timestamp || new Date().toISOString()
-      };
+      // Save in YOUR existing structure: SoilSensor1/timestamp/data
+      const timestamp = new Date().toISOString()
+        .replace(/[:]/g, '_')
+        .replace(/\..+/, '');
       
-      // Save to Realtime Database under sensor ID
-      await realtimeDb.ref(`sensors/${sensorId}`).set(dataToSave);
-      console.log(`Sensor reading saved for ${sensorId}`);
+      await realtimeDb.ref(`${sensorId}/${timestamp}`).set(sensorData);
+      
+      console.log(`Sensor reading saved to ${sensorId}/${timestamp}`);
       
       // Process alerts
-      const alertResult = await processSoilSensorAlert(sensorId, dataToSave, firestoreDb);
+      const alertResult = await processSoilSensorAlert(sensorId, {
+        ...sensorData,
+        timestamp: timestamp
+      }, firestoreDb);
       
       res.json({
         success: true,
         sensorId,
+        timestamp,
         alertResult
       });
     } catch (error) {
@@ -498,15 +502,24 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
         return res.status(400).json({ error: 'sensorId is required' });
       }
 
-      const snapshot = await realtimeDb.ref(`sensors/${sensorId}`).once('value');
+      // Get latest reading from YOUR structure
+      const snapshot = await realtimeDb.ref(sensorId)
+        .orderByKey()
+        .limitToLast(1)
+        .once('value');
 
       if (!snapshot.exists()) {
         return res.json({ success: false, message: 'No sensor readings found' });
       }
 
-      const latestReading = snapshot.val();
+      const data = snapshot.val();
+      const latestTimestamp = Object.keys(data)[0];
+      const latestReading = data[latestTimestamp];
       
-      const alertResult = await processSoilSensorAlert(sensorId, latestReading, firestoreDb);
+      const alertResult = await processSoilSensorAlert(sensorId, {
+        ...latestReading,
+        timestamp: latestTimestamp
+      }, firestoreDb);
       
       res.json(alertResult);
     } catch (error) {
@@ -519,41 +532,57 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
 }
 
 /**
- * Setup real-time listener for sensor changes
+ * Setup real-time listener for sensor changes - MODIFIED FOR YOUR STRUCTURE
  */
 export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
-  console.log('[LISTENER] Setting up Realtime Database listener for sensors...');
+  console.log('[LISTENER] Setting up Realtime Database listener for soil sensors...');
   
-  const sensorsRef = realtimeDb.ref('sensors');
+  // List of sensors to monitor (based on your structure)
+  const sensorNames = ['SoilSensor1', 'SoilSensor2', 'SoilSensor3', 'SoilSensor4', 'SoilSensor5'];
   
-  // Listen for changes to any sensor
-  sensorsRef.on('child_changed', async (snapshot) => {
-    const sensorId = snapshot.key;
-    const sensorData = snapshot.val();
+  sensorNames.forEach(sensorName => {
+    const sensorRef = realtimeDb.ref(sensorName);
     
-    console.log(`\n[CHANGE] Sensor data changed: ${sensorId}`);
+    // Listen for new readings
+    sensorRef.on('child_added', async (snapshot) => {
+      const timestamp = snapshot.key;
+      const sensorData = snapshot.val();
+      
+      console.log(`\n[NEW READING] ${sensorName} at ${timestamp}:`);
+      console.log('Data:', sensorData);
+      
+      // Process with sensor ID and timestamp
+      await processSoilSensorAlert(sensorName, {
+        ...sensorData,
+        timestamp: timestamp,
+        sensorId: sensorName
+      }, firestoreDb);
+    });
     
-    // Process alerts for this sensor
-    await processSoilSensorAlert(sensorId, sensorData, firestoreDb);
+    // Also listen for updates to latest reading
+    sensorRef.on('child_changed', async (snapshot) => {
+      const timestamp = snapshot.key;
+      const sensorData = snapshot.val();
+      
+      console.log(`\n[UPDATED] ${sensorName} at ${timestamp}:`);
+      console.log('Data:', sensorData);
+      
+      await processSoilSensorAlert(sensorName, {
+        ...sensorData,
+        timestamp: timestamp,
+        sensorId: sensorName
+      }, firestoreDb);
+    });
   });
-
-  // Also listen for new sensors being added
-  sensorsRef.on('child_added', async (snapshot) => {
-    const sensorId = snapshot.key;
-    const sensorData = snapshot.val();
-    
-    console.log(`\n[NEW] New sensor reading: ${sensorId}`);
-    
-    // Process alerts for this sensor
-    await processSoilSensorAlert(sensorId, sensorData, firestoreDb);
-  });
   
-  console.log('[OK] Real-time listener active - monitoring ALL sensors');
+  console.log(`[OK] Real-time listener active - monitoring: ${sensorNames.join(', ')}`);
   console.log('   Alerts will be sent when thresholds are violated\n');
   
   return () => {
-    sensorsRef.off('child_changed');
-    sensorsRef.off('child_added');
+    sensorNames.forEach(sensorName => {
+      realtimeDb.ref(sensorName).off('child_added');
+      realtimeDb.ref(sensorName).off('child_changed');
+    });
     console.log('Real-time listener stopped');
   };
 }
