@@ -51,9 +51,18 @@ const Inventory = ({ userType = "admin" }) => {
       ).length;
 
       const lowStockItems = items.filter(
-        (item) =>
-          item.category?.toLowerCase() === activeTab.toLowerCase() &&
-          item.stock <= (item.lowStockThreshold || 10)
+        (item) => {
+          if (item.category?.toLowerCase() === activeTab.toLowerCase()) {
+            if (activeTab.toLowerCase() === "seed") {
+              // For seeds, check if packs are low
+              return (item.packs || 0) <= (item.lowStockThreshold || 5);
+            } else {
+              // For other items, use stock
+              return item.stock <= (item.lowStockThreshold || 10);
+            }
+          }
+          return false;
+        }
       ).length;
 
       const dates = items
@@ -225,8 +234,12 @@ const Inventory = ({ userType = "admin" }) => {
           <div className="inventory-table-container">
             <div className="table-header">
               <div className="table-cell">ITEM</div>
-              <div className="table-cell">STOCK</div>
-              <div className="table-cell">PRICE / UNIT</div>
+              <div className="table-cell">
+                {activeTab.toLowerCase() === "seed" ? "STOCK (PACKS)" : "STOCK"}
+              </div>
+              <div className="table-cell">
+                {activeTab.toLowerCase() === "seed" ? "PRICE / PACK" : "PRICE / UNIT"}
+              </div>
               <div className="table-cell">DATE ADDED</div>
               <div className="table-cell">EXPIRATION DATE</div>
               <div className="table-cell">STATUS</div>
@@ -251,10 +264,16 @@ const Inventory = ({ userType = "admin" }) => {
                   <div key={item.id} className="table-row">
                     <div className="table-cell item-name">{item.name}</div>
                     <div className="table-cell stock-info">
-                      {item.stock} {item.unit}
+                      {activeTab.toLowerCase() === "seed" 
+                        ? `${item.packs || 0} packs (${item.seedsPerPack || 0} seeds/pack)`
+                        : `${item.stock} ${item.unit}`
+                      }
                     </div>
                     <div className="table-cell price-info">
-                      ₱{item.pricePerUnit} / {item.unit}
+                      {activeTab.toLowerCase() === "seed"
+                        ? `₱${item.pricePerPack || 0} / pack`
+                        : `₱${item.pricePerUnit} / ${item.unit}`
+                      }
                     </div>
                     <div className="table-cell">
                       {item.dateAdded
@@ -273,12 +292,18 @@ const Inventory = ({ userType = "admin" }) => {
                     <div className="table-cell">
                       <span
                         className={`status-badge ${
-                          item.stock <= (item.lowStockThreshold || 10)
+                          activeTab.toLowerCase() === "seed"
+                            ? (item.packs || 0) <= (item.lowStockThreshold || 5)
+                              ? "low"
+                              : "sufficient"
+                            : item.stock <= (item.lowStockThreshold || 10)
                             ? "low"
                             : "sufficient"
                         }`}
                       >
-                        {item.stock <= (item.lowStockThreshold || 10) ? (
+                        {(activeTab.toLowerCase() === "seed" 
+                          ? (item.packs || 0) <= (item.lowStockThreshold || 5)
+                          : item.stock <= (item.lowStockThreshold || 10)) ? (
                           <>
                             <MdWarning style={{ marginRight: '4px' }} />
                             Low Stock

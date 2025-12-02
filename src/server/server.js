@@ -81,6 +81,34 @@ app.get('/api/test/recipients', async (req, res) => {
   }
 });
 
+
+// In server.js, add:
+app.get('/api/debug/sensors', async (req, res) => {
+  try {
+    const sensors = {};
+    
+    // Check all SoilSensorX
+    for (let i = 1; i <= 5; i++) {
+      const sensorName = `SoilSensor${i}`;
+      const snapshot = await realtimeDb.ref(sensorName)
+        .orderByKey()
+        .limitToLast(1)
+        .once('value');
+      
+      if (snapshot.exists()) {
+        sensors[sensorName] = snapshot.val();
+      }
+    }
+    
+    res.json({
+      availableSensors: Object.keys(sensors),
+      latestReadings: sensors
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Test endpoint to get latest sensor reading from Realtime Database
 app.get('/api/test/latest-reading', async (req, res) => {
   try {
