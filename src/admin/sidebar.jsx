@@ -163,7 +163,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, userType = 'admin' }) => {
       // Admin menu
       return [
         { name: 'Overview', icon: HiOutlineHome },
-        { name: 'Plant Management', icon: RiSeedlingLine },
+        { name: 'Planting', icon: RiSeedlingLine },
         { name: 'Calendar', icon: HiOutlineCalendar },
         { name: 'Inventory', icon: BsBox },
         { name: 'Sensors', icon: AiOutlineDatabase },
