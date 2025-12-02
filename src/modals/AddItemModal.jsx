@@ -1,16 +1,18 @@
 import React, { useState } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
-import "./AddItemModal.css"; // You'll need to create this CSS file
+import "./AddItemModal.css";
 
 const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
   const [formData, setFormData] = useState({
     name: "",
     stock: "",
     pricePerUnit: "",
-    unit: activeTab === "Seed" ? "Packs" : "kg",
+    unit: activeTab === "Seed" ? "packs" : "kg",
     expirationDate: "", // Only for seeds
     lowStockThreshold: "",
+    // Seed-specific custom fields
+    seedsPerPack: "", // Seeds per pack
     // Fertilizer specific fields
     n_percentage: "",
     p_percentage: "",
@@ -48,8 +50,13 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
       }
 
       // Seed specific validation
-      if (activeTab === "Seed" && !formData.expirationDate) {
-        throw new Error("Expiration date is required for seeds");
+      if (activeTab === "Seed") {
+        if (!formData.expirationDate) {
+          throw new Error("Expiration date is required for seeds");
+        }
+        if (!formData.seedsPerPack || formData.seedsPerPack <= 0) {
+          throw new Error("Seeds per pack is required");
+        }
       }
 
       // Fertilizer specific validation
@@ -84,7 +91,9 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
       if (activeTab === "Seed") {
         itemData = {
           ...baseItemData,
-          expirationDate: new Date(formData.expirationDate)
+          expirationDate: new Date(formData.expirationDate),
+          seedsPerPack: Number(formData.seedsPerPack),
+          totalSeeds: Number(formData.stock) * Number(formData.seedsPerPack) // Calculate total seeds
         };
       } else { // Fertilizers
         itemData = {
@@ -108,7 +117,11 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
         costOrValuePerUnit: Number(formData.pricePerUnit),
         unit: formData.unit,
         timestamp: currentTimestamp,
-        userId: "system" // You can replace this with actual user ID if available
+        userId: "system", // You can replace this with actual user ID if available
+        ...(activeTab === "Seed" && {
+          seedsPerPack: Number(formData.seedsPerPack),
+          totalSeedsChange: Number(formData.stock) * Number(formData.seedsPerPack)
+        })
       };
 
       await addDoc(collection(db, "inventory_log"), logData);
@@ -184,21 +197,45 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
               >
                 {activeTab === "Seed" ? (
                   <>
-                    <option value="Packs">Packs</option>
-                    <option value="Seedlings">Seedlings</option>
+                    <option value="packs">Packs</option>
+                    <option value="bags">Bags</option>
+                    <option value="packets">Packets</option>
                     <option value="kg">kg</option>
-                    <option value="Pieces">Pieces</option>
                   </>
                 ) : (
                   <>
                     <option value="kg">kg</option>
                     <option value="lbs">lbs</option>
                     <option value="bags">Bags</option>
+                    <option value="sacks">Sacks</option>
                   </>
                 )}
               </select>
             </div>
           </div>
+
+          {/* Seed-specific: Seeds per pack */}
+          {activeTab === "Seed" && (
+            <div className="form-group">
+              <label htmlFor="seedsPerPack">Seeds per Pack *</label>
+              <input
+                type="number"
+                id="seedsPerPack"
+                name="seedsPerPack"
+                value={formData.seedsPerPack}
+                onChange={handleInputChange}
+                placeholder="0"
+                min="0"
+                step="1"
+                required
+              />
+              <small className="form-hint">
+                {formData.stock && formData.seedsPerPack 
+                  ? `Total seeds: ${Number(formData.stock) * Number(formData.seedsPerPack)}`
+                  : "Enter stock and seeds per pack to see total"}
+              </small>
+            </div>
+          )}
 
           <div className="form-row">
             <div className="form-group">
