@@ -105,6 +105,19 @@
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 
+/* Form Hint Text */
+.form-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.form-hint:has(+ .form-hint) {
+  margin-bottom: 4px;
+}
+
 /* Form Rows */
 .form-row {
   display: grid;

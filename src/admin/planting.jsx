@@ -6,6 +6,7 @@ import './custom-alert.css'
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore'
 import { db, realtimeDb } from '../firebase'
 import { ref, get } from 'firebase/database'
+
 import {
   MdLocationOn,
   MdSearch,
@@ -414,6 +415,351 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     
     return rankedPlants.sort((a, b) => b.score - a.score)
   }
+
+
+  
+  const fetchAllPlantsWithSeedData = async () => {
+  try {
+    const plantsCollection = collection(db, 'plants')
+    const plantsSnapshot = await getDocs(plantsCollection)
+    
+    const plantsWithSeedData = await Promise.all(
+      plantsSnapshot.docs.map(async (doc) => {
+        const plantData = doc.data()
+        const seedData = await fetchPlantSeedData(doc.id)
+        
+        return {
+          id: doc.id,
+          ...plantData,
+          seedData
+        }
+      })
+    )
+    
+    return plantsWithSeedData
+  } catch (error) {
+    console.error('Error fetching plants with seed data:', error)
+    throw error
+  }
+}
+
+
+
+  const fetchPlantSeedData = async (plantId) => {
+  try {
+    const plantRef = doc(db, 'plants', plantId)
+    const plantDoc = await getDoc(plantRef)
+    
+    if (plantDoc.exists()) {
+      const plantData = plantDoc.data()
+      
+      return {
+        plantId: plantId,
+        plantName: plantData.plantName,
+        plotNumber: plantData.plotNumber,
+        
+        // Initial seeding data
+        initialSeedlings: plantData.recommendedSeedlings || 0,
+        plantedDate: plantData.plantedDate,
+        
+        // Current status
+        survivingPlants: plantData.survivingPlants ?? plantData.recommendedSeedlings,
+        survivalRate: calculateSurvivalRate(plantData),
+        
+        // Seed/Seedling details
+        seedType: plantData.plantType,
+        seedVariety: plantData.scientificName,
+        seedSource: plantData.seedSource || 'Not specified',
+        seedBatchNumber: plantData.seedBatchNumber || 'N/A',
+        seedCost: plantData.seedCost || 0,
+        
+        // Growth tracking
+        germinationRate: plantData.germinationRate || null,
+        germinationDate: plantData.germinationDate || null,
+        transplantDate: plantData.transplantDate || null,
+        
+        // Spacing and density
+        plantingDensity: plantData.recommendedSeedlings / (plantData.plotSizeM2 || 1),
+        spacing: `${plantData.minSpacing} - ${plantData.maxSpacing} cm`,
+        
+        // Stage information
+        currentStage: plantData.status,
+        age: plantData.age || 0,
+        
+        // Historical changes
+        plantCountHistory: plantData.plantCountHistory || []
+      }
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Error fetching plant seed data:', error)
+    throw error
+  }
+}
+
+const updatePlantSeedCount = async (plantId, newCount, reason = '') => {
+  try {
+    const plantRef = doc(db, 'plants', plantId)
+    const plantDoc = await getDoc(plantRef)
+    
+    if (!plantDoc.exists()) {
+      throw new Error('Plant not found')
+    }
+    
+    const plantData = plantDoc.data()
+    const previousCount = plantData.survivingPlants ?? plantData.recommendedSeedlings
+    const change = newCount - previousCount
+    
+    // Create history entry
+    const historyEntry = {
+      date: new Date().toISOString(),
+      previousCount,
+      newCount,
+      change,
+      reason,
+      recordedBy: userId
+    }
+    
+    // Update plant document
+    await updateDoc(plantRef, {
+      survivingPlants: newCount,
+      plantCountHistory: [...(plantData.plantCountHistory || []), historyEntry],
+      lastCountUpdate: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    })
+    
+    // Create event
+    await addDoc(collection(db, 'events'), {
+      plantId: plantId,
+      type: 'PLANT_COUNT_UPDATE',
+      status: change < 0 ? 'warning' : 'info',
+      message: `Plant count ${change >= 0 ? 'increased' : 'decreased'}: ${previousCount} → ${newCount} (${change >= 0 ? '+' : ''}${change})`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        previousCount,
+        newCount,
+        change,
+        reason,
+        survivalRate: ((newCount / plantData.recommendedSeedlings) * 100).toFixed(1) + '%'
+      }
+    })
+    
+    return historyEntry
+  } catch (error) {
+    console.error('Error updating plant seed count:', error)
+    throw error
+  }
+}
+
+const getSeedInventorySummary = async () => {
+  try {
+    const plantsSnapshot = await getDocs(collection(db, 'plants'))
+    
+    const summary = {
+      totalPlots: 0,
+      totalSeedlingsPlanted: 0,
+      totalSurvivingPlants: 0,
+      averageSurvivalRate: 0,
+      byPlantType: {},
+      byStage: {},
+      recentChanges: []
+    }
+    
+    const plants = []
+    
+    plantsSnapshot.forEach(doc => {
+      const plant = { id: doc.id, ...doc.data() }
+      plants.push(plant)
+      
+      summary.totalPlots++
+      summary.totalSeedlingsPlanted += plant.recommendedSeedlings || 0
+      summary.totalSurvivingPlants += plant.survivingPlants ?? plant.recommendedSeedlings
+      
+      // By plant type
+      const plantType = plant.plantType || 'Unknown'
+      if (!summary.byPlantType[plantType]) {
+        summary.byPlantType[plantType] = {
+          count: 0,
+          seedlings: 0,
+          surviving: 0,
+          survivalRate: 0
+        }
+      }
+      summary.byPlantType[plantType].count++
+      summary.byPlantType[plantType].seedlings += plant.recommendedSeedlings || 0
+      summary.byPlantType[plantType].surviving += plant.survivingPlants ?? plant.recommendedSeedlings
+      
+      // By stage
+      const stage = plant.status || 'Unknown'
+      if (!summary.byStage[stage]) {
+        summary.byStage[stage] = {
+          count: 0,
+          seedlings: 0,
+          surviving: 0
+        }
+      }
+      summary.byStage[stage].count++
+      summary.byStage[stage].seedlings += plant.recommendedSeedlings || 0
+      summary.byStage[stage].surviving += plant.survivingPlants ?? plant.recommendedSeedlings
+    })
+    
+    // Calculate average survival rate
+    summary.averageSurvivalRate = summary.totalSeedlingsPlanted > 0
+      ? ((summary.totalSurvivingPlants / summary.totalSeedlingsPlanted) * 100).toFixed(1)
+      : 0
+    
+    // Calculate survival rates by plant type
+    Object.keys(summary.byPlantType).forEach(type => {
+      const data = summary.byPlantType[type]
+      data.survivalRate = data.seedlings > 0
+        ? ((data.surviving / data.seedlings) * 100).toFixed(1)
+        : 0
+    })
+    
+    return summary
+  } catch (error) {
+    console.error('Error getting seed inventory summary:', error)
+    throw error
+  }
+}
+
+const recordGermination = async (plantId, germinationRate, germinationDate = new Date()) => {
+  try {
+    const plantRef = doc(db, 'plants', plantId)
+    
+    await updateDoc(plantRef, {
+      germinationRate: germinationRate,
+      germinationDate: germinationDate.toISOString(),
+      updatedAt: serverTimestamp()
+    })
+    
+    await addDoc(collection(db, 'events'), {
+      plantId: plantId,
+      type: 'GERMINATION_RECORDED',
+      status: 'success',
+      message: `Germination recorded: ${germinationRate}% germination rate`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        germinationRate: `${germinationRate}%`,
+        germinationDate: germinationDate.toLocaleDateString()
+      }
+    })
+    
+    return true
+  } catch (error) {
+    console.error('Error recording germination:', error)
+    throw error
+  }
+}
+
+const recordTransplant = async (plantId, survivingCount, transplantDate = new Date()) => {
+  try {
+    const plantRef = doc(db, 'plants', plantId)
+    const plantDoc = await getDoc(plantRef)
+    
+    if (!plantDoc.exists()) {
+      throw new Error('Plant not found')
+    }
+    
+    const plantData = plantDoc.data()
+    const previousCount = plantData.survivingPlants ?? plantData.recommendedSeedlings
+    
+    await updateDoc(plantRef, {
+      survivingPlants: survivingCount,
+      transplantDate: transplantDate.toISOString(),
+      updatedAt: serverTimestamp()
+    })
+    
+    await addDoc(collection(db, 'events'), {
+      plantId: plantId,
+      type: 'TRANSPLANT_RECORDED',
+      status: 'info',
+      message: `Transplanted: ${survivingCount} seedlings survived transplanting`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        beforeTransplant: previousCount,
+        afterTransplant: survivingCount,
+        transplantLoss: previousCount - survivingCount,
+        transplantDate: transplantDate.toLocaleDateString(),
+        survivalRate: ((survivingCount / plantData.recommendedSeedlings) * 100).toFixed(1) + '%'
+      }
+    })
+    
+    return true
+  } catch (error) {
+    console.error('Error recording transplant:', error)
+    throw error
+  }
+}
+
+const exportSeedDataToCSV = async () => {
+  try {
+    const plants = await fetchAllPlantsWithSeedData()
+    
+    const headers = [
+      'Plant Name',
+      'Plot Number',
+      'Plant Type',
+      'Planted Date',
+      'Initial Seedlings',
+      'Surviving Plants',
+      'Survival Rate (%)',
+      'Current Stage',
+      'Age (days)',
+      'Seed Source',
+      'Batch Number',
+      'Germination Rate (%)',
+      'Germination Date',
+      'Transplant Date'
+    ]
+    
+    const rows = plants.map(plant => [
+      plant.plantName || '',
+      plant.plotNumber || '',
+      plant.plantType || '',
+      plant.plantedDate ? new Date(plant.plantedDate).toLocaleDateString() : '',
+      plant.recommendedSeedlings || 0,
+      plant.survivingPlants ?? plant.recommendedSeedlings,
+      plant.seedData?.survivalRate || 0,
+      plant.status || '',
+      plant.age || 0,
+      plant.seedSource || '',
+      plant.seedBatchNumber || '',
+      plant.germinationRate || '',
+      plant.germinationDate ? new Date(plant.germinationDate).toLocaleDateString() : '',
+      plant.transplantDate ? new Date(plant.transplantDate).toLocaleDateString() : ''
+    ])
+    
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `seed_inventory_${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    
+    return true
+  } catch (error) {
+    console.error('Error exporting seed data:', error)
+    throw error
+  }
+}
+
+
 
   // Fetch plantsList from Firebase
   useEffect(() => {
@@ -1073,162 +1419,254 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     setPlotStep('confirm')
   }
 
-  const handleConfirmPlanting = async () => {
-    if (isSubmitting) {
+const handleConfirmPlanting = async () => {
+  if (isSubmitting) {
+    return
+  }
+
+  try {
+    setIsSubmitting(true)
+
+    if (!userId || userId === 'default-user') {
+      showAlert({
+        type: 'error',
+        title: 'Authentication Required',
+        message: 'You must be logged in to add plants.',
+        confirmText: 'OK'
+      })
+      setIsSubmitting(false)
       return
     }
 
-    try {
-      setIsSubmitting(true)
-
-      if (!userId || userId === 'default-user') {
-        showAlert({
-          type: 'error',
-          title: 'Authentication Required',
-          message: 'You must be logged in to add plants.',
-          confirmText: 'OK'
-        })
-        setIsSubmitting(false)
-        return
-      }
-
-      if (isPlotOccupied(selectedPlotNumber)) {
-        showAlert({
-          type: 'error',
-          title: 'Plot Already Occupied',
-          message: `Plot ${selectedPlotNumber} is already occupied. Cannot add plant.`,
-          confirmText: 'OK',
-          onConfirm: () => {
-            handleCloseAddPlotModal()
-            closeAlert()
-          }
-        })
-        setIsSubmitting(false)
-        return
-      }
-
-      const plotSizeM2 = calculatePlotSize(customPlotSize.length, customPlotSize.width)
-      const displaySize = getDisplaySize(customPlotSize.length, customPlotSize.width)
-      const plantInfo = plantsList[selectedPlantType]
-
-      if (!plantInfo) {
-        showAlert({
-          type: 'error',
-          title: 'Plant Information Not Found',
-          message: 'Unable to find information for the selected plant.',
-          confirmText: 'OK'
-        })
-        setIsSubmitting(false)
-        return
-      }
-
-      // Calculate planted date based on age
-      const currentDate = new Date()
-      const plantedDate = new Date(currentDate.getTime() - (plantAge * 24 * 60 * 60 * 1000))
-      
-      const daysToHarvest = parseInt(plantInfo.daysToHarvest) || 30
-      const remainingDaysToHarvest = Math.max(0, daysToHarvest - plantAge)
-      const expectedHarvestDate = new Date(currentDate.getTime() + remainingDaysToHarvest * 24 * 60 * 60 * 1000)
-
-      // Determine current stage based on age
-      const currentStage = getStageFromAge(plantAge, plantInfo.stages) || 'Germination'
-
-      const formattedDate = plantedDate.toISOString().split('T')[0]
-      const generatedPlantName = `${plantInfo.name} - Plot ${selectedPlotNumber} - ${formattedDate}`
-
-      const newPlant = {
-        plotNumber: selectedPlotNumber,
-        plotSize: displaySize,
-        plotSizeM2: plotSizeM2,
-        soilSensor: selectedSoilSensor,
-        plantType: selectedPlantType,
-        plantName: generatedPlantName,
-        scientificName: plantInfo.sName || '',
-        recommendedSeedlings,
-        survivingPlants: recommendedSeedlings,
-        locationZone: 'Nursery 1',
-        status: currentStage,
-        age: plantAge, // Store the age
-        plantedDate: plantedDate.toISOString(),
-        expectedHarvestDate: expectedHarvestDate.toISOString(),
-        daysToHarvest: daysToHarvest,
-        sensorData: sensorData,
-        currentSellingPrice: plantInfo.pricing || '',
-        unit: plantInfo.pricingUnit || 'per kilo',
-        minSpacing: plantInfo.minSpacingCM || '20',
-        maxSpacing: plantInfo.maxSpacingCM || '25',
-        description: plantInfo.description || '',
-        stages: plantInfo.stages || [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        userId: userId
-      }
-
-      const docRef = await addDoc(collection(db, 'plants'), newPlant)
-      
-      // Create initial stage event
-      await addDoc(collection(db, 'events'), {
-        plantId: docRef.id,
-        type: 'LIFECYCLE_STAGE',
-        status: 'info',
-        message: `Plant added at ${currentStage} stage (Day ${plantAge}) - ${plantInfo.name}`,
-        timestamp: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        userId: userId,
-        details: {
-          age: plantAge,
-          stage: currentStage,
-          plantedDate: plantedDate.toLocaleDateString()
-        }
-      })
-
-      setPlantsData(prev => [...prev, { id: docRef.id, ...newPlant }])
-      
-      handleCloseAddPlotModal()
-      
-      showAlert({
-        type: 'success',
-        title: 'Plot Added Successfully!',
-        message: `${plantInfo.name} has been added to Plot ${selectedPlotNumber}.`,
-        details: [
-          { label: 'Plant', value: plantInfo.name },
-          { label: 'Plot', value: `Plot ${selectedPlotNumber}` },
-          { label: 'Plot Size', value: displaySize },
-          { label: 'Age', value: `${plantAge} days old` },
-          { label: 'Current Stage', value: currentStage },
-          { label: 'Seedlings', value: recommendedSeedlings.toString() },
-          { label: 'Planted Date', value: plantedDate.toLocaleDateString() },
-          { label: 'Expected Harvest', value: expectedHarvestDate.toLocaleDateString() },
-          { label: 'Days to Harvest', value: `${remainingDaysToHarvest} days` }
-        ],
-        confirmText: 'View Plants'
-      })
-    } catch (error) {
-      console.error('Error adding plant:', error)
-      
-      let errorMessage = 'An error occurred while adding the plot.'
-      let errorDetails = [{ label: 'Error', value: error.message }]
-      
-      if (error.code === 'permission-denied') {
-        errorMessage = 'You do not have permission to add plants. Please check your authentication.'
-        errorDetails = [
-          { label: 'Error Code', value: error.code },
-          { label: 'User ID', value: userId || 'Not authenticated' },
-          { label: 'Solution', value: 'Please log out and log back in' }
-        ]
-      }
-      
+    if (isPlotOccupied(selectedPlotNumber)) {
       showAlert({
         type: 'error',
-        title: 'Failed to Add Plot',
-        message: errorMessage,
-        details: errorDetails,
-        confirmText: 'Try Again'
+        title: 'Plot Already Occupied',
+        message: `Plot ${selectedPlotNumber} is already occupied. Cannot add plant.`,
+        confirmText: 'OK',
+        onConfirm: () => {
+          handleCloseAddPlotModal()
+          closeAlert()
+        }
       })
-    } finally {
       setIsSubmitting(false)
+      return
     }
+
+    const plotSizeM2 = calculatePlotSize(customPlotSize.length, customPlotSize.width)
+    const displaySize = getDisplaySize(customPlotSize.length, customPlotSize.width)
+    const plantInfo = plantsList[selectedPlantType]
+
+    if (!plantInfo) {
+      showAlert({
+        type: 'error',
+        title: 'Plant Information Not Found',
+        message: 'Unable to find information for the selected plant.',
+        confirmText: 'OK'
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    // NEW: Fetch seed inventory to check availability
+    const inventorySnapshot = await getDocs(collection(db, 'inventory'))
+    const inventoryItems = inventorySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+
+    // Find matching seed in inventory (match by plant name)
+    const seedName = `${plantInfo.name} Seeds`
+    const matchingSeed = inventoryItems.find(item => 
+      item.category?.toLowerCase() === 'seed' && 
+      item.name.toLowerCase().includes(plantInfo.name.toLowerCase())
+    )
+
+    if (!matchingSeed) {
+      showAlert({
+        type: 'warning',
+        title: 'Seeds Not Found in Inventory',
+        message: `No seeds found for ${plantInfo.name} in your inventory. Please add seeds to inventory first.`,
+        details: [
+          { label: 'Plant Type', value: plantInfo.name },
+          { label: 'Looking for', value: seedName }
+        ],
+        confirmText: 'OK'
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    // Check if we have enough seeds (packs or stock)
+    const availableSeeds = matchingSeed.packs !== undefined ? matchingSeed.packs : matchingSeed.stock
+    const seedsPerPack = matchingSeed.seedsPerPack || 1
+    const totalSeedsAvailable = availableSeeds * seedsPerPack
+    const seedsNeeded = recommendedSeedlings
+
+    if (totalSeedsAvailable < seedsNeeded) {
+      showAlert({
+        type: 'error',
+        title: 'Insufficient Seeds',
+        message: `Not enough seeds in inventory to plant ${seedsNeeded} seedlings.`,
+        details: [
+          { label: 'Seeds Available', value: `${totalSeedsAvailable} seeds (${availableSeeds} packs × ${seedsPerPack} seeds/pack)` },
+          { label: 'Seeds Needed', value: `${seedsNeeded} seeds` },
+          { label: 'Shortage', value: `${seedsNeeded - totalSeedsAvailable} seeds` }
+        ],
+        confirmText: 'OK'
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    // Calculate how many packs to deduct
+    const packsToDeduct = Math.ceil(seedsNeeded / seedsPerPack)
+    const newPackCount = availableSeeds - packsToDeduct
+
+    // Calculate dates
+    const currentDate = new Date()
+    const plantedDate = new Date(currentDate.getTime() - (plantAge * 24 * 60 * 60 * 1000))
+    
+    const daysToHarvest = parseInt(plantInfo.daysToHarvest) || 30
+    const remainingDaysToHarvest = Math.max(0, daysToHarvest - plantAge)
+    const expectedHarvestDate = new Date(currentDate.getTime() + remainingDaysToHarvest * 24 * 60 * 60 * 1000)
+
+    // Determine current stage based on age
+    const currentStage = getStageFromAge(plantAge, plantInfo.stages) || 'Germination'
+
+    const formattedDate = plantedDate.toISOString().split('T')[0]
+    const generatedPlantName = `${plantInfo.name} - Plot ${selectedPlotNumber} - ${formattedDate}`
+
+    const newPlant = {
+      plotNumber: selectedPlotNumber,
+      plotSize: displaySize,
+      plotSizeM2: plotSizeM2,
+      soilSensor: selectedSoilSensor,
+      plantType: selectedPlantType,
+      plantName: generatedPlantName,
+      scientificName: plantInfo.sName || '',
+      recommendedSeedlings,
+      survivingPlants: recommendedSeedlings,
+      locationZone: 'Nursery 1',
+      status: currentStage,
+      age: plantAge,
+      plantedDate: plantedDate.toISOString(),
+      expectedHarvestDate: expectedHarvestDate.toISOString(),
+      daysToHarvest: daysToHarvest,
+      sensorData: sensorData,
+      currentSellingPrice: plantInfo.pricing || '',
+      unit: plantInfo.pricingUnit || 'per kilo',
+      minSpacing: plantInfo.minSpacingCM || '20',
+      maxSpacing: plantInfo.maxSpacingCM || '25',
+      description: plantInfo.description || '',
+      stages: plantInfo.stages || [],
+      // NEW: Track seed usage
+      seedInventoryId: matchingSeed.id,
+      seedsUsed: seedsNeeded,
+      packsUsed: packsToDeduct,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      userId: userId
+    }
+
+    // Add plant to database
+    const docRef = await addDoc(collection(db, 'plants'), newPlant)
+    
+    // NEW: Update inventory - deduct seeds
+    const inventoryRef = doc(db, 'inventory', matchingSeed.id)
+    await updateDoc(inventoryRef, {
+      packs: newPackCount,
+      stock: newPackCount, // Keep stock in sync with packs
+      updatedAt: serverTimestamp(),
+      lastUsed: serverTimestamp()
+    })
+
+    // Create initial stage event
+    await addDoc(collection(db, 'events'), {
+      plantId: docRef.id,
+      type: 'LIFECYCLE_STAGE',
+      status: 'info',
+      message: `Plant added at ${currentStage} stage (Day ${plantAge}) - ${plantInfo.name}`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        age: plantAge,
+        stage: currentStage,
+        plantedDate: plantedDate.toLocaleDateString(),
+        seedsUsed: seedsNeeded,
+        packsUsed: packsToDeduct
+      }
+    })
+
+    // NEW: Create inventory usage event
+    await addDoc(collection(db, 'events'), {
+      plantId: docRef.id,
+      type: 'INVENTORY_USAGE',
+      status: 'info',
+      message: `Used ${packsToDeduct} pack(s) of ${matchingSeed.name} (${seedsNeeded} seeds) for planting`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        inventoryItemId: matchingSeed.id,
+        itemName: matchingSeed.name,
+        packsUsed: packsToDeduct,
+        seedsUsed: seedsNeeded,
+        remainingPacks: newPackCount,
+        remainingSeeds: newPackCount * seedsPerPack
+      }
+    })
+
+    setPlantsData(prev => [...prev, { id: docRef.id, ...newPlant }])
+    
+    handleCloseAddPlotModal()
+    
+    showAlert({
+      type: 'success',
+      title: 'Plot Added Successfully!',
+      message: `${plantInfo.name} has been added to Plot ${selectedPlotNumber}.`,
+      details: [
+        { label: 'Plant', value: plantInfo.name },
+        { label: 'Plot', value: `Plot ${selectedPlotNumber}` },
+        { label: 'Plot Size', value: displaySize },
+        { label: 'Age', value: `${plantAge} days old` },
+        { label: 'Current Stage', value: currentStage },
+        { label: 'Seedlings', value: recommendedSeedlings.toString() },
+        { label: 'Seeds Used', value: `${packsToDeduct} pack(s) = ${seedsNeeded} seeds` },
+        { label: 'Seeds Remaining', value: `${newPackCount} pack(s) = ${newPackCount * seedsPerPack} seeds` },
+        { label: 'Planted Date', value: plantedDate.toLocaleDateString() },
+        { label: 'Expected Harvest', value: expectedHarvestDate.toLocaleDateString() },
+        { label: 'Days to Harvest', value: `${remainingDaysToHarvest} days` }
+      ],
+      confirmText: 'View Plants'
+    })
+  } catch (error) {
+    console.error('Error adding plant:', error)
+    
+    let errorMessage = 'An error occurred while adding the plot.'
+    let errorDetails = [{ label: 'Error', value: error.message }]
+    
+    if (error.code === 'permission-denied') {
+      errorMessage = 'You do not have permission to add plants. Please check your authentication.'
+      errorDetails = [
+        { label: 'Error Code', value: error.code },
+        { label: 'User ID', value: userId || 'Not authenticated' },
+        { label: 'Solution', value: 'Please log out and log back in' }
+      ]
+    }
+    
+    showAlert({
+      type: 'error',
+      title: 'Failed to Add Plot',
+      message: errorMessage,
+      details: errorDetails,
+      confirmText: 'Try Again'
+    })
+  } finally {
+    setIsSubmitting(false)
   }
+}
 
   const handleOpenFertilizerModal = async (plant) => {
     const plantInfo = plantsList[plant.plantType]

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
-import "./EditItemModal.css"; // You can reuse the same CSS as AddItemModal
+import "./EditItemModal.css";
 
 const EditItemModal = ({ item, onClose, onItemUpdated }) => {
   const [formData, setFormData] = useState({
@@ -11,6 +11,8 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
     unit: "",
     expirationDate: "",
     lowStockThreshold: "",
+    // Seed-specific custom fields
+    seedsPerPack: "",
     // Fertilizer specific fields
     n_percentage: "",
     p_percentage: "",
@@ -34,6 +36,8 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
           ? (item.expirationDate.toDate ? item.expirationDate.toDate().toISOString().split('T')[0] 
              : new Date(item.expirationDate.seconds * 1000).toISOString().split('T')[0])
           : "",
+        // Seed-specific custom fields
+        seedsPerPack: item.seedsPerPack || "",
         // Fertilizer specific fields
         n_percentage: item.n_percentage || "",
         p_percentage: item.p_percentage || "",
@@ -55,7 +59,7 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
 
   const getChanges = () => {
     const changes = [];
-    const fieldsToCheck = ['name', 'stock', 'pricePerUnit', 'unit', 'lowStockThreshold', 'expirationDate', 'n_percentage', 'p_percentage', 'k_percentage'];
+    const fieldsToCheck = ['name', 'stock', 'pricePerUnit', 'unit', 'lowStockThreshold', 'expirationDate', 'seedsPerPack', 'n_percentage', 'p_percentage', 'k_percentage'];
     
     fieldsToCheck.forEach(field => {
       if (formData[field] !== originalData[field] && (formData[field] !== "" || originalData[field] !== "")) {
@@ -91,8 +95,13 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
       }
 
       // Category-specific validation
-      if (item.category === "seed" && !formData.expirationDate) {
-        throw new Error("Expiration date is required for seeds");
+      if (item.category === "seed") {
+        if (!formData.expirationDate) {
+          throw new Error("Expiration date is required for seeds");
+        }
+        if (!formData.seedsPerPack || formData.seedsPerPack <= 0) {
+          throw new Error("Seeds per pack is required");
+        }
       }
 
       if (item.category === "fertilizers") {
@@ -126,6 +135,8 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
       // Add category-specific fields
       if (item.category === "seed") {
         updateData.expirationDate = new Date(formData.expirationDate);
+        updateData.seedsPerPack = Number(formData.seedsPerPack);
+        updateData.totalSeeds = Number(formData.stock) * Number(formData.seedsPerPack);
       } else if (item.category === "fertilizers") {
         updateData.n_percentage = Number(formData.n_percentage);
         updateData.p_percentage = Number(formData.p_percentage);
@@ -155,6 +166,22 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
             quantityChange: Math.abs(stockDifference),
             unit: formData.unit,
             costOrValuePerUnit: Number(formData.pricePerUnit)
+          };
+          
+          // Add seed-specific info to log
+          if (item.category === "seed") {
+            logData.seedsPerPack = Number(formData.seedsPerPack);
+            logData.totalSeedsChange = Math.abs(stockDifference) * Number(formData.seedsPerPack);
+          }
+        } else if (change.field === 'seedsPerPack') {
+          // Log change in seeds per pack
+          logData = {
+            ...logData,
+            type: "Seeds Per Pack Update",
+            quantityChange: 0,
+            unit: formData.unit,
+            costOrValuePerUnit: Number(formData.pricePerUnit),
+            notes: `Seeds per pack changed from ${change.oldValue} to ${change.newValue}. New total seeds: ${Number(formData.stock) * Number(change.newValue)}`
           };
         } else if (change.field === 'pricePerUnit') {
           logData = {
@@ -254,21 +281,45 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
               >
                 {item.category === "seed" ? (
                   <>
-                    <option value="Packs">Packs</option>
-                    <option value="Seedlings">Seedlings</option>
+                    <option value="packs">Packs</option>
+                    <option value="bags">Bags</option>
+                    <option value="packets">Packets</option>
                     <option value="kg">kg</option>
-                    <option value="Pieces">Pieces</option>
                   </>
                 ) : (
                   <>
                     <option value="kg">kg</option>
                     <option value="lbs">lbs</option>
                     <option value="bags">Bags</option>
+                    <option value="sacks">Sacks</option>
                   </>
                 )}
               </select>
             </div>
           </div>
+
+          {/* Seed-specific: Seeds per pack */}
+          {item.category === "seed" && (
+            <div className="form-group">
+              <label htmlFor="seedsPerPack">Seeds per Pack *</label>
+              <input
+                type="number"
+                id="seedsPerPack"
+                name="seedsPerPack"
+                value={formData.seedsPerPack}
+                onChange={handleInputChange}
+                placeholder="0"
+                min="0"
+                step="1"
+                required
+              />
+              <small className="form-hint">
+                {formData.stock && formData.seedsPerPack 
+                  ? `Total seeds: ${Number(formData.stock) * Number(formData.seedsPerPack)}`
+                  : "Enter stock and seeds per pack to see total"}
+              </small>
+            </div>
+          )}
 
           <div className="form-row">
             <div className="form-group">
