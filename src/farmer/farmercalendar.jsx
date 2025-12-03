@@ -18,6 +18,7 @@ const FarmerCalendar = () => {
   const [loading, setLoading] = useState(true);
   const [jobOrderFilter, setJobOrderFilter] = useState('all'); // all, pending, in-progress, completed
   const userId = 'farmer-user-id'; // Replace with actual user ID from auth
+  const dummy = 0
 
   // Utility function to convert fertilizer from bags/ha to plot size
   const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2) => {
