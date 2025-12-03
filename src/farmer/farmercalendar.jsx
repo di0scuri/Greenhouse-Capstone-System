@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import FarmerSidebar from './farmersidebar';
 import './farmercalendar.css';
-import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverTimestamp, query, where, orderB, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverTimestamp, query, where, orderB } from 'firebase/firestore';
 import { db } from '../firebase';
 import inventoryLogger from "../functions/inventoryLogger";
 import { getInventoryItemPrice } from '../functions/inventoryUtils';
