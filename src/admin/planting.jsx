@@ -2025,14 +2025,14 @@ const handleConfirmPlanting = async () => {
     return Object.values(filters).some(value => value !== 'all')
   }
 
-const generateFertilizerJobOrders = async (plant, fertilizerRecommendation, userId) => {
+const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, userId) => {
   try {
-    if (!fertilizerRecommendation || !fertilizerRecommendation.matchedScenario) {
+    if (!fertilizerRecommendations || !fertilizerRecommendations.matchedScenario) {
       console.error('No fertilizer recommendation provided')
       return []
     }
 
-    const scenario = fertilizerRecommendation.matchedScenario
+    const scenario = fertilizerRecommendations.matchedScenario
     const applications = scenario.applications || []
     
     if (applications.length === 0) {
@@ -2097,7 +2097,7 @@ const generateFertilizerJobOrders = async (plant, fertilizerRecommendation, user
         priority: i === 0 ? 'high' : 'medium', // First application is high priority
         
         // Job details
-        title: `${application.stage} - ${fertilizerRecommendation.plantName || plant.plantType}`,
+        title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
         description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo}`,
         
         // Fertilizer details
@@ -2117,10 +2117,10 @@ const generateFertilizerJobOrders = async (plant, fertilizerRecommendation, user
         applicationTiming: application.timing,
         
         // Context
-        stage: fertilizerRecommendation.stage,
-        nutrientCondition: fertilizerRecommendation.currentCondition,
+        stage: fertilizerRecommendations.stage,
+        nutrientCondition: fertilizerRecommendations.currentCondition,
         soilCondition: scenario.condition,
-        reason: `Nutrient levels: N=${fertilizerRecommendation.nCondition}, P=${fertilizerRecommendation.pCondition}, K=${fertilizerRecommendation.kCondition}`,
+        reason: `Nutrient levels: N=${fertilizerRecommendations.nCondition}, P=${fertilizerRecommendations.pCondition}, K=${fertilizerRecommendations.kCondition}`,
         
         // Expected results
         expectedResult: `Follow ${application.stage} schedule for optimal growth`,
