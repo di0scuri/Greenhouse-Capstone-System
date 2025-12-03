@@ -1,10 +1,9 @@
 import React, { useState } from "react";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import "./AddItemModal.css";
 import inventoryLogger from "../functions/inventoryLogger";
 
-// ADD THIS PROP: userId
 const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user" }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -18,8 +17,14 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
     // Fertilizer specific fields
     n_percentage: "",
     p_percentage: "",
-    k_percentage: ""
+    k_percentage: "",
+    // NEW: Expense tracking fields
+    vendor: "",
+    receiptNumber: "",
+    paymentMethod: "Cash",
+    notes: ""
   });
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,7 +36,7 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
     }));
   };
 
-  // NEW FUNCTION: Record inventory purchase expense
+  // Function to record inventory purchase expense to plantExpenses collection
   const recordInventoryPurchaseExpense = async (itemData, itemId) => {
     try {
       const quantity = Number(itemData.stock);
@@ -39,26 +44,32 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
       const totalCost = quantity * pricePerUnit;
 
       const isSeed = activeTab === "Seed";
+      const category = isSeed ? "Seeds" : "Fertilizer"; // Must match production.jsx EXPENSE_CATEGORIES
 
       const expenseData = {
-        // Required fields from plantsExpenses schema
+        // REQUIRED FIELDS for plantExpenses collection (matching production.jsx structure)
         plantId: 'INVENTORY_PURCHASE',
-        expenseType: activeTab, // 'Seed' or 'Fertilizers'
+        plantName: 'Inventory Stock',
+        category: category, // 'Seeds' or 'Fertilizer'
         description: `Purchased ${quantity} ${itemData.unit} of ${itemData.name}`,
+        amount: totalCost,
         date: serverTimestamp(),
-        cost: totalCost,
-        unit: 'PHP',
-        quantity: quantity,
-        unitType: itemData.unit,
-        userId: userId,
+        paymentMethod: formData.paymentMethod || 'Cash',
+        receiptNumber: formData.receiptNumber || '',
+        vendor: formData.vendor || 'N/A',
+        notes: formData.notes || `Initial inventory purchase: ${itemData.name}. Price: ₱${pricePerUnit.toFixed(2)} per ${itemData.unit}`,
+        addedBy: userId,
         createdAt: serverTimestamp(),
+        lastModifiedAt: serverTimestamp(),
         
-        // Additional tracking details
-        notes: `Initial inventory purchase: ${itemData.name}`,
+        // Link to inventory item
         inventoryItemId: itemId,
-        inventoryDetails: {
-          itemName: itemData.name,
-          category: activeTab,
+        inventoryItemName: itemData.name,
+        
+        // Store purchase details
+        purchaseDetails: {
+          quantity: quantity,
+          unit: itemData.unit,
           pricePerUnit: pricePerUnit,
           ...(isSeed && {
             seedsPerPack: Number(itemData.seedsPerPack),
@@ -74,8 +85,9 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
         }
       };
 
-      const expenseRef = await addDoc(collection(db, 'plantsExpenses'), expenseData);
-      console.log(`💰 Created expense record for inventory purchase: ₱${totalCost.toFixed(2)}`);
+      // Add to plantExpenses collection
+      const expenseRef = await addDoc(collection(db, 'plantExpenses'), expenseData);
+      console.log(`💰 Purchase expense recorded: ₱${totalCost.toFixed(2)} for ${itemData.name}`);
       
       return expenseRef.id;
     } catch (error) {
@@ -103,6 +115,9 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
       if (!formData.lowStockThreshold || formData.lowStockThreshold < 0) {
         throw new Error("Low stock threshold is required");
       }
+      if (!formData.vendor.trim()) {
+        throw new Error("Vendor/Supplier is required for expense tracking");
+      }
 
       // Seed specific validation
       if (activeTab === "Seed") {
@@ -128,8 +143,9 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
       }
 
       const currentTimestamp = serverTimestamp();
+      const isSeed = activeTab === "Seed";
       
-      // Base item data
+      // Base item data for inventory
       const baseItemData = {
         name: formData.name.trim(),
         category: activeTab.toLowerCase(),
@@ -138,12 +154,21 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
         unit: formData.unit,
         lowStockThreshold: Number(formData.lowStockThreshold),
         dateAdded: currentTimestamp,
-        lastUpdated: currentTimestamp
+        lastUpdated: currentTimestamp,
+        // Store purchase info for reference
+        purchaseInfo: {
+          vendor: formData.vendor,
+          paymentMethod: formData.paymentMethod,
+          receiptNumber: formData.receiptNumber || '',
+          purchaseDate: currentTimestamp,
+          pricePerUnit: Number(formData.pricePerUnit),
+          totalPurchaseCost: Number(formData.stock) * Number(formData.pricePerUnit)
+        }
       };
 
       // Add category-specific fields
       let itemData;
-      if (activeTab === "Seed") {
+      if (isSeed) {
         itemData = {
           ...baseItemData,
           packs: Number(formData.stock), // Store as packs for seeds
@@ -161,41 +186,55 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
         };
       }
 
-      // Add to inventory collection
+      // 1. Add to inventory collection
       const docRef = await addDoc(collection(db, "inventory"), itemData);
       console.log("✅ Item added to inventory with ID:", docRef.id);
       
-      // UPDATED: Record the purchase expense
+      // 2. Record the purchase expense to plantExpenses
       let expenseRecorded = false;
+      let expenseId = null;
       try {
-        await recordInventoryPurchaseExpense(formData, docRef.id);
+        expenseId = await recordInventoryPurchaseExpense(formData, docRef.id);
         expenseRecorded = true;
-        console.log("💰 Purchase expense recorded successfully");
+        console.log("💰 Purchase expense recorded successfully with ID:", expenseId);
+        
+        // 3. Update inventory item with expense reference
+        await updateDoc(doc(db, "inventory", docRef.id), {
+          purchaseExpenseId: expenseId,
+          hasExpenseRecord: true
+        });
       } catch (expenseError) {
         console.error("⚠️ Failed to record expense:", expenseError);
         // Continue even if expense recording fails
       }
       
-      // Add to inventory_log collection
-      await inventoryLogger.logInventoryAdd(
-        docRef.id,
-        {
-          isNew: true,
-          previousStock: 0,
-          newStock: Number(formData.stock),
-          quantityAdded: Number(formData.stock),
-          itemName: formData.name.trim(),
-          category: activeTab,
-          supplier: "Not specified",
-          cost: Number(formData.pricePerUnit),
-          unit: formData.unit,
-          notes: activeTab === "Seed" 
-            ? `New seed item added. ${formData.seedsPerPack} seeds/pack. Total: ${Number(formData.stock) * Number(formData.seedsPerPack)} seeds. Expires: ${formData.expirationDate}`
-            : `New fertilizer added. NPK: ${formData.n_percentage}-${formData.p_percentage}-${formData.k_percentage}`
-        },
-        userId,
-        "System User" // You can pass userName as prop if available
-      );
+      // 4. Add to inventory_log collection
+      try {
+        await inventoryLogger.logInventoryAdd(
+          docRef.id,
+          {
+            isNew: true,
+            previousStock: 0,
+            newStock: Number(formData.stock),
+            quantityAdded: Number(formData.stock),
+            itemName: formData.name.trim(),
+            category: activeTab,
+            supplier: formData.vendor || "Not specified",
+            cost: Number(formData.pricePerUnit),
+            totalCost: Number(formData.stock) * Number(formData.pricePerUnit),
+            unit: formData.unit,
+            notes: isSeed 
+              ? `New seed item added. ${formData.seedsPerPack} seeds/pack. Total: ${Number(formData.stock) * Number(formData.seedsPerPack)} seeds. Expires: ${formData.expirationDate}`
+              : `New fertilizer added. NPK: ${formData.n_percentage}-${formData.p_percentage}-${formData.k_percentage}`,
+            // Include expense info in log
+            ...(expenseRecorded && { expenseRecordId: expenseId })
+          },
+          userId,
+          "System User"
+        );
+      } catch (logError) {
+        console.error("⚠️ Failed to log inventory:", logError);
+      }
       
       // Call success callback
       onItemAdded();
@@ -203,7 +242,7 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
       // Show success message with expense info
       const totalCost = Number(formData.stock) * Number(formData.pricePerUnit);
       const successMessage = expenseRecorded 
-        ? `✅ ${activeTab} item added successfully!\n💰 Purchase expense of ₱${totalCost.toFixed(2)} recorded.`
+        ? `✅ ${activeTab} item added successfully!\n💰 Purchase expense of ₱${totalCost.toFixed(2)} recorded in Production Expenses.`
         : `✅ ${activeTab} item added successfully!\n⚠️ Note: Expense recording failed, but item was added.`;
       
       alert(successMessage);
@@ -426,6 +465,69 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
             </>
           )}
 
+          {/* NEW: Expense Tracking Fields */}
+          <div className="form-section">
+            <div className="form-section-title">Purchase Details (For Expense Tracking)</div>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="vendor">Vendor/Supplier *</label>
+                <input
+                  type="text"
+                  id="vendor"
+                  name="vendor"
+                  value={formData.vendor}
+                  onChange={handleInputChange}
+                  placeholder="e.g., Seed Co., Fertilizer Supplier Inc."
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="paymentMethod">Payment Method *</label>
+                <select
+                  id="paymentMethod"
+                  name="paymentMethod"
+                  value={formData.paymentMethod}
+                  onChange={handleInputChange}
+                  required
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Credit Card">Credit Card</option>
+                  <option value="Check">Check</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="receiptNumber">Receipt/Invoice Number (Optional)</label>
+                <input
+                  type="text"
+                  id="receiptNumber"
+                  name="receiptNumber"
+                  value={formData.receiptNumber}
+                  onChange={handleInputChange}
+                  placeholder="e.g., INV-2024-001"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="notes">Purchase Notes (Optional)</label>
+                <input
+                  type="text"
+                  id="notes"
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleInputChange}
+                  placeholder="Additional details about this purchase"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="form-actions">
             <button 
               type="button" 
@@ -440,7 +542,7 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user"
               className="submit-button" 
               disabled={loading}
             >
-              {loading ? "Adding..." : `Add ${activeTab} Item`}
+              {loading ? "Adding..." : `Add ${activeTab} Item & Record Expense`}
             </button>
           </div>
         </form>
