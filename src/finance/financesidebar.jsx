@@ -9,7 +9,8 @@ import {
   MdInventory,
   MdAttachMoney,
   MdLogout,
-  MdAccountBalance
+  MdAccountBalance,
+  MdFactory
 } from 'react-icons/md'
 
 const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
@@ -32,6 +33,13 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
   }
 
   const handleLogout = async () => {
+    // Show confirmation dialog
+    const confirmed = window.confirm('Are you sure you want to log out?');
+    
+    if (!confirmed) {
+      return; // User cancelled logout
+    }
+
     try {
       // Get current user before signing out
       const currentUser = auth.currentUser;
@@ -70,7 +78,8 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
     const routes = {
       'Overview': '/finance/overview',
       'Inventory': '/finance/inventory',
-      'Costing & Pricing': '/finance/costing-pricing', 
+      'Costing & Pricing': '/finance/costing-pricing',
+      'Production': '/finance/production'
     }
     
     const route = routes[menuName]
@@ -85,6 +94,7 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
     if (path.includes('/finance/overview')) return 'Overview'
     if (path.includes('/finance/inventory')) return 'Inventory'
     if (path.includes('/finance/costing-pricing')) return 'Costing & Pricing'
+    if (path.includes('/finance/production')) return 'Production'
     return activeMenu || 'Overview'
   }
 
@@ -94,6 +104,7 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
     { name: 'Overview', icon: <MdDashboard /> },
     { name: 'Inventory', icon: <MdInventory /> },
     { name: 'Costing & Pricing', icon: <MdAttachMoney /> },
+    { name: 'Production', icon: <MdFactory /> },
   ]
 
   return (

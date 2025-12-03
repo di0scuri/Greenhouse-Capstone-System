@@ -35,7 +35,7 @@ import FarmerCalendar from './farmer/farmercalendar'
 // ============================================
 import FinanceDashboard from './finance/financedashboard'
 import FinanceInventory from './finance/financeinventory'
-import FinanceCosting from './finance/financecosting'
+// Removed: import FinanceCosting from './finance/financecosting'
 import PlantProduction from './admin/production'
 import './App.css'
 import PlantMasterList from './admin/plantlist'
@@ -244,11 +244,11 @@ function App() {
             } 
           />
           
-          {/* Costing */}
+          {/* Costing - Now shared between Admin and Finance */}
           <Route 
             path="/costing/admin" 
             element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
                 <Costing userType="admin" user={user} />
               </ProtectedRoute>
             } 
@@ -256,8 +256,11 @@ function App() {
           <Route 
             path="/costing" 
             element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Costing userType="admin" user={user} />
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                <Costing 
+                  userType={user?.role?.toLowerCase() === 'finance' ? 'finance' : 'admin'} 
+                  user={user} 
+                />
               </ProtectedRoute>
             } 
           />
@@ -315,7 +318,6 @@ function App() {
               <FarmerCalendar userType="farmer" userId={user?.uid} />
             </ProtectedRoute>
           } />
-
 
           
           {/* Greenhouse - ADMIN ONLY */}
@@ -526,11 +528,12 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {/* Finance Costing - Now uses Admin Costing component */}
           <Route 
             path="/finance/costing-pricing" 
             element={
-              <ProtectedRoute user={user} allowedRoles="Finance">
-                <FinanceCosting userType="finance" user={user} />
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                <Costing userType="finance" user={user} />
               </ProtectedRoute>
             } 
           />
