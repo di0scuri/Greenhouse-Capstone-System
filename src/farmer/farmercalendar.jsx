@@ -4,7 +4,6 @@ import './farmercalendar.css';
 import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverTimestamp, query, where, orderB } from 'firebase/firestore';
 import { db } from '../firebase';
 import inventoryLogger from "../functions/inventoryLogger";
-import { getInventoryItemPrice } from '../functions/inventoryUtils';
 
 
 const FarmerCalendar = () => {
