@@ -482,7 +482,6 @@ const AdminCalendar = ({ userType = 'admin', userId = 'default-user' }) => {
               <FaCalendarAlt style={{ marginRight: '12px' }} />
               Event Calendar
             </h1>
-            <p className="calendar-subtitle">Track all your planting events and activities</p>
           </div>
 
           <div className="calendar-actions">
