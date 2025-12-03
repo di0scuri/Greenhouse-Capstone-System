@@ -1,5 +1,5 @@
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore'
-import { db } from '.../firebase'
+import { db } from '../firebase'
 
 class InventoryLogger {
 
