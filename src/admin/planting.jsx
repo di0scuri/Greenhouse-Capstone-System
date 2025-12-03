@@ -231,7 +231,10 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     })
   }
 
-  const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2) => {
+  const FERTILIZER_WEIGHT_PER_BAG = 50;
+
+
+  const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2, returnWeight = false) => {
   // 1 hectare = 10,000 m²
   const hectareInM2 = 10000;
   
@@ -239,11 +242,20 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const validPlotSize = plotSizeM2 || 0;
   
   if (validPlotSize === 0) {
-    console.warn('Plot size is 0 or invalid, returning 0 bags');
-    return '0.00';
+    console.warn('Plot size is 0 or invalid, returning 0');
+    return returnWeight ? { bags: '0.00', weight: '0.00' } : '0.00';
   }
   
   const bagsForPlot = (bagsPerHa * validPlotSize) / hectareInM2;
+  
+  if (returnWeight) {
+    const weightForPlot = bagsForPlot * FERTILIZER_WEIGHT_PER_BAG;
+    return {
+      bags: bagsForPlot.toFixed(2),
+      weight: weightForPlot.toFixed(2)
+    };
+  }
+  
   return bagsForPlot.toFixed(2);
 };
 
@@ -3793,8 +3805,6 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                 </div>
                               </div>
 
-                              {/* Fertilizer Bags */}
-                              {/* Fertilizer Bags */}
 <div className="detail-row" style={{ marginBottom: '12px' }}>
   {/* 1. Label/Header: Put this on its own line */}
   <div className="detail-label-header" style={{ 
@@ -3819,64 +3829,60 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
     gap: '8px',
     flexWrap: 'wrap', // IMPORTANT: Allows items to move to the next line on narrow screens
   }}>
-      {/* The MAP function now sits here, *outside* the label header */}
-      {Object.entries(app.bags).map(([type, amount], i) => {
-        const bagsPerHa = typeof amount === 'string' 
-                                          ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-                                          : amount;
-                                        
-                                        // Always parse plotSize to get m²
-                                        const plotSize = parsePlotSizeToM2(selectedPlant.plotSize) || 0;
-                                        
-                                        const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, plotSize);
-          
-          return (
-              <div key={i} style={{ 
-                  // ADDED: Give each fertilizer box a fixed/relative width for better wrapping
-                  flex: '1 1 120px', // Allow flex-grow (1), flex-shrink (1), and base width of 120px
-                  display: 'flex',
-                  flexDirection: 'column', // Stack the NPK, Bags, and per Hectare text vertically
-                  justifyContent: 'space-between',
-                  padding: '8px', // Reduced padding for compactness
-                  border: '1px solid #f1f5f9', // Added an inner border for separation
-                  borderRadius: '4px',
-                  background: '#f0f9ff', // Light background for visibility
-                  textAlign: 'center'
-              }}>
-                  <span style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}>{type}</span>
-                  <div style={{ textAlign: 'center' }}>
-                      {plotSize > 0 ? (
-                          <>
-                              <span style={{ 
-                                  fontWeight: 'bold', 
-                                  color: '#0ea5e9',
-                                  // Removed display: 'block' for in-line styling consistency
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  display: 'block',
-                                  marginBottom: '2px'
-                              }}>
-                                  {bagsForPlot} bags
-                              </span>
-                              <span style={{ 
-                                  fontSize: '0.75em', 
-                                  color: '#64748b',
-                                  display: 'block' // Keep this block for the smallest text
-                              }}>
-                                  ({amount} per hectare)
-                              </span>
-                          </>
-                      ) : (
-                          <span style={{ fontSize: '0.85em', color: '#dc2626' }}>
-                              ⚠️ Plot size not available
-                          </span>
-                      )}
-                  </div>
-              </div>
-          );
-      })}
-  </div>
-</div>
+      // Replace the fertilizer bags display section with this:
+                        {Object.entries(app.bags).map(([type, amount], i) => {
+                          const bagsPerHa = typeof amount === 'string' 
+                            ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+                            : amount;
+                          
+                          // Always parse plotSize to get m²
+                          const plotSize = parsePlotSizeToM2(selectedPlant?.plotSize) || 0;
+                          
+                          const fertilizerCalc = convertFertilizerToPlotSize(bagsPerHa, plotSize, true);
+                          
+                          return (
+                            <div key={i} style={{ 
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              padding: '8px 0',
+                              borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
+                            }}>
+                              <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
+                              <div style={{ textAlign: 'right' }}>
+                                {plotSize > 0 ? (
+                                  <>
+                                    <div style={{ 
+                                      fontWeight: 'bold', 
+                                      color: '#0ea5e9',
+                                      background: '#f0f9ff',
+                                      padding: '4px 8px',
+                                      borderRadius: '4px',
+                                      display: 'block',
+                                      marginBottom: '4px'
+                                    }}>
+                                      {fertilizerCalc.bags} bags ({fertilizerCalc.weight} kg)
+                                    </div>
+                                    <span style={{ 
+                                      fontSize: '0.75em', 
+                                      color: '#64748b'
+                                    }}>
+                                      ({amount} per hectare = {bagsPerHa * FERTILIZER_WEIGHT_PER_BAG} kg/ha)
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span style={{ 
+                                    fontSize: '0.85em', 
+                                    color: '#dc2626'
+                                  }}>
+                                    ⚠️ Plot size not available
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                          </div>
+                        </div>
                               {/* Application Method */}
                               <div className="detail-row">
                                 <span className="detail-label" style={{ 
