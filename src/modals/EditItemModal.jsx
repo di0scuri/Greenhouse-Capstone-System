@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import "./EditItemModal.css";
+import inventoryLogger from "../services/inventoryLogger";
 
 const EditItemModal = ({ item, onClose, onItemUpdated }) => {
   const [formData, setFormData] = useState({
@@ -148,66 +149,99 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
       await updateDoc(itemRef, updateData);
       console.log("Item updated in inventory with ID:", item.id);
 
+      const stockChange = changes.find(c => c.field === 'stock');
+      const priceChange = changes.find(c => c.field === 'pricePerUnit');
+      const nameChange = changes.find(c => c.field === 'name');
+      const seedsPerPackChange = changes.find(c => c.field === 'seedsPerPack');
+
+
       // Create log entries for changes
-      const logPromises = changes.map(change => {
-        let logData = {
-          itemId: item.id,
-          itemName: formData.name.trim(),
-          timestamp: serverTimestamp(),
-          userId: "system" // Replace with actual user ID if available
-        };
-
-        // Handle different types of changes
-        if (change.field === 'stock') {
-          const stockDifference = Number(change.newValue) - Number(change.oldValue);
-          logData = {
-            ...logData,
-            type: stockDifference > 0 ? "Stock Increase" : "Stock Decrease",
-            quantityChange: Math.abs(stockDifference),
-            unit: formData.unit,
-            costOrValuePerUnit: Number(formData.pricePerUnit)
-          };
-          
-          // Add seed-specific info to log
-          if (item.category === "seed") {
-            logData.seedsPerPack = Number(formData.seedsPerPack);
-            logData.totalSeedsChange = Math.abs(stockDifference) * Number(formData.seedsPerPack);
-          }
-        } else if (change.field === 'seedsPerPack') {
-          // Log change in seeds per pack
-          logData = {
-            ...logData,
-            type: "Seeds Per Pack Update",
-            quantityChange: 0,
-            unit: formData.unit,
-            costOrValuePerUnit: Number(formData.pricePerUnit),
-            notes: `Seeds per pack changed from ${change.oldValue} to ${change.newValue}. New total seeds: ${Number(formData.stock) * Number(change.newValue)}`
-          };
-        } else if (change.field === 'pricePerUnit') {
-          logData = {
-            ...logData,
-            type: "Price Update",
-            quantityChange: 0,
-            unit: formData.unit,
-            costOrValuePerUnit: Number(change.newValue),
-            notes: `Price changed from ₱${change.oldValue} to ₱${change.newValue}`
-          };
+      if (stockChange) {
+        const stockDifference = Number(stockChange.newValue) - Number(stockChange.oldValue);
+        
+        if (stockDifference > 0) {
+          // Stock increased - it's a restock
+          await inventoryLogger.logInventoryAdd(
+            item.id,
+            {
+              isNew: false,
+              previousStock: Number(stockChange.oldValue),
+              newStock: Number(stockChange.newValue),
+              quantityAdded: stockDifference,
+              itemName: formData.name.trim(),
+              category: item.category === "seed" ? "Seed" : "Fertilizer",
+              supplier: "Not specified",
+              cost: Number(formData.pricePerUnit),
+              unit: formData.unit,
+              notes: item.category === "seed"
+                ? `Restocked: Added ${stockDifference} packs (${stockDifference * Number(formData.seedsPerPack)} seeds)`
+                : `Restocked: Added ${stockDifference} ${formData.unit}`
+            },
+            userId,
+            userName
+          );
         } else {
-          logData = {
-            ...logData,
-            type: "Item Update",
-            quantityChange: 0,
-            unit: formData.unit,
-            costOrValuePerUnit: Number(formData.pricePerUnit),
-            notes: `${change.field} changed from "${change.oldValue}" to "${change.newValue}"`
-          };
+          // Stock decreased - it's an adjustment
+          await inventoryLogger.logInventoryAdjustment(
+            item.id,
+            {
+              previousStock: Number(stockChange.oldValue),
+              newStock: Number(stockChange.newValue),
+              adjustment: stockDifference,
+              itemName: formData.name.trim(),
+              category: item.category === "seed" ? "Seed" : "Fertilizer",
+              reason: "Manual adjustment via inventory edit",
+              notes: item.category === "seed"
+                ? `Reduced by ${Math.abs(stockDifference)} packs (${Math.abs(stockDifference) * Number(formData.seedsPerPack)} seeds)`
+                : `Reduced by ${Math.abs(stockDifference)} ${formData.unit}`
+            },
+            userId,
+            userName
+          );
         }
+      } else if (priceChange || nameChange || seedsPerPackChange || changes.length > 0) {
+        // Info update only (no stock change)
+        const updateNotes = [];
+        
+        if (priceChange) {
+          updateNotes.push(`Price: ₱${priceChange.oldValue} → ₱${priceChange.newValue}`);
+        }
+        if (nameChange) {
+          updateNotes.push(`Name: "${nameChange.oldValue}" → "${nameChange.newValue}"`);
+        }
+        if (seedsPerPackChange) {
+          updateNotes.push(`Seeds/pack: ${seedsPerPackChange.oldValue} → ${seedsPerPackChange.newValue}`);
+        }
+        
+        changes.forEach(change => {
+          if (!['stock', 'pricePerUnit', 'name', 'seedsPerPack'].includes(change.field)) {
+            updateNotes.push(`${change.field}: ${change.oldValue} → ${change.newValue}`);
+          }
+        });
+        
+        await inventoryLogger.logInventoryUpdate(
+          item.id,
+          {
+            stock: Number(formData.stock),
+            priceChanged: !!priceChange,
+            oldPrice: priceChange ? Number(priceChange.oldValue) : Number(formData.pricePerUnit),
+            newPrice: Number(formData.pricePerUnit),
+            nameChanged: !!nameChange,
+            oldName: nameChange ? nameChange.oldValue : formData.name,
+            newName: formData.name.trim(),
+            categoryChanged: false,
+            oldCategory: item.category,
+            newCategory: item.category,
+            itemName: formData.name.trim(),
+            category: item.category === "seed" ? "Seed" : "Fertilizer",
+            notes: updateNotes.join('; ')
+          },
+          userId,
+          userName
+        );
+      }
 
-        return addDoc(collection(db, "inventory_log"), logData);
-      });
-
-      await Promise.all(logPromises);
-      console.log("Log entries added for item updates");
+      console.log("✅ Item updated and logged successfully");
 
       // Call success callback
       onItemUpdated();

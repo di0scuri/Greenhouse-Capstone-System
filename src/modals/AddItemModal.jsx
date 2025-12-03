@@ -109,23 +109,25 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
       console.log("Item added to inventory with ID:", docRef.id);
       
       // Add to inventory_log collection
-      const logData = {
-        itemId: docRef.id,
-        itemName: formData.name.trim(),
-        type: "Initial Stock",
-        quantityChange: Number(formData.stock),
-        costOrValuePerUnit: Number(formData.pricePerUnit),
-        unit: formData.unit,
-        timestamp: currentTimestamp,
-        userId: "system", // You can replace this with actual user ID if available
-        ...(activeTab === "Seed" && {
-          seedsPerPack: Number(formData.seedsPerPack),
-          totalSeedsChange: Number(formData.stock) * Number(formData.seedsPerPack)
-        })
-      };
-
-      await addDoc(collection(db, "inventory_log"), logData);
-      console.log("Log entry added for new item");
+      await inventoryLogger.logInventoryAdd(
+        docRef.id,
+        {
+          isNew: true,
+          previousStock: 0,
+          newStock: Number(formData.stock),
+          quantityAdded: Number(formData.stock),
+          itemName: formData.name.trim(),
+          category: activeTab,
+          supplier: "Not specified", // Add supplier field to form if needed
+          cost: Number(formData.pricePerUnit),
+          unit: formData.unit,
+          notes: activeTab === "Seed" 
+            ? `New seed item added. ${formData.seedsPerPack} seeds/pack. Total: ${Number(formData.stock) * Number(formData.seedsPerPack)} seeds. Expires: ${formData.expirationDate}`
+            : `New fertilizer added. NPK: ${formData.n_percentage}-${formData.p_percentage}-${formData.k_percentage}`
+        },
+        userId,
+        userName
+      );
       
       // Call success callback
       onItemAdded();

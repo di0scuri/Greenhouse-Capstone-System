@@ -6,6 +6,7 @@ import './custom-alert.css'
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore'
 import { db, realtimeDb } from '../firebase'
 import { ref, get } from 'firebase/database'
+import inventoryLogger from '../services/inventoryLogger'
 
 import {
   MdLocationOn,
@@ -834,126 +835,132 @@ const exportSeedDataToCSV = async () => {
     fetchPlants()
   }, [])
 
-  const getNutrientCondition = (currentValue, lowThreshold, highThreshold) => {
-    if (currentValue < lowThreshold) return 'Low'
-    if (currentValue > highThreshold) return 'High'
-    return 'Normal'
-  }
 
-  const fetchFertilizerRecommendations = async (plant, sensorData) => {
-    try {
-      if (!plant || !plant.plantType || !plant.status || !sensorData) {
-        console.error('Missing required data for fertilizer recommendations')
-        return null
-      }
 
-      const plantType = plant.plantType
-      const stageName = plant.status
-      
-      const plantInfo = plantsList[plantType]
-      if (!plantInfo || !plantInfo.stages) {
-        console.error('No plant info or stages found for:', plantType)
-        return null
-      }
-      
-      const currentStage = plantInfo.stages.find(s => s.stage === stageName)
-      if (!currentStage) {
-        console.error('Stage not found in plantInfo:', stageName)
-        return null
-      }
-      
-      const fertilizerDocRef = doc(db, 'fertilizerRecommendations', plantType)
-      const fertilizerDoc = await getDoc(fertilizerDocRef)
-      
-      if (!fertilizerDoc.exists()) {
-        console.log(`No fertilizer recommendations found for plant type: "${plantType}"`)
-        return null
-      }
-      
-      const plantData = fertilizerDoc.data()
-      const stageData = plantData[stageName]
-      
-      if (!stageData) {
-        console.log(`No data found for stage: "${stageName}" in plant: "${plantType}"`)
-        return null
-      }
-      
-      const scenarios = stageData.scenarios || []
-      
-      if (scenarios.length === 0) {
-        console.log(`No scenarios found for stage: ${stageName}`)
-        return null
-      }
-      
-      const nCondition = getNutrientCondition(
-        sensorData.nitrogen || 0,
-        currentStage.lowN,
-        currentStage.highN
-      )
-      const pCondition = getNutrientCondition(
-        sensorData.phosphorus || 0,
-        currentStage.lowP,
-        currentStage.highP
-      )
-      const kCondition = getNutrientCondition(
-        sensorData.potassium || 0,
-        currentStage.lowK,
-        currentStage.highK
-      )
-      
-      const currentCondition = `${nCondition} N, ${pCondition} P, ${kCondition} K`
-      
-      let matchedScenario = scenarios.find(scenario => 
-        scenario.condition === currentCondition
-      )
-      
-      if (!matchedScenario) {
-        if (nCondition === 'Low' || nCondition === 'High') {
-          matchedScenario = scenarios.find(scenario => 
-            scenario.condition && scenario.condition.includes(`${nCondition} N`)
-          )
-        }
-        
-        if (!matchedScenario && (pCondition === 'Low' || pCondition === 'High')) {
-          matchedScenario = scenarios.find(scenario => 
-            scenario.condition && scenario.condition.includes(`${pCondition} P`)
-          )
-        }
-        
-        if (!matchedScenario && (kCondition === 'Low' || kCondition === 'High')) {
-          matchedScenario = scenarios.find(scenario => 
-            scenario.condition && scenario.condition.includes(`${kCondition} K`)
-          )
-        }
-        
-        if (!matchedScenario && nCondition === 'Normal' && pCondition === 'Normal' && kCondition === 'Normal') {
-          matchedScenario = scenarios.find(scenario => 
-            scenario.condition && scenario.condition.includes('Normal N, Normal P, Normal K')
-          )
-        }
-        
-        if (!matchedScenario && scenarios.length > 0) {
-          matchedScenario = scenarios[0]
-        }
-      }
-      
-      return {
-        plantType,
-        stage: stageName,
-        currentCondition,
-        nCondition,
-        pCondition,
-        kCondition,
-        matchedScenario,
-        allScenarios: scenarios,
-        isExactMatch: matchedScenario?.condition === currentCondition
-      }
-      
-    } catch (error) {
-      console.error('Error fetching fertilizer recommendations:', error)
+const fetchFertilizerRecommendations = async (plant, sensorData) => {
+  try {
+    if (!plant || !plant.plantType || !plant.status || !sensorData) {
+      console.error('Missing required data for fertilizer recommendations')
       return null
     }
+
+    const plantType = plant.plantType
+    const stageName = plant.status
+    
+    const plantInfo = plantsList[plantType]
+    if (!plantInfo || !plantInfo.stages) {
+      console.error('No plant info or stages found for:', plantType)
+      return null
+    }
+    
+    const currentStage = plantInfo.stages.find(s => s.stage === stageName)
+    if (!currentStage) {
+      console.error('Stage not found in plantInfo:', stageName)
+      return null
+    }
+    
+    // Fetch fertilizer recommendations from Firebase
+    const fertilizerDocRef = doc(db, 'fertilizerRecommendations', plantType)
+    const fertilizerDoc = await getDoc(fertilizerDocRef)
+    
+    if (!fertilizerDoc.exists()) {
+      console.log(`No fertilizer recommendations found for plant type: "${plantType}"`)
+      return null
+    }
+    
+    const plantData = fertilizerDoc.data()
+    const scenarios = plantData.scenarios || []
+    
+    if (scenarios.length === 0) {
+      console.log(`No scenarios found for plant: ${plantType}`)
+      return null
+    }
+    
+    // Determine current nutrient conditions
+    const nCondition = getNutrientCondition(
+      sensorData.nitrogen || 0,
+      currentStage.lowN,
+      currentStage.highN
+    )
+    const pCondition = getNutrientCondition(
+      sensorData.phosphorus || 0,
+      currentStage.lowP,
+      currentStage.highP
+    )
+    const kCondition = getNutrientCondition(
+      sensorData.potassium || 0,
+      currentStage.lowK,
+      currentStage.highK
+    )
+    
+    const currentCondition = `${nCondition} N, ${pCondition} P, ${kCondition} K`
+    
+    // Try to find exact match first
+    let matchedScenario = scenarios.find(scenario => 
+      scenario.condition === currentCondition
+    )
+    
+    // Fallback matching logic if exact match not found
+    if (!matchedScenario) {
+      // Try matching by Nitrogen condition
+      if (nCondition === 'Low' || nCondition === 'High') {
+        matchedScenario = scenarios.find(scenario => 
+          scenario.condition && scenario.condition.includes(`${nCondition} N`)
+        )
+      }
+      
+      // Try matching by Phosphorus condition
+      if (!matchedScenario && (pCondition === 'Low' || pCondition === 'High')) {
+        matchedScenario = scenarios.find(scenario => 
+          scenario.condition && scenario.condition.includes(`${pCondition} P`)
+        )
+      }
+      
+      // Try matching by Potassium condition
+      if (!matchedScenario && (kCondition === 'Low' || kCondition === 'High')) {
+        matchedScenario = scenarios.find(scenario => 
+          scenario.condition && scenario.condition.includes(`${kCondition} K`)
+        )
+      }
+      
+      // Try matching all Normal condition
+      if (!matchedScenario && nCondition === 'Normal' && pCondition === 'Normal' && kCondition === 'Normal') {
+        matchedScenario = scenarios.find(scenario => 
+          scenario.condition && scenario.condition.includes('Normal N, Normal P, Normal K')
+        )
+      }
+      
+      // Last resort: use first scenario as default
+      if (!matchedScenario && scenarios.length > 0) {
+        matchedScenario = scenarios[0]
+      }
+    }
+    
+    return {
+      plantType,
+      plantName: plantData.plantName,
+      stage: stageName,
+      currentCondition,
+      nCondition,
+      pCondition,
+      kCondition,
+      matchedScenario,
+      allScenarios: scenarios,
+      isExactMatch: matchedScenario?.condition === currentCondition
+    }
+    
+  } catch (error) {
+    console.error('Error fetching fertilizer recommendations:', error)
+    return null
   }
+}
+
+// Helper function to determine nutrient condition
+const getNutrientCondition = (currentValue, lowThreshold, highThreshold) => {
+  if (currentValue < lowThreshold) return 'Low'
+  if (currentValue > highThreshold) return 'High'
+  return 'Normal'
+}
 
   // Fetch events for a specific plant
   const fetchPlantEvents = async (plantId) => {
@@ -1522,7 +1529,6 @@ const handleConfirmPlanting = async () => {
     // Calculate how many packs to deduct
     const packsToDeduct = Math.ceil(seedsNeeded / seedsPerPack)
     const newPackCount = availableSeeds - packsToDeduct
-
     // Calculate dates
     const currentDate = new Date()
     const plantedDate = new Date(currentDate.getTime() - (plantAge * 24 * 60 * 60 * 1000))
@@ -1580,6 +1586,24 @@ const handleConfirmPlanting = async () => {
       updatedAt: serverTimestamp(),
       lastUsed: serverTimestamp()
     })
+
+    await inventoryLogger.logSeedUsage(
+      matchingSeed.id,
+      {
+        previousPacks: availableSeeds,
+        newPacks: newPackCount,
+        packsUsed: packsToDeduct,
+        seedsUsed: seedsNeeded,
+        seedsPerPack: seedsPerPack,
+        itemName: matchingSeed.name,
+        category: matchingSeed.category || 'Seed',
+        plantId: docRef.id,
+        plantName: generatedPlantName,
+        plotNumber: selectedPlotNumber
+      },
+      userId,
+      userName || 'Unknown User' // Pass user name if available
+    )
 
     // Create initial stage event
     await addDoc(collection(db, 'events'), {
@@ -2001,36 +2025,66 @@ const handleConfirmPlanting = async () => {
     return Object.values(filters).some(value => value !== 'all')
   }
 
-  const generateFertilizerJobOrders = async (plant, fertilizerRecommendation, userId) => {
+const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, userId) => {
   try {
-    if (!fertilizerRecommendation || !fertilizerRecommendation.matchedScenario) {
+    if (!fertilizerRecommendations || !fertilizerRecommendations.matchedScenario) {
       console.error('No fertilizer recommendation provided')
       return []
     }
 
-    const scenario = fertilizerRecommendation.matchedScenario
-    const plantInfo = plant.plantName || plant.plantType
+    const scenario = fertilizerRecommendations.matchedScenario
+    const applications = scenario.applications || []
     
-    // Parse frequency from the scenario (e.g., "Every 3 days", "Once a week", "Daily")
-    const frequency = parseFrequencyToDays(scenario.frequency)
-    
-    // Parse duration from the scenario (e.g., "2 weeks", "1 month", "Throughout stage")
-    const duration = parseDurationToDays(scenario.duration || scenario.frequency)
-    
-    // Calculate how many applications are needed
-    const numberOfApplications = Math.ceil(duration / frequency)
-    
-    // Start from tomorrow
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() + 1)
-    startDate.setHours(8, 0, 0, 0) // Set to 8:00 AM
+    if (applications.length === 0) {
+      console.error('No applications found in scenario')
+      return []
+    }
     
     const createdEventIds = []
     
-    // Create job order events for each application
-    for (let i = 0; i < numberOfApplications; i++) {
-      const applicationDate = new Date(startDate)
-      applicationDate.setDate(applicationDate.getDate() + (i * frequency))
+    // Create job order for each application in the schedule
+    for (let i = 0; i < applications.length; i++) {
+      const application = applications[i]
+      
+      // Calculate scheduled date based on timing description
+      const scheduledDate = new Date()
+      scheduledDate.setHours(8, 0, 0, 0) // Set to 8:00 AM
+      
+      // Parse timing to determine when to schedule
+      const timingLower = application.timing.toLowerCase()
+      if (timingLower.includes('at planting')) {
+        // Schedule for tomorrow (assuming planting is soon)
+        scheduledDate.setDate(scheduledDate.getDate() + 1)
+      } else if (timingLower.includes('10-14 days after planting')) {
+        // Schedule for 12 days from now (middle of range)
+        scheduledDate.setDate(scheduledDate.getDate() + 12)
+      } else if (timingLower.includes('days after planting')) {
+        // Try to extract number of days
+        const daysMatch = timingLower.match(/(\d+)\s*days?\s*after/)
+        if (daysMatch) {
+          scheduledDate.setDate(scheduledDate.getDate() + parseInt(daysMatch[1]))
+        } else {
+          // Default: schedule sequentially
+          scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
+        }
+      } else if (timingLower.includes('weeks after planting')) {
+        // Try to extract number of weeks
+        const weeksMatch = timingLower.match(/(\d+)\s*weeks?\s*after/)
+        if (weeksMatch) {
+          scheduledDate.setDate(scheduledDate.getDate() + (parseInt(weeksMatch[1]) * 7))
+        } else {
+          // Default: schedule sequentially
+          scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
+        }
+      } else {
+        // Default: schedule sequentially (1 week apart)
+        scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
+      }
+      
+      // Format fertilizer bags information
+      const bagsInfo = Object.entries(application.bags)
+        .map(([type, amount]) => `${type}: ${amount}`)
+        .join(', ')
       
       // Create the job order event
       const jobOrderEvent = {
@@ -2040,34 +2094,36 @@ const handleConfirmPlanting = async () => {
         plotNumber: plant.plotNumber,
         type: 'FERTILIZER_JOB_ORDER',
         status: 'pending', // pending, in-progress, completed, cancelled
-        priority: 'medium', // low, medium, high
+        priority: i === 0 ? 'high' : 'medium', // First application is high priority
         
         // Job details
-        title: `Apply ${scenario.fertilizer}`,
-        description: `Apply ${scenario.amount} of ${scenario.fertilizer} (NPK: ${scenario.npkRatio})`,
+        title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
+        description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo}`,
         
         // Fertilizer details
-        fertilizerName: scenario.fertilizer,
-        fertilizerAmount: scenario.amount,
+        fertilizerName: `NPK ${scenario.npkRatio}`,
+        fertilizerBags: application.bags,
+        fertilizerAmount: bagsInfo,
         npkRatio: scenario.npkRatio,
-        applicationMethod: scenario.method,
-        applicationInstructions: scenario.application,
+        applicationMethod: application.method,
+        applicationInstructions: application.method,
         
         // Scheduling
-        scheduledDate: applicationDate.toISOString(),
-        frequency: scenario.frequency,
+        scheduledDate: scheduledDate.toISOString(),
+        frequency: application.timing,
         applicationNumber: i + 1,
-        totalApplications: numberOfApplications,
+        totalApplications: applications.length,
+        applicationStage: application.stage,
+        applicationTiming: application.timing,
         
         // Context
-        stage: fertilizerRecommendation.stage,
-        nutrientCondition: fertilizerRecommendation.currentCondition,
-        reason: `Nutrient levels: N=${fertilizerRecommendation.nCondition}, P=${fertilizerRecommendation.pCondition}, K=${fertilizerRecommendation.kCondition}`,
+        stage: fertilizerRecommendations.stage,
+        nutrientCondition: fertilizerRecommendations.currentCondition,
+        soilCondition: scenario.condition,
+        reason: `Nutrient levels: N=${fertilizerRecommendations.nCondition}, P=${fertilizerRecommendations.pCondition}, K=${fertilizerRecommendations.kCondition}`,
         
         // Expected results
-        expectedResult: scenario.expectedResult,
-        warning: scenario.warning || null,
-        action: scenario.action || null,
+        expectedResult: `Follow ${application.stage} schedule for optimal growth`,
         
         // Metadata
         createdAt: serverTimestamp(),
@@ -2083,7 +2139,7 @@ const handleConfirmPlanting = async () => {
       const docRef = await addDoc(collection(db, 'events'), jobOrderEvent)
       createdEventIds.push(docRef.id)
       
-      console.log(`✅ Created job order ${i + 1}/${numberOfApplications} for ${applicationDate.toLocaleDateString()}`)
+      console.log(`✅ Created job order ${i + 1}/${applications.length}: ${application.stage} for ${scheduledDate.toLocaleDateString()}`)
     }
     
     // Create a summary event
@@ -2092,21 +2148,25 @@ const handleConfirmPlanting = async () => {
       plantName: plant.plantName,
       type: 'FERTILIZER_SCHEDULE_CREATED',
       status: 'info',
-      message: `Created fertilizer schedule: ${numberOfApplications} applications of ${scenario.fertilizer} every ${frequency} days`,
+      message: `Created fertilizer schedule: ${applications.length} applications for NPK ${scenario.npkRatio}`,
       timestamp: serverTimestamp(),
       createdAt: serverTimestamp(),
       userId: userId,
       details: {
-        fertilizer: scenario.fertilizer,
-        amount: scenario.amount,
-        frequency: scenario.frequency,
-        totalApplications: numberOfApplications,
-        startDate: startDate.toISOString(),
-        duration: `${duration} days`
+        npkRatio: scenario.npkRatio,
+        condition: scenario.condition,
+        totalApplications: applications.length,
+        applications: applications.map(app => app.stage).join(', '),
+        schedules: applications.map((app, i) => ({
+          stage: app.stage,
+          timing: app.timing
+        }))
       }
     }
     
     await addDoc(collection(db, 'events'), summaryEvent)
+    
+    console.log(`📋 Summary: Created ${createdEventIds.length} job orders for ${plant.plantName}`)
     
     return createdEventIds
     
@@ -2116,74 +2176,7 @@ const handleConfirmPlanting = async () => {
   }
 }
 
-
-const parseFrequencyToDays = (frequencyStr) => {
-  if (!frequencyStr) return 7 // Default to weekly
-  
-  const str = frequencyStr.toLowerCase()
-  
-  // Daily
-  if (str.includes('daily') || str.includes('every day')) {
-    return 1
-  }
-  
-  // Every X days
-  const daysMatch = str.match(/every\s+(\d+)\s+days?/)
-  if (daysMatch) {
-    return parseInt(daysMatch[1])
-  }
-  
-  // Weekly
-  if (str.includes('weekly') || str.includes('once a week') || str.includes('per week')) {
-    return 7
-  }
-  
-  // Bi-weekly / Twice a week
-  if (str.includes('twice a week') || str.includes('bi-weekly')) {
-    return 3 // Approximately twice a week
-  }
-  
-  // Monthly
-  if (str.includes('monthly') || str.includes('once a month')) {
-    return 30
-  }
-  
-  // Default
-  return 7
-}
-
-const parseDurationToDays = (durationStr) => {
-  if (!durationStr) return 14 // Default to 2 weeks
-  
-  const str = durationStr.toLowerCase()
-  
-  // Weeks
-  const weeksMatch = str.match(/(\d+)\s+weeks?/)
-  if (weeksMatch) {
-    return parseInt(weeksMatch[1]) * 7
-  }
-  
-  // Months
-  const monthsMatch = str.match(/(\d+)\s+months?/)
-  if (monthsMatch) {
-    return parseInt(monthsMatch[1]) * 30
-  }
-  
-  // Days
-  const daysMatch = str.match(/(\d+)\s+days?/)
-  if (daysMatch) {
-    return parseInt(daysMatch[1])
-  }
-  
-  // Throughout stage (default to 2 weeks)
-  if (str.includes('throughout') || str.includes('continuous')) {
-    return 14
-  }
-  
-  // Default
-  return 14
-}
-
+// Helper function to complete a job order
 const completeJobOrder = async (eventId, userId, notes = '') => {
   try {
     const eventRef = doc(db, 'events', eventId)
@@ -2196,11 +2189,14 @@ const completeJobOrder = async (eventId, userId, notes = '') => {
     })
     
     console.log(`✅ Job order ${eventId} marked as completed`)
+    return true
   } catch (error) {
     console.error('Error completing job order:', error)
     throw error
   }
 }
+
+// Helper function to cancel a job order
 const cancelJobOrder = async (eventId, userId, reason = '') => {
   try {
     const eventRef = doc(db, 'events', eventId)
@@ -2213,12 +2209,14 @@ const cancelJobOrder = async (eventId, userId, reason = '') => {
     })
     
     console.log(`❌ Job order ${eventId} cancelled`)
+    return true
   } catch (error) {
     console.error('Error cancelling job order:', error)
     throw error
   }
 }
 
+// Helper function to update job order status
 const updateJobOrderStatus = async (eventId, status, userId) => {
   try {
     const eventRef = doc(db, 'events', eventId)
@@ -2236,6 +2234,7 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
     await updateDoc(eventRef, updateData)
     
     console.log(`✅ Job order ${eventId} status updated to ${status}`)
+    return true
   } catch (error) {
     console.error('Error updating job order status:', error)
     throw error
@@ -2840,7 +2839,6 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
           </div>
         )}
 
-        {/* Add Plot Modal with sensor status and plant ranking */}
         {showAddPlotModal && (
           <div className="planting-modal-overlay" onClick={handleCloseAddPlotModal}>
             <div className="planting-modal planting-modal-large" onClick={(e) => e.stopPropagation()}>
@@ -3256,291 +3254,438 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
           </div>
         )}
 
-        {/* Continue with Fertilizer, Price, Harvest, and Detail modals... */}
-        {/* Fertilizer Modal */}
         {showFertilizerModal && fertilizerInfo && (
-  <div className="planting-modal-overlay" onClick={handleCloseFertilizerModal}>
-    <div className="fertilizer-modal planting-modal planting-modal-large" onClick={(e) => e.stopPropagation()}>
-      <div className="planting-modal-header">
-        <h2 className="planting-modal-title">
-          <MdGrass style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-          Fertilizer Recommendations
-        </h2>
-        <button className="planting-modal-close" onClick={handleCloseFertilizerModal}>
-          ✕
-        </button>
-      </div>
-
-      <div className="planting-modal-body">
-        <div className="fertilizer-intro">
-          <h3>{fertilizerInfo.plantName}</h3>
-          <p>Current Stage: <strong>{fertilizerInfo.stage}</strong></p>
-          {fertilizerInfo.recommendations && (
-            <p className="nutrient-condition-badge">
-              Nutrient Condition: <strong>{fertilizerInfo.recommendations.currentCondition}</strong>
-            </p>
-          )}
-        </div>
-
-        {/* Current Soil Status */}
-        <div className="fertilizer-content">
-          <h4>Current Soil Analysis</h4>
-          <div className="nutrients-grid">
-            <div className="nutrient-card">
-              <h4>Nitrogen (N)</h4>
-              <div className="nutrient-values">
-                <span>Current: {fertilizerInfo.current?.nitrogen || 0} ppm</span>
-                <span>Ideal: {fertilizerInfo.ideal?.nitrogen || 0} ppm</span>
-                <span className="range">Range: {fertilizerInfo.range?.nitrogen} ppm</span>
-                {fertilizerInfo.recommendations && (
-                  <span className={`condition-badge ${fertilizerInfo.recommendations.nCondition.toLowerCase()}`}>
-                    {fertilizerInfo.recommendations.nCondition}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="nutrient-card">
-              <h4>Phosphorus (P)</h4>
-              <div className="nutrient-values">
-                <span>Current: {fertilizerInfo.current?.phosphorus || 0} ppm</span>
-                <span>Ideal: {fertilizerInfo.ideal?.phosphorus || 0} ppm</span>
-                <span className="range">Range: {fertilizerInfo.range?.phosphorus} ppm</span>
-                {fertilizerInfo.recommendations && (
-                  <span className={`condition-badge ${fertilizerInfo.recommendations.pCondition.toLowerCase()}`}>
-                    {fertilizerInfo.recommendations.pCondition}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="nutrient-card">
-              <h4>Potassium (K)</h4>
-              <div className="nutrient-values">
-                <span>Current: {fertilizerInfo.current?.potassium || 0} ppm</span>
-                <span>Ideal: {fertilizerInfo.ideal?.potassium || 0} ppm</span>
-                <span className="range">Range: {fertilizerInfo.range?.potassium} ppm</span>
-                {fertilizerInfo.recommendations && (
-                  <span className={`condition-badge ${fertilizerInfo.recommendations.kCondition.toLowerCase()}`}>
-                    {fertilizerInfo.recommendations.kCondition}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="nutrient-card">
-              <h4>pH Level</h4>
-              <div className="nutrient-values">
-                <span>Current: {fertilizerInfo.current?.ph?.toFixed(2) || 0}</span>
-                <span>Ideal: {fertilizerInfo.ideal?.ph?.toFixed(2) || 0}</span>
-                <span className="range">Range: {fertilizerInfo.range?.ph}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Recommended Fertilizer Treatment */}
-        {fertilizerInfo.recommendations?.matchedScenario && (
-          <div className="fertilizer-recommendation-section">
-            <h4>
-              <MdCheckCircle style={{ marginRight: '8px', verticalAlign: 'middle', color: '#10b981' }} />
-              Recommended Treatment
-            </h4>
-            
-            <div className="recommendation-card">
-              <div className="recommendation-header">
-                <h3>{fertilizerInfo.recommendations.matchedScenario.fertilizer}</h3>
-                <span className="npk-badge">
-                  NPK: {fertilizerInfo.recommendations.matchedScenario.npkRatio}
-                </span>
-              </div>
-
-              <div className="recommendation-details">
-                <div className="detail-row">
-                  <span className="detail-label">
-                    <MdScience style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                    Amount:
-                  </span>
-                  <span className="detail-value">{fertilizerInfo.recommendations.matchedScenario.amount}</span>
-                </div>
-
-                <div className="detail-row">
-                  <span className="detail-label">
-                    <MdEco style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                    Application:
-                  </span>
-                  <span className="detail-value">{fertilizerInfo.recommendations.matchedScenario.application}</span>
-                </div>
-
-                <div className="detail-row">
-                  <span className="detail-label">
-                    <MdTimeline style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                    Method:
-                  </span>
-                  <span className="detail-value">{fertilizerInfo.recommendations.matchedScenario.method}</span>
-                </div>
-
-                <div className="detail-row">
-                  <span className="detail-label">
-                    <MdCalendarToday style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                    Frequency:
-                  </span>
-                  <span className="detail-value">{fertilizerInfo.recommendations.matchedScenario.frequency}</span>
-                </div>
-
-                {fertilizerInfo.recommendations.matchedScenario.duration && (
-                  <div className="detail-row">
-                    <span className="detail-label">
-                      <MdCalendarToday style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                      Duration:
-                    </span>
-                    <span className="detail-value">{fertilizerInfo.recommendations.matchedScenario.duration}</span>
-                  </div>
-                )}
-
-                <div className="detail-row highlight">
-                  <span className="detail-label">
-                    <MdTrendingUp style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                    Expected Result:
-                  </span>
-                  <span className="detail-value">{fertilizerInfo.recommendations.matchedScenario.expectedResult}</span>
-                </div>
-
-                {fertilizerInfo.recommendations.matchedScenario.warning && (
-                  <div className="warning-box">
-                    <MdWarning style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                    <strong>Warning:</strong> {fertilizerInfo.recommendations.matchedScenario.warning}
-                  </div>
-                )}
-
-                {fertilizerInfo.recommendations.matchedScenario.action && (
-                  <div className="action-box">
-                    <MdInfo style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                    <strong>Action:</strong> {fertilizerInfo.recommendations.matchedScenario.action}
-                  </div>
-                )}
-              </div>
-
-              {/* NEW: Job Order Generation Section */}
-              <div className="job-order-section" style={{
-                marginTop: '20px',
-                padding: '15px',
-                background: '#f0f9ff',
-                borderRadius: '8px',
-                border: '2px solid #0ea5e9'
-              }}>
-                <h4 style={{ color: '#0369a1', marginBottom: '10px' }}>
-                  📋 Generate Application Schedule
-                </h4>
-                <p style={{ fontSize: '0.9em', color: '#475569', marginBottom: '15px' }}>
-                  Create automatic job orders for fertilizer application. Jobs will be scheduled starting tomorrow 
-                  according to the frequency: <strong>{fertilizerInfo.recommendations.matchedScenario.frequency}</strong>
-                  {fertilizerInfo.recommendations.matchedScenario.duration && 
-                    ` for ${fertilizerInfo.recommendations.matchedScenario.duration}`
-                  }
-                </p>
-                
-                <button
-                  className="generate-job-order-btn"
-                  onClick={async () => {
-                    setIsGeneratingJobOrders(true)
-                    try {
-                      const eventIds = await generateFertilizerJobOrders(
-                        selectedPlant,
-                        fertilizerInfo.recommendations,
-                        userId
-                      )
-                      
-                      showAlert({
-                        type: 'success',
-                        title: '✅ Job Orders Created!',
-                        message: `Successfully created ${eventIds.length} fertilizer application job orders`,
-                        details: [
-                          { label: 'Fertilizer', value: fertilizerInfo.recommendations.matchedScenario.fertilizer },
-                          { label: 'Amount per application', value: fertilizerInfo.recommendations.matchedScenario.amount },
-                          { label: 'Frequency', value: fertilizerInfo.recommendations.matchedScenario.frequency },
-                          { label: 'Total applications', value: eventIds.length.toString() },
-                          { label: 'Start date', value: new Date(Date.now() + 86400000).toLocaleDateString() }
-                        ],
-                        confirmText: 'View Events'
-                      })
-                      
-                      handleCloseFertilizerModal()
-                    } catch (error) {
-                      showAlert({
-                        type: 'error',
-                        title: 'Failed to Create Job Orders',
-                        message: 'An error occurred while generating job orders',
-                        details: [{ label: 'Error', value: error.message }],
-                        confirmText: 'OK'
-                      })
-                    } finally {
-                      setIsGeneratingJobOrders(false)
-                    }
-                  }}
-                  disabled={isGeneratingJobOrders}
-                  style={{
-                    width: '100%',
-                    padding: '12px 20px',
-                    background: isGeneratingJobOrders ? '#94a3b8' : '#0ea5e9',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '1em',
-                    fontWeight: '600',
-                    cursor: isGeneratingJobOrders ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <MdCalendarToday />
-                  {isGeneratingJobOrders ? 'Creating Job Orders...' : 'Generate Job Orders'}
+          <div className="planting-modal-overlay" onClick={handleCloseFertilizerModal}>
+            <div className="fertilizer-modal planting-modal planting-modal-large" onClick={(e) => e.stopPropagation()}>
+              <div className="planting-modal-header">
+                <h2 className="planting-modal-title">
+                  <MdGrass style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                  Fertilizer Recommendations
+                </h2>
+                <button className="planting-modal-close" onClick={handleCloseFertilizerModal}>
+                  ✕
                 </button>
-                
-                <p style={{ 
-                  fontSize: '0.8em', 
-                  color: '#64748b', 
-                  marginTop: '10px',
-                  textAlign: 'center'
+              </div>
+
+              <div className="planting-modal-body">
+                {/* Plant Info Header */}
+                <div className="fertilizer-intro">
+                  <h3>{fertilizerInfo.plantName}</h3>
+                  <p>Current Stage: <strong>{fertilizerInfo.stage}</strong></p>
+                  {fertilizerInfo.recommendations && (
+                    <>
+                      <p className="nutrient-condition-badge" style={{
+                        background: fertilizerInfo.recommendations.isExactMatch ? '#dcfce7' : '#fef3c7',
+                        color: fertilizerInfo.recommendations.isExactMatch ? '#166534' : '#92400e',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        display: 'inline-block',
+                        marginTop: '8px'
+                      }}>
+                        <strong>Soil Condition:</strong> {fertilizerInfo.recommendations.currentCondition}
+                        {fertilizerInfo.recommendations.isExactMatch ? ' ✓ Exact Match' : ' ~ Closest Match'}
+                      </p>
+                      {fertilizerInfo.recommendations.matchedScenario && (
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '12px',
+                          background: '#f0f9ff',
+                          borderRadius: '8px',
+                          borderLeft: '4px solid #0ea5e9'
+                        }}>
+                          <strong>Recommended NPK Ratio:</strong> {fertilizerInfo.recommendations.matchedScenario.npkRatio}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Current Soil Status */}
+                <div className="fertilizer-content">
+                  <h4>📊 Current Soil Analysis</h4>
+                  <div className="nutrients-grid">
+                    <div className="nutrient-card">
+                      <h4>Nitrogen (N)</h4>
+                      <div className="nutrient-values">
+                        <span>Current: {fertilizerInfo.current?.nitrogen || 0} ppm</span>
+                        <span>Ideal: {fertilizerInfo.ideal?.nitrogen || 0} ppm</span>
+                        <span className="range">Range: {fertilizerInfo.range?.nitrogen} ppm</span>
+                        {fertilizerInfo.recommendations && (
+                          <span className={`condition-badge ${fertilizerInfo.recommendations.nCondition.toLowerCase()}`}>
+                            {fertilizerInfo.recommendations.nCondition}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="nutrient-card">
+                      <h4>Phosphorus (P)</h4>
+                      <div className="nutrient-values">
+                        <span>Current: {fertilizerInfo.current?.phosphorus || 0} ppm</span>
+                        <span>Ideal: {fertilizerInfo.ideal?.phosphorus || 0} ppm</span>
+                        <span className="range">Range: {fertilizerInfo.range?.phosphorus} ppm</span>
+                        {fertilizerInfo.recommendations && (
+                          <span className={`condition-badge ${fertilizerInfo.recommendations.pCondition.toLowerCase()}`}>
+                            {fertilizerInfo.recommendations.pCondition}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="nutrient-card">
+                      <h4>Potassium (K)</h4>
+                      <div className="nutrient-values">
+                        <span>Current: {fertilizerInfo.current?.potassium || 0} ppm</span>
+                        <span>Ideal: {fertilizerInfo.ideal?.potassium || 0} ppm</span>
+                        <span className="range">Range: {fertilizerInfo.range?.potassium} ppm</span>
+                        {fertilizerInfo.recommendations && (
+                          <span className={`condition-badge ${fertilizerInfo.recommendations.kCondition.toLowerCase()}`}>
+                            {fertilizerInfo.recommendations.kCondition}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="nutrient-card">
+                      <h4>pH Level</h4>
+                      <div className="nutrient-values">
+                        <span>Current: {fertilizerInfo.current?.ph?.toFixed(2) || 0}</span>
+                        <span>Ideal: {fertilizerInfo.ideal?.ph?.toFixed(2) || 0}</span>
+                        <span className="range">Range: {fertilizerInfo.range?.ph}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recommended Fertilizer Treatment */}
+                {fertilizerInfo.recommendations?.matchedScenario && (
+                  <div className="fertilizer-recommendation-section">
+                    <h4>
+                      <MdCheckCircle style={{ marginRight: '8px', verticalAlign: 'middle', color: '#10b981' }} />
+                      Recommended Treatment Plan
+                    </h4>
+                    
+                    <div className="recommendation-card">
+                      <div className="recommendation-header" style={{
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: 'white',
+                        padding: '20px',
+                        borderRadius: '12px 12px 0 0',
+                        marginBottom: '20px'
+                      }}>
+                        <h3 style={{ margin: '0 0 8px 0', fontSize: '1.5em' }}>
+                          NPK Ratio: {fertilizerInfo.recommendations.matchedScenario.npkRatio}
+                        </h3>
+                        <p style={{ margin: 0, opacity: 0.9 }}>
+                          For condition: {fertilizerInfo.recommendations.matchedScenario.condition}
+                        </p>
+                      </div>
+
+                      {/* Display Applications */}
+                      {fertilizerInfo.recommendations.matchedScenario.applications && 
+                      fertilizerInfo.recommendations.matchedScenario.applications.length > 0 && (
+                        <div className="applications-section" style={{ padding: '0 20px 20px' }}>
+                          <h4 style={{ 
+                            marginBottom: '20px', 
+                            color: '#0f172a',
+                            fontSize: '1.2em',
+                            borderBottom: '2px solid #e2e8f0',
+                            paddingBottom: '10px'
+                          }}>
+                            📅 Application Schedule ({fertilizerInfo.recommendations.matchedScenario.applications.length} stages)
+                          </h4>
+                          
+                          {fertilizerInfo.recommendations.matchedScenario.applications.map((app, index) => (
+                            <div key={index} className="application-card" style={{
+                              background: index === 0 ? '#fef3c7' : '#f8fafc',
+                              padding: '20px',
+                              borderRadius: '12px',
+                              marginBottom: '16px',
+                              border: index === 0 ? '2px solid #f59e0b' : '2px solid #e2e8f0',
+                              position: 'relative'
+                            }}>
+                              {/* Stage Badge */}
+                              {index === 0 && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '-12px',
+                                  left: '20px',
+                                  background: '#f59e0b',
+                                  color: 'white',
+                                  padding: '4px 12px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.75em',
+                                  fontWeight: 'bold'
+                                }}>
+                                  PRIORITY
+                                </div>
+                              )}
+                              
+                              <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                marginBottom: '16px',
+                                paddingBottom: '12px',
+                                borderBottom: '1px solid #cbd5e1'
+                              }}>
+                                <div style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '50%',
+                                  background: index === 0 ? '#f59e0b' : '#0ea5e9',
+                                  color: 'white',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 'bold',
+                                  marginRight: '12px',
+                                  fontSize: '1.2em'
+                                }}>
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <h5 style={{ 
+                                    margin: '0 0 4px 0', 
+                                    color: '#1e293b',
+                                    fontSize: '1.1em',
+                                    fontWeight: '600'
+                                  }}>
+                                    {app.stage}
+                                  </h5>
+                                  <p style={{ margin: 0, fontSize: '0.85em', color: '#64748b' }}>
+                                    <MdCalendarToday style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                    {app.timing}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Fertilizer Bags */}
+                              <div className="detail-row" style={{ marginBottom: '12px' }}>
+                                <span className="detail-label" style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center',
+                                  fontWeight: '600',
+                                  color: '#475569',
+                                  marginBottom: '8px'
+                                }}>
+                                  <MdScience style={{ marginRight: '6px', fontSize: '1.2em', color: '#0ea5e9' }} />
+                                  Fertilizer Requirements:
+                                </span>
+                                <div className="detail-value" style={{
+                                  background: 'white',
+                                  padding: '12px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #e2e8f0'
+                                }}>
+                                  {Object.entries(app.bags).map(([type, amount], i) => (
+                                    <div key={i} style={{ 
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      padding: '8px 0',
+                                      borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
+                                    }}>
+                                      <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
+                                      <span style={{ 
+                                        fontWeight: 'bold', 
+                                        color: '#0ea5e9',
+                                        background: '#f0f9ff',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px'
+                                      }}>
+                                        {amount}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Application Method */}
+                              <div className="detail-row">
+                                <span className="detail-label" style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center',
+                                  fontWeight: '600',
+                                  color: '#475569',
+                                  marginBottom: '8px'
+                                }}>
+                                  <MdTimeline style={{ marginRight: '6px', fontSize: '1.2em', color: '#10b981' }} />
+                                  Application Method:
+                                </span>
+                                <div className="detail-value" style={{
+                                  background: '#f0fdf4',
+                                  padding: '12px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #bbf7d0',
+                                  fontSize: '0.95em',
+                                  lineHeight: '1.6',
+                                  color: '#166534'
+                                }}>
+                                  {app.method}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Job Order Generation Section */}
+                      <div className="job-order-section" style={{
+                        marginTop: '30px',
+                        padding: '20px',
+                        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                        borderRadius: '12px',
+                        border: '2px solid #0ea5e9'
+                      }}>
+                        <h4 style={{ 
+                          color: '#0369a1', 
+                          marginBottom: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          fontSize: '1.1em'
+                        }}>
+                          <MdCalendarToday style={{ marginRight: '8px', fontSize: '1.3em' }} />
+                          Generate Application Schedule
+                        </h4>
+                        <p style={{ fontSize: '0.9em', color: '#475569', marginBottom: '15px', lineHeight: '1.6' }}>
+                          Create automatic job orders for each application stage in the fertilizer schedule. 
+                          {fertilizerInfo.recommendations.matchedScenario.applications && (
+                            <><br/>Jobs will include: <strong>{fertilizerInfo.recommendations.matchedScenario.applications.map(app => app.stage).join(', ')}</strong></>
+                          )}
+                        </p>
+                        
+                        <button
+                          className="generate-job-order-btn"
+                          onClick={async () => {
+                            setIsGeneratingJobOrders(true)
+                            try {
+                              const eventIds = await generateFertilizerJobOrders(
+                                selectedPlant,
+                                fertilizerInfo.recommendations,
+                                userId
+                              )
+                              
+                              showAlert({
+                                type: 'success',
+                                title: '✅ Job Orders Created!',
+                                message: `Successfully created ${eventIds.length} fertilizer application job orders`,
+                                details: [
+                                  { label: 'NPK Ratio', value: fertilizerInfo.recommendations.matchedScenario.npkRatio },
+                                  { label: 'Condition', value: fertilizerInfo.recommendations.matchedScenario.condition },
+                                  { label: 'Total applications', value: eventIds.length.toString() },
+                                  { label: 'Applications', value: fertilizerInfo.recommendations.matchedScenario.applications?.map(app => app.stage).join(', ') || 'N/A' }
+                                ],
+                                confirmText: 'View Events'
+                              })
+                              
+                              handleCloseFertilizerModal()
+                            } catch (error) {
+                              showAlert({
+                                type: 'error',
+                                title: 'Failed to Create Job Orders',
+                                message: 'An error occurred while generating job orders',
+                                details: [{ label: 'Error', value: error.message }],
+                                confirmText: 'OK'
+                              })
+                            } finally {
+                              setIsGeneratingJobOrders(false)
+                            }
+                          }}
+                          disabled={isGeneratingJobOrders}
+                          style={{
+                            width: '100%',
+                            padding: '14px 20px',
+                            background: isGeneratingJobOrders 
+                              ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)' 
+                              : 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '1em',
+                            fontWeight: '600',
+                            cursor: isGeneratingJobOrders ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '10px',
+                            transition: 'all 0.3s',
+                            boxShadow: isGeneratingJobOrders ? 'none' : '0 4px 6px rgba(14, 165, 233, 0.3)'
+                          }}
+                        >
+                          {isGeneratingJobOrders ? (
+                            <>
+                              <span className="loading-spinner" style={{ 
+                                animation: 'spin 1s linear infinite',
+                                display: 'inline-block'
+                              }}>🔄</span>
+                              Creating Job Orders...
+                            </>
+                          ) : (
+                            <>
+                              <MdCalendarToday />
+                              Generate {fertilizerInfo.recommendations.matchedScenario.applications?.length || 0} Job Orders
+                            </>
+                          )}
+                        </button>
+                        
+                        <p style={{ 
+                          fontSize: '0.8em', 
+                          color: '#64748b', 
+                          marginTop: '12px',
+                          textAlign: 'center',
+                          lineHeight: '1.5'
+                        }}>
+                          💡 <strong>Tip:</strong> Job orders will appear in the Events tab and can be marked as completed when done
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {fertilizerInfo.recommendations && !fertilizerInfo.recommendations.matchedScenario && (
+                  <div className="no-recommendations" style={{
+                    padding: '40px',
+                    textAlign: 'center',
+                    background: '#fef2f2',
+                    borderRadius: '12px',
+                    border: '2px dashed #fca5a5',
+                    color: '#991b1b'
+                  }}>
+                    <MdWarning style={{ fontSize: '48px', marginBottom: '16px' }} />
+                    <p style={{ fontSize: '1.1em', fontWeight: '600', marginBottom: '8px' }}>
+                      No specific fertilizer recommendations available
+                    </p>
+                    <p style={{ fontSize: '0.9em', color: '#7f1d1d' }}>
+                      Please consult with an agricultural expert for customized advice for this nutrient condition.
+                    </p>
+                  </div>
+                )}
+
+                <div className="fertilizer-note" style={{
+                  marginTop: '20px',
+                  padding: '16px',
+                  background: '#fffbeb',
+                  borderLeft: '4px solid #f59e0b',
+                  borderRadius: '8px'
                 }}>
-                  💡 Tip: Job orders will appear in the Events tab and can be marked as completed
-                </p>
+                  <p style={{ margin: 0, color: '#92400e', fontSize: '0.9em', lineHeight: '1.6' }}>
+                    <MdInfo style={{ marginRight: '8px', verticalAlign: 'middle', color: '#f59e0b' }} />
+                    <strong>Important Note:</strong> Apply fertilizers according to package instructions. 
+                    Monitor soil regularly and adjust application as needed. Always wear protective equipment when handling fertilizers.
+                  </p>
+                </div>
+              </div>
+
+              <div className="planting-modal-footer">
+                <button
+                  className="planting-modal-btn planting-modal-cancel"
+                  onClick={handleCloseFertilizerModal}
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>
         )}
-
-        {fertilizerInfo.recommendations && !fertilizerInfo.recommendations.matchedScenario && (
-          <div className="no-recommendations">
-            <p>No specific fertilizer recommendations available for this nutrient condition.</p>
-            <p>Please consult with an agricultural expert for customized advice.</p>
-          </div>
-        )}
-
-        <div className="fertilizer-note">
-          <p>
-            <strong>Note:</strong> Apply fertilizers according to package instructions. 
-            Monitor soil regularly and adjust application as needed.
-          </p>
-        </div>
-      </div>
-
-      <div className="planting-modal-footer">
-        <button
-          className="planting-modal-btn planting-modal-cancel"
-          onClick={handleCloseFertilizerModal}
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-
         {/* Price Recommendation Modal */}
         {showPriceModal && priceRecommendation && (
           <div className="planting-modal-overlay" onClick={handleClosePriceModal}>
