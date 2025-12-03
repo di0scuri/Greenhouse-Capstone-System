@@ -23,7 +23,6 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Update date and time every minute
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDateTime(new Date())
@@ -35,17 +34,29 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
   // Fetch financial data from inventory_log
   const fetchFinancialData = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, 'inventory_log'))
-      const logs = querySnapshot.docs.map(doc => ({
+      // 1. Fetch all three data sources concurrently
+      const [
+        logsSnapshot,
+        costsSnapshot,
+        expensesSnapshot
+      ] = await Promise.all([
+        getDocs(collection(db, 'inventory_log')),
+        getDocs(collection(db, 'productionCosts')), // NEW
+        getDocs(collection(db, 'plantExpenses')) // NEW
+      ])
+
+      // 2. Process Inventory Logs (Revenue & Inventory Expenses)
+      const logs = logsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         timestamp: doc.data().timestamp?.toDate ? doc.data().timestamp.toDate() : new Date()
       }))
 
       let totalRevenue = 0
-      let totalExpenses = 0
+      let inventoryExpenses = 0
 
       logs.forEach(log => {
+        // Assuming amount calculation logic remains the same for inventory
         const amount = (log.quantityChange || 0) * (log.costOrValuePerUnit || 0)
         
         // Revenue: Sales, Stock Decrease (assuming sales)
@@ -55,16 +66,37 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
         
         // Expenses: Purchases, Stock Increase, Initial Stock
         if (log.type === 'Purchase' || log.type === 'Stock Increase' || log.type === 'Initial Stock') {
-          totalExpenses += amount
+          inventoryExpenses += amount
         }
       })
 
+      // 3. Process Production Costs (New Expenses)
+      let productionCostsExpenses = 0
+      costsSnapshot.docs.forEach(doc => {
+        const data = doc.data()
+        // Summing up the cost from the productionCosts collection
+        productionCostsExpenses += data.cost || data.amount || 0
+      })
+
+      // 4. Process Plant Expenses (New Expenses)
+      let plantExpensesExpenses = 0
+      expensesSnapshot.docs.forEach(doc => {
+        const data = doc.data()
+        // Summing up the cost from the plantExpenses collection
+        plantExpensesExpenses += data.amount || 0
+      })
+
+      // 5. Aggregate all expenses
+      const totalExpenses = inventoryExpenses + productionCostsExpenses + plantExpensesExpenses
+      
+      // 6. Calculate Net Profit and ROI
       const netProfit = totalRevenue - totalExpenses
       const simpleROI = totalExpenses > 0 ? ((netProfit / totalExpenses) * 100) : 0
 
+      // 7. Update state
       setFinancialData({
         totalRevenue,
-        totalExpenses,
+        totalExpenses, // NOW INCLUDES productionCostsExpenses + plantExpensesExpenses
         netProfit,
         simpleROI
       })
@@ -160,7 +192,7 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
       setLoading(true)
       try {
         await Promise.all([
-          fetchFinancialData(),
+          fetchFinancialData(), // This is the updated call
           fetchEvents(),
           fetchSensorData()
         ])
@@ -181,6 +213,7 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
     
     return () => clearInterval(interval)
   }, [])
+
 
   // Format currency
   const formatCurrency = (amount) => {

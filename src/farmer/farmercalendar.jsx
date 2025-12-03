@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import FarmerSidebar from './farmersidebar';
 import './farmercalendar.css';
-import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverTimestamp, query, where, orderB } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import inventoryLogger from "../functions/inventoryLogger";
 
@@ -66,6 +66,68 @@ const eventTypes = [
     'cancelled': '#ef4444'
   };
 
+
+  // Add this function to farmercalendar.jsx
+const logFertilizerApplicationExpense = async (jobOrderData, totalBagsUsed, userId) => {
+  try {
+    // Calculate the cost based on inventory item price
+    const inventorySnapshot = await getDocs(collection(db, 'inventory'));
+    const inventoryItems = inventorySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Find the fertilizer used
+    const usedFertilizer = inventoryItems.find(item => 
+      item.category?.toLowerCase() === 'fertilizer' && 
+      (item.name.toLowerCase().includes(jobOrderData.npkRatio.toLowerCase()) ||
+       item.name.toLowerCase().includes('npk'))
+    );
+    
+    if (!usedFertilizer) {
+      console.warn('Could not find fertilizer price for expense tracking');
+      return null;
+    }
+    
+    const costPerBag = usedFertilizer.pricePerUnit || 0;
+    const totalCost = totalBagsUsed * costPerBag;
+    
+    const expenseData = {
+      plantId: jobOrderData.plantId,
+      plantName: jobOrderData.plantName || 'Unknown Plant',
+      category: 'Fertilizer', // Matches production.jsx categories
+      description: `Applied ${totalBagsUsed.toFixed(2)} bags of ${jobOrderData.fertilizerName} - ${jobOrderData.title}`,
+      amount: totalCost,
+      date: serverTimestamp(),
+      paymentMethod: 'Internal Application',
+      receiptNumber: `JOB-${jobOrderData.id}`,
+      vendor: 'Internal Inventory',
+      notes: `Fertilizer application. Application ${jobOrderData.applicationNumber} of ${jobOrderData.totalApplications}. ${jobOrderData.notes || ''}`,
+      addedBy: userId,
+      createdAt: serverTimestamp(),
+      lastModifiedAt: serverTimestamp(),
+      // Link to job order and inventory
+      jobOrderId: jobOrderData.id,
+      inventoryItemId: usedFertilizer.id,
+      inventoryItemName: usedFertilizer.name,
+      applicationDetails: {
+        bagsUsed: totalBagsUsed,
+        costPerBag: costPerBag,
+        fertilizerName: jobOrderData.fertilizerName,
+        npkRatio: jobOrderData.npkRatio,
+        applicationMethod: jobOrderData.applicationMethod
+      }
+    };
+    
+    const expenseRef = await addDoc(collection(db, 'plantExpenses'), expenseData);
+    console.log(`💰 Fertilizer application expense logged: ₱${totalCost.toFixed(2)}`);
+    
+    return expenseRef.id;
+  } catch (error) {
+    console.error('Error logging fertilizer application expense:', error);
+    return null;
+  }
+};
   // Check if job order can be started based on date
 const canStartJobOrder = (eventDate) => {
   if (!eventDate) return true; // Allow if no date specified
@@ -388,11 +450,13 @@ const renderListView = () => {
         return {
           id: doc.id,
           ...data,
-          timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : 
-                    data.scheduledDate ? new Date(data.scheduledDate) :
-                    data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-          scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null
+          timestamp: data.timestamp && data.timestamp.toDate 
+           ? data.timestamp.toDate() 
+           : data.scheduledDate
+           ? new Date(data.scheduledDate) // Fallback for scheduledDate string
+           : data.createdAt && data.createdAt.toDate 
+           ? data.createdAt.toDate() 
+           : new Date()
         };
       });
       
@@ -530,6 +594,24 @@ const renderListView = () => {
     }
   };
 
+
+  const getFertilizerUnitCost = async (inventoryItemId) => {
+  try {
+    // Directly fetch the specific inventory document using its ID
+    const docRef = doc(db, 'inventory', inventoryItemId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists() && docSnap.data().pricePerUnit !== undefined) {
+      return docSnap.data().pricePerUnit;
+    }
+
+    console.warn(`Inventory item ID ${inventoryItemId} not found or price missing.`);
+    return 0; 
+  } catch (error) {
+    console.error('Error fetching fertilizer unit cost by ID:', error);
+    return 0;
+  }
+};
   // New function to log the financial expense to Firestore
 // Function to log the financial expense to the 'plantExpenses' collection
 const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, userId) => {
@@ -560,61 +642,6 @@ const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, 
     } catch (error) {
         console.error("Error logging fertilizer expense:", error);
         // Do not use 'alert' here, let the main handler manage user feedback
-    }
-};
-
-// NEW: Function to handle the button click and log the expense
-const handleCompleteTask = async () => {
-    if (!selectedEvent || selectedEvent.type !== 'fertilization') return;
-
-    const eventRef = doc(db, 'calendarEvents', selectedEvent.id);
-    
-    try {
-        // 1. Mark the calendar event as completed
-        await updateDoc(eventRef, {
-            status: 'completed',
-            completedAt: serverTimestamp(),
-            completedBy: userId,
-        });
-
-        // 2. Calculate quantity used (existing logic)
-        const quantityUsed = convertFertilizerToPlotSize(
-            selectedEvent.bagsPerHa, 
-            selectedEvent.plantData.areaOccupiedSqM
-        );
-        
-        // 3. Get the cost of the fertilizer (using the placeholder utility)
-        // In a real app, 'selectedEvent.fertilizerType' would be used here.
-        const costPerBag = getFertilizerUnitCost(selectedEvent.fertilizerType); 
-
-        // 4. Log the quantity consumed to Inventory (Existing inventoryLogger logic)
-        // NOTE: This call relies on the imported inventoryLogger function
-        await inventoryLogger(
-            selectedEvent.inventoryItem || 'Fertilizer-Standard', // Item Key
-            parseFloat(quantityUsed),
-            'consumed'
-        ); 
-
-        // 5. NEW: Log the financial expense to plantExpenses
-        if (costPerBag > 0) {
-             await logFertilizerExpense(
-                selectedEvent, 
-                parseFloat(quantityUsed), 
-                costPerBag, 
-                selectedEvent.plantData, 
-                userId
-            );
-        }
-
-        alert('✅ Task completed and expenses/inventory successfully logged!'); // Update feedback
-        
-        // Close modal and refresh data
-        setSelectedEvent(null);
-        fetchEvents(); 
-
-    } catch (error) {
-        console.error('Error completing task and logging expense:', error);
-        alert('❌ Error completing task. Check console for details.');
     }
 };
 
@@ -722,7 +749,7 @@ const handleCompleteTask = async () => {
           if (matchingFertilizer) {
             // Calculate total bags used
             const totalBagsUsed = Object.values(jobOrderData.fertilizerBagsForPlot)
-              .reduce((sum, bags) => sum + parseFloat(bags), 0);
+            .reduce((sum, bags) => sum + parseFloat(bags), 0);
             
             const previousStock = matchingFertilizer.stock || matchingFertilizer.packs || 0;
             const newStock = Math.max(0, previousStock - totalBagsUsed);
@@ -735,6 +762,13 @@ const handleCompleteTask = async () => {
               updatedAt: serverTimestamp(),
               lastUsed: serverTimestamp()
             });
+
+            const expenseId = await logFertilizerApplicationExpense(
+              jobOrderData,
+              totalBagsUsed,
+              userId
+            );
+
             
             // Log the usage
             inventoryLogId = await inventoryLogger.createLog(
@@ -1657,7 +1691,6 @@ return (
                           try {
                             await completeJobOrder(selectedEvent.jobOrderId || selectedEvent.id, notes);
                             setSelectedEvent(null);
-                            onClick={handleCompleteTask}
                             alert('✅ Job completed and logged to inventory!');
                           } catch (error) {
                             alert('Failed to complete job order: ' + error.message);

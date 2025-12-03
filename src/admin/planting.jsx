@@ -5,6 +5,7 @@ import './planting-ranking.css'
 import './custom-alert.css'
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore'
 import { db, realtimeDb } from '../firebase'
+import { useNavigate } from 'react-router-dom'
 import { ref, get } from 'firebase/database'
 import inventoryLogger from "../functions/inventoryLogger";
 
@@ -51,6 +52,8 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const [plantAge, setPlantAge] = useState(0)
   const [priceRecommendation, setPriceRecommendation] = useState(null)
 
+  const navigate = useNavigate()
+
 
   const [harvestData, setHarvestData] = useState({
     actualYield: '',
@@ -89,6 +92,14 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     status: 'all',
     plotNumber: 'all'
   })
+
+  const handleViewEvents = () => {
+  // 1. Close the alert first (if it's not handled automatically by the CustomAlert component)
+  setAlertConfig(prev => ({ ...prev, show: false })); 
+  
+  // 2. Navigate to the desired route
+  navigate('/calendar/admin'); 
+};
   
   // Add Plot States
   const [plotStep, setPlotStep] = useState('input')
@@ -1024,21 +1035,21 @@ const fetchFertilizerRecommendations = async (plant, sensorData) => {
         matchedScenario = scenarios.find(scenario => 
           scenario.condition && scenario.condition.includes(`${pCondition} P`)
         )
-      }
+      };
       
       // Try matching by Potassium condition
       if (!matchedScenario && (kCondition === 'Low' || kCondition === 'High')) {
         matchedScenario = scenarios.find(scenario => 
           scenario.condition && scenario.condition.includes(`${kCondition} K`)
         )
-      }
+      };
       
       // Try matching all Normal condition
       if (!matchedScenario && nCondition === 'Normal' && pCondition === 'Normal' && kCondition === 'Normal') {
         matchedScenario = scenarios.find(scenario => 
           scenario.condition && scenario.condition.includes('Normal N, Normal P, Normal K')
         )
-      }
+      };
       
       // Last resort: use first scenario as default
       if (!matchedScenario && scenarios.length > 0) {
@@ -4037,7 +4048,8 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                     { label: 'First application', value: new Date().toLocaleDateString() },
                                     { label: 'Events created', value: `${eventIds.length + 1} events (scheduled + summary)` }
                                   ],
-                                  confirmText: 'View Events'
+                                  confirmText: 'View Events',
+                                  onConfirm: handleViewEvents
                                 })
                                 
                                 handleCloseFertilizerModal()
@@ -4097,7 +4109,6 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                           textAlign: 'center',
                           lineHeight: '1.5'
                         }}>
-                          💡 <strong>Tip:</strong> Job orders will appear in the Events tab and can be marked as completed when done
                         </p>
                       </div>
                     </div>
