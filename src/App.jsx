@@ -322,13 +322,48 @@ function App() {
           
           {/* Greenhouse - ADMIN ONLY */}
           <Route 
-            path="/greenhousecontrols/admin" 
+            path="/greenhousecontrols" 
             element={
               <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Greenhouse userType="admin" user={user} />
+                <Greenhouse 
+                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
+                  user={user} 
+                />
               </ProtectedRoute>
             } 
           />
+
+          <Route 
+            path="/farmer/greenhouse" 
+            element={
+              <ProtectedRoute user={user} allowedRoles="Farmer">
+                <Greenhouse userType="farmer" user={user} />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="/greenhousecontrols/farmer" 
+            element={
+              <ProtectedRoute user={user} allowedRoles="Farmer">
+                <Greenhouse userType="farmer" user={user} />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="/greenhousecontrols" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+                <Greenhouse 
+                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
+                  user={user} 
+                />
+              </ProtectedRoute>
+            } 
+          />
+
+
           <Route 
             path="/greenhousecontrols" 
             element={
@@ -351,12 +386,14 @@ function App() {
             } 
           />
 
-          {/* Add Farmer Greenhouse route */}
           <Route 
-            path="/farmer/greenhouse" 
+            path="/greenhousecontrols" 
             element={
               <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Greenhouse userType="farmer" user={user} />
+                <Greenhouse 
+                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
+                  user={user} 
+                />
               </ProtectedRoute>
             } 
           />
@@ -433,19 +470,32 @@ function App() {
           <Route 
             path="/sensors/admin" 
             element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+              <ProtectedRoute user={user} allowedRoles="Admin">
                 <Sensors userType="admin" user={user} />
               </ProtectedRoute>
             } 
           />
           <Route 
-            path="/sensors/farmer" 
+            path="/farmer/sensors" 
             element={
               <ProtectedRoute user={user} allowedRoles="Farmer">
                 <Sensors userType="farmer" user={user} />
               </ProtectedRoute>
             } 
           />
+
+          <Route 
+            path="/sensors" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+                <Sensors 
+                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
+                  user={user} 
+                />
+              </ProtectedRoute>
+            } 
+          />
+
           <Route 
             path="/sensors" 
             element={
