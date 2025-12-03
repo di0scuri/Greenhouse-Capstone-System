@@ -1331,56 +1331,6 @@ return (
             </div>
           </div>
 
-          {/* Mini Calendar */}
-          <div className="fc-mini-calendar">
-            <div className="fc-mini-header">
-              <button className="fc-mini-nav" onClick={() => navigateView(-1)}>&lt;</button>
-              <span className="fc-mini-title">{month} <span className="fc-year">{year}</span></span>
-              <button className="fc-mini-nav" onClick={() => navigateView(1)}>&gt;</button>
-            </div>
-
-            <div className="fc-mini-grid">
-              <div className="fc-mini-days">
-                {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
-                  <div key={day} className="fc-mini-day-header">{day}</div>
-                ))}
-              </div>
-              <div className="fc-mini-dates">
-                {Array.from({ length: 35 }, (_, i) => {
-                  const firstDay = new Date(year, currentDate.getMonth(), 1);
-                  const startDate = new Date(firstDay);
-                  startDate.setDate(startDate.getDate() - firstDay.getDay());
-                  
-                  const cellDate = new Date(startDate);
-                  cellDate.setDate(startDate.getDate() + i);
-                  
-                  const isCurrentMonth = cellDate.getMonth() === currentDate.getMonth();
-                  const isToday = cellDate.toDateString() === new Date().toDateString();
-                  const hasEvents = events.some(event => event.date === formatDate(cellDate));
-                  const hasJobOrders = events.some(event => event.date === formatDate(cellDate) && event.isJobOrder);
-
-                  return (
-                    <div
-                      key={i}
-                      className={`fc-mini-date ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''} ${hasJobOrders ? 'has-jobs' : ''}`}
-                      onClick={() => {
-                        setCurrentDate(cellDate);
-                        setViewMode('Day');
-                      }}
-                    >
-                      {cellDate.getDate()}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="fc-today-info">
-              <div className="fc-today-label">TODAY {new Date().toLocaleDateString()}</div>
-              <div className="fc-stats">{events.length} Activities Scheduled</div>
-            </div>
-          </div>
-
           {/* Upcoming Events */}
           <div className="fc-upcoming-events">
             <h3>Upcoming Activities</h3>
