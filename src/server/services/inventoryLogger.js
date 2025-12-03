@@ -1,30 +1,8 @@
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 
-/**
- * Inventory Logger Service
- * Automatically logs all inventory changes to inventory_log collection
- */
-
 class InventoryLogger {
-  /**
-   * Create an inventory log entry
-   * @param {string} inventoryId - ID of the inventory item
-   * @param {string} action - Type of action: 'ADD', 'REMOVE', 'UPDATE', 'USE', 'ADJUST', 'RESTOCK'
-   * @param {Object} details - Details about the change
-   * @param {number} details.previousQuantity - Quantity before change
-   * @param {number} details.newQuantity - Quantity after change
-   * @param {number} details.quantityChange - Amount changed (positive or negative)
-   * @param {string} details.reason - Reason for change
-   * @param {string} details.itemName - Name of inventory item
-   * @param {string} details.category - Category of item
-   * @param {string} [details.plantId] - Related plant ID (optional)
-   * @param {string} [details.plantName] - Related plant name (optional)
-   * @param {string} [details.notes] - Additional notes (optional)
-   * @param {string} userId - ID of user making the change
-   * @param {string} [userName] - Name of user (optional)
-   * @returns {Promise<string>} Log entry ID
-   */
+
   async createLog(inventoryId, action, details, userId, userName = null) {
     try {
       // Validate required fields
