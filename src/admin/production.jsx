@@ -36,7 +36,6 @@ import {
 
 
 const PlantProduction = ({ userType = 'admin' }) => {
-  // Access control: Allow both 'admin' and 'finance' users
   const hasAccess = userType === 'admin' || userType === 'finance'
   
   const [activeMenu, setActiveMenu] = useState('Plant Production')
