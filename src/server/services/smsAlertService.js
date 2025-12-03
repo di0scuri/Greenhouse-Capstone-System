@@ -28,10 +28,8 @@ export async function sendSMS(phoneNumber, message) {
       sendername: "MaligatIFSy"
     });
     
-    console.log(`SMS sent to ${phoneNumber}:`, response.data);
     return { success: true, data: response.data };
   } catch (error) {
-    console.error(`Error sending SMS to ${phoneNumber}:`, error.response?.data || error.message);
     return { success: false, error: error.response?.data || error.message };
   }
 }
@@ -47,7 +45,6 @@ async function fetchAlertRecipients(db) {
       .get();
 
     if (snapshot.empty) {
-      console.log('No matching users found');
       return [];
     }
 
@@ -64,7 +61,6 @@ async function fetchAlertRecipients(db) {
       }
     });
 
-    console.log(`Found ${users.length} recipients:`, users.map(u => `${u.name} (${u.role})`).join(', '));
     return users;
   } catch (error) {
     console.error('Error fetching users from Firebase:', error);
@@ -84,7 +80,6 @@ async function getPlantBySensor(db, sensorId) {
       .get();
 
     if (snapshot.empty) {
-      console.log(`No plant found with sensor ID: ${sensorId}`);
       return null;
     }
 
@@ -109,14 +104,12 @@ async function getCurrentStageRequirements(db, plant) {
     const plantType = plant.plantType || plant.type;
     
     if (!plantType) {
-      console.log('Plant type not specified');
       return null;
     }
 
     // Check cache first
     const cacheKey = `${plantType}_${plant.status}`;
     if (plantRequirementsCache.has(cacheKey)) {
-      console.log(`Using cached requirements for ${plantType} - ${plant.status}`);
       return plantRequirementsCache.get(cacheKey);
     }
 
@@ -125,7 +118,6 @@ async function getCurrentStageRequirements(db, plant) {
     const plantListDoc = await plantListRef.get();
 
     if (!plantListDoc.exists) {
-      console.log(`Plant type "${plantType}" not found in plantsList`);
       return null;
     }
 
@@ -138,7 +130,6 @@ async function getCurrentStageRequirements(db, plant) {
     );
 
     if (!currentStage) {
-      console.log(`Stage "${plant.status}" not found for ${plantType}`);
       return null;
     }
 
@@ -200,7 +191,6 @@ export async function checkThresholdsForPlant(sensorData, plantRequirements) {
   const alerts = [];
 
   if (!plantRequirements || !plantRequirements.thresholds) {
-    console.log('No plant requirements available for threshold checking');
     return alerts;
   }
 
@@ -332,9 +322,7 @@ async function saveLastAlertInfo(db, plantId, alerts, alertData) {
       ...alertData
     });
     
-    console.log(`Last alert info saved for plant ${plantId}`);
   } catch (error) {
-    console.error('Error saving last alert info:', error);
   }
 }
 
@@ -347,7 +335,6 @@ async function shouldSendAlert(db, plantId, currentAlerts) {
     
     // No previous alert - send it
     if (!lastAlertInfo) {
-      console.log('[CHECK] No previous alert found - will send');
       return { shouldSend: true, reason: 'First alert for this plant' };
     }
     
@@ -363,7 +350,6 @@ async function shouldSendAlert(db, plantId, currentAlerts) {
     
     if (hoursSinceLastAlert < 24) {
       // Within 24 hours - DON'T send (even if status changed)
-      console.log(`[SKIP] Less than 24h since last alert (${hoursSinceLastAlert.toFixed(1)}h ago)`);
       console.log(`   Last: ${lastAlertInfo.signature}`);
       console.log(`   Now:  ${currentSignature}`);
       if (statusChanged) {
