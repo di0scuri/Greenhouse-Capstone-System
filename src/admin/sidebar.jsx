@@ -171,7 +171,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, userType = 'admin' }) => {
         { name: 'Greenhouse', icon: GiGreenhouse },
         { name: 'Costing & Pricing', icon: HiOutlineCurrencyDollar },        
         { name: 'Plant List', icon: HiOutlineClipboardList },
-        { name: 'User Management', icon: HiOutlineCog },
+        { name: 'Settings', icon: HiOutlineCog },
       ]
     }
   }
