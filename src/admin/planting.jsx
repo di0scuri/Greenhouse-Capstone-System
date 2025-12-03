@@ -3656,76 +3656,70 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                                 }}>
                                   <MdScience style={{ marginRight: '6px', fontSize: '1.2em', color: '#0ea5e9' }} />
                                   Fertilizer Requirements:
-                                </span>
-                                <div className="detail-value" style={{
-                                  background: 'white',
-                                  padding: '12px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #e2e8f0'
-                                }}>
-                                  // In the fertilizer modal, around line 2061
-{Object.entries(app.bags).map(([type, amount], i) => {
-  // Extract numeric value from amount (e.g., "2-3 bags/ha" -> 2.5)
-  const bagsPerHa = typeof amount === 'string' 
-    ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-    : amount;
-  
-  // Get plot size safely - try multiple sources
-  let plotSize = selectedPlant.plotSizeM2;
-  
-  // If plotSizeM2 doesn't exist, parse plotSize
-  if (!plotSize && selectedPlant.plotSize) {
-    plotSize = parsePlotSizeToM2(selectedPlant.plotSize);
-  }
-  
-  // Default to 0 if still no valid size
-  plotSize = plotSize || 0;
-  
-  // Convert to plot size
-  const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, plotSize);
-  
-  return (
-    <div key={i} style={{ 
-      display: 'flex',
-      justifyContent: 'space-between',
-      padding: '8px 0',
-      borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
-    }}>
-      <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
-      <div style={{ textAlign: 'right' }}>
-        {plotSize > 0 ? (
-          <>
+<div className="detail-value" style={{
+  background: 'white',
+  padding: '12px',
+  borderRadius: '8px',
+  border: '1px solid #e2e8f0'
+}}>
+  {Object.entries(app.bags).map(([type, amount], i) => {
+    const bagsPerHa = typeof amount === 'string' 
+      ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+      : amount;
+    
+    let plotSize = selectedPlant.plotSizeM2;
+    
+    if (!plotSize && selectedPlant.plotSize) {
+      plotSize = parsePlotSizeToM2(selectedPlant.plotSize);
+    }
+    
+    plotSize = plotSize || 0;
+    
+    const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, plotSize);
+    
+    return (
+      <div key={i} style={{ 
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '8px 0',
+        borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
+      }}>
+        <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
+        <div style={{ textAlign: 'right' }}>
+          {plotSize > 0 ? (
+            <>
+              <span style={{ 
+                fontWeight: 'bold', 
+                color: '#0ea5e9',
+                background: '#f0f9ff',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                display: 'block',
+                marginBottom: '4px'
+              }}>
+                {bagsForPlot} bags for this plot ({plotSize.toFixed(4)} m²)
+              </span>
+              <span style={{ 
+                fontSize: '0.75em', 
+                color: '#64748b'
+              }}>
+                ({amount} per hectare)
+              </span>
+            </>
+          ) : (
             <span style={{ 
-              fontWeight: 'bold', 
-              color: '#0ea5e9',
-              background: '#f0f9ff',
-              padding: '2px 8px',
-              borderRadius: '4px',
-              display: 'block',
-              marginBottom: '4px'
+              fontSize: '0.85em', 
+              color: '#dc2626'
             }}>
-              {bagsForPlot} bags for this plot ({plotSize.toFixed(4)} m²)
+              ⚠️ Plot size not available
             </span>
-            <span style={{ 
-              fontSize: '0.75em', 
-              color: '#64748b'
-            }}>
-              ({amount} per hectare)
-            </span>
-          </>
-        ) : (
-          <span style={{ 
-            fontSize: '0.85em', 
-            color: '#dc2626'
-          }}>
-            ⚠️ Plot size not available
-          </span>
-        )}
+          )}
+        </div>
       </div>
-    </div>
-  );
-})}
-                                </div>
+    );
+  })}
+</div>                                </span>
+                              
                               </div>
 
                               {/* Application Method */}
