@@ -188,21 +188,31 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     return parseFloat(m2Match[1]);
   }
 
-  // Case 2: Dimensions (e.g., "10x5", "10*5")
-  const dimMatch = normalizedStr.match(/^(\d+(\.\d+)?)[x*](\d+(\.\d+)?)(m|meter)?$/);
-  if (dimMatch) {
-    const length = parseFloat(dimMatch[1]);
-    const width = parseFloat(dimMatch[3]);
+  // Case 2: Dimensions in cm (e.g., "30x20cm")
+  const cmMatch = normalizedStr.match(/^(\d+(\.\d+)?)[x*](\d+(\.\d+)?)cm$/);
+  if (cmMatch) {
+    const lengthCm = parseFloat(cmMatch[1]);
+    const widthCm = parseFloat(cmMatch[3]);
+    // Convert cm² to m²: (length * width) / 10000
+    return (lengthCm * widthCm) / 10000;
+  }
+
+  // Case 3: Dimensions in meters (e.g., "10x5m", "10*5")
+  const mMatch = normalizedStr.match(/^(\d+(\.\d+)?)[x*](\d+(\.\d+)?)(m|meter)?$/);
+  if (mMatch) {
+    const length = parseFloat(mMatch[1]);
+    const width = parseFloat(mMatch[3]);
     return length * width;
   }
   
-  // Case 3: Simple number (Assume it's the area if only a number is present)
+  // Case 4: Simple number (Assume it's the area in m² if only a number is present)
   const numberMatch = normalizedStr.match(/^(\d+(\.\d+)?)$/);
   if (numberMatch) {
     return parseFloat(numberMatch[1]);
   }
 
   // Fallback: If parsing fails, return 0 to prevent crashes
+  console.warn(`Unable to parse plot size: "${plotSizeStr}"`);
   return 0;
 };
 
@@ -224,8 +234,17 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2) => {
   // 1 hectare = 10,000 m²
   const hectareInM2 = 10000;
-  const bagsForPlot = (bagsPerHa * plotSizeM2) / hectareInM2;
-  return bagsForPlot.toFixed(2); // Return with 2 decimal places
+  
+  // Ensure plotSizeM2 is a valid number
+  const validPlotSize = plotSizeM2 || 0;
+  
+  if (validPlotSize === 0) {
+    console.warn('Plot size is 0 or invalid, returning 0 bags');
+    return '0.00';
+  }
+  
+  const bagsForPlot = (bagsPerHa * validPlotSize) / hectareInM2;
+  return bagsForPlot.toFixed(2);
 };
 
   const closeAlert = () => {
@@ -854,7 +873,56 @@ const exportSeedDataToCSV = async () => {
   }, [])
 
   // Fetch plants data from Firestore
-  useEffect(() => {
+// Update the fetchPlants useEffect (around line 874-898)
+useEffect(() => {
+  const fetchPlants = async () => {
+    try {
+      const plantsCollection = collection(db, 'plants')
+      const plantsSnapshot = await getDocs(plantsCollection)
+      const plantsData = plantsSnapshot.docs.map(doc => {
+        const data = doc.data()
+        
+        // If plotSizeM2 doesn't exist but plotSize does, calculate it
+        if (!data.plotSizeM2 && data.plotSize) {
+          const parsedSize = parsePlotSizeToM2(data.plotSize)
+          data.plotSizeM2 = parsedSize
+          
+          // Optional: Update the document in Firestore with the calculated value
+          // This is commented out to avoid unnecessary writes, but you can enable it
+          // if you want to permanently store plotSizeM2 in your database
+          /*
+          const plantRef = doc(db, 'plants', doc.id)
+          updateDoc(plantRef, { plotSizeM2: parsedSize }).catch(err => 
+            console.error('Error updating plotSizeM2:', err)
+          )
+          */
+        }
+        
+        // If neither exists, set a default to prevent crashes
+        if (!data.plotSizeM2) {
+          data.plotSizeM2 = 0
+        }
+        
+        return {
+          id: doc.id,
+          ...data
+        }
+      })
+      setPlantsData(plantsData)
+      setLoading(false)
+    } catch (error) {
+      console.error('Error fetching plants:', error)
+      setLoading(false)
+    }
+  }
+
+  fetchPlants()
+}, [])
+
+
+// Update the fetchPlants useEffect (around line 874-898)
+// Update the fetchPlants useEffect (around line 874-898)
+useEffect(() => {
   const fetchPlants = async () => {
     try {
       const plantsCollection = collection(db, 'plants')
@@ -865,6 +933,11 @@ const exportSeedDataToCSV = async () => {
         // If plotSizeM2 doesn't exist but plotSize does, calculate it
         if (!data.plotSizeM2 && data.plotSize) {
           data.plotSizeM2 = parsePlotSizeToM2(data.plotSize)
+        }
+        
+        // If neither exists, set a default to prevent crashes
+        if (!data.plotSizeM2) {
+          data.plotSizeM2 = 0
         }
         
         return {
@@ -2226,7 +2299,17 @@ const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, use
 // Helper function to complete a job order
 const completeJobOrder = async (eventId, userId, notes = '') => {
   try {
+    // Get the job order details first
     const eventRef = doc(db, 'events', eventId)
+    const eventDoc = await getDoc(eventRef)
+    
+    if (!eventDoc.exists()) {
+      throw new Error('Job order not found')
+    }
+    
+    const jobOrderData = eventDoc.data()
+    
+    // Update job order status
     await updateDoc(eventRef, {
       status: 'completed',
       completedAt: serverTimestamp(),
@@ -2234,6 +2317,62 @@ const completeJobOrder = async (eventId, userId, notes = '') => {
       notes: notes,
       updatedAt: serverTimestamp()
     })
+    
+    // Create expense record for fertilizer application
+    if (jobOrderData.type === 'FERTILIZER_JOB_ORDER' && jobOrderData.plantId) {
+      // Calculate total cost based on fertilizer bags
+      let totalCost = 0
+      let quantityDetails = []
+      let totalBags = 0
+      
+      if (jobOrderData.fertilizerBags) {
+        Object.entries(jobOrderData.fertilizerBags).forEach(([type, amount]) => {
+          // Estimate cost per bag (adjust these prices to match your actual costs)
+          const costPerBag = type.includes('14-14-14') ? 800 : 
+                           type.includes('Urea') ? 600 : 
+                           type.includes('Complete') ? 900 : 
+                           type.includes('16-16-16') ? 850 :
+                           700 // Default price
+          
+          // Parse the amount (handles formats like "2-3 bags/ha" or just "2")
+          const bags = typeof amount === 'string' 
+            ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+            : parseFloat(amount) || 0
+          
+          const cost = bags * costPerBag
+          totalCost += cost
+          totalBags += bags
+          
+          quantityDetails.push(`${type}: ${bags} bags @ ₱${costPerBag}/bag`)
+        })
+      }
+      
+      // Create expense record
+      const expenseData = {
+        plantId: jobOrderData.plantId,
+        expenseType: 'Fertilizer',
+        description: `${jobOrderData.title || 'Fertilizer Application'} - NPK ${jobOrderData.npkRatio || 'N/A'}`,
+        date: serverTimestamp(),
+        cost: totalCost,
+        unit: 'PHP',
+        quantity: totalBags,
+        unitType: 'bags',
+        userId: userId,
+        createdAt: serverTimestamp(),
+        notes: notes || `Completed ${jobOrderData.applicationStage || 'fertilizer application'}. ${quantityDetails.join(', ')}`,
+        jobOrderId: eventId,
+        fertilizerDetails: {
+          npkRatio: jobOrderData.npkRatio || 'N/A',
+          applicationStage: jobOrderData.applicationStage || 'N/A',
+          applicationMethod: jobOrderData.applicationMethod || 'N/A',
+          breakdown: quantityDetails
+        }
+      }
+      
+      await addDoc(collection(db, 'plantsExpenses'), expenseData)
+      
+      console.log(`💰 Created expense record for job order ${eventId}: ₱${totalCost.toFixed(2)}`)
+    }
     
     console.log(`✅ Job order ${eventId} marked as completed`)
     return true
@@ -3524,45 +3663,68 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                                   borderRadius: '8px',
                                   border: '1px solid #e2e8f0'
                                 }}>
-                                  {Object.entries(app.bags).map(([type, amount], i) => {
-                                      // Extract numeric value from amount (e.g., "2-3 bags/ha" -> 2.5)
-                                      const bagsPerHa = typeof amount === 'string' 
-                                        ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-                                        : amount;
-                                      
-                                      // Convert to plot size
-                                      const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, selectedPlant.plotSizeM2);
-                                      
-                                      return (
-                                        <div key={i} style={{ 
-                                          display: 'flex',
-                                          justifyContent: 'space-between',
-                                          padding: '8px 0',
-                                          borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
-                                        }}>
-                                          <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
-                                          <div style={{ textAlign: 'right' }}>
-                                            <span style={{ 
-                                              fontWeight: 'bold', 
-                                              color: '#0ea5e9',
-                                              background: '#f0f9ff',
-                                              padding: '2px 8px',
-                                              borderRadius: '4px',
-                                              display: 'block',
-                                              marginBottom: '4px'
-                                            }}>
-                                              {bagsForPlot} bags for this plot
-                                            </span>
-                                            <span style={{ 
-                                              fontSize: '0.75em', 
-                                              color: '#64748b'
-                                            }}>
-                                              ({amount} per hectare)
-                                            </span>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
+                                  // In the fertilizer modal, around line 2061
+{Object.entries(app.bags).map(([type, amount], i) => {
+  // Extract numeric value from amount (e.g., "2-3 bags/ha" -> 2.5)
+  const bagsPerHa = typeof amount === 'string' 
+    ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+    : amount;
+  
+  // Get plot size safely - try multiple sources
+  let plotSize = selectedPlant.plotSizeM2;
+  
+  // If plotSizeM2 doesn't exist, parse plotSize
+  if (!plotSize && selectedPlant.plotSize) {
+    plotSize = parsePlotSizeToM2(selectedPlant.plotSize);
+  }
+  
+  // Default to 0 if still no valid size
+  plotSize = plotSize || 0;
+  
+  // Convert to plot size
+  const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, plotSize);
+  
+  return (
+    <div key={i} style={{ 
+      display: 'flex',
+      justifyContent: 'space-between',
+      padding: '8px 0',
+      borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
+    }}>
+      <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
+      <div style={{ textAlign: 'right' }}>
+        {plotSize > 0 ? (
+          <>
+            <span style={{ 
+              fontWeight: 'bold', 
+              color: '#0ea5e9',
+              background: '#f0f9ff',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              display: 'block',
+              marginBottom: '4px'
+            }}>
+              {bagsForPlot} bags for this plot ({plotSize.toFixed(4)} m²)
+            </span>
+            <span style={{ 
+              fontSize: '0.75em', 
+              color: '#64748b'
+            }}>
+              ({amount} per hectare)
+            </span>
+          </>
+        ) : (
+          <span style={{ 
+            fontSize: '0.85em', 
+            color: '#dc2626'
+          }}>
+            ⚠️ Plot size not available
+          </span>
+        )}
+      </div>
+    </div>
+  );
+})}
                                 </div>
                               </div>
 
@@ -4662,10 +4824,31 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                                 completeJobOrder(event.id, userId, notes)
                                   .then(async () => {
                                     await fetchPlantEvents(selectedPlant.id)
+                                    
+                                    // Calculate expense info for display
+                                    let totalCost = 0
+                                    if (event.fertilizerBags) {
+                                      Object.entries(event.fertilizerBags).forEach(([type, amount]) => {
+                                        const costPerBag = type.includes('14-14-14') ? 800 : 
+                                                        type.includes('Urea') ? 600 : 
+                                                        type.includes('Complete') ? 900 : 
+                                                        type.includes('16-16-16') ? 850 : 700
+                                        const bags = typeof amount === 'string' 
+                                          ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+                                          : parseFloat(amount) || 0
+                                        totalCost += bags * costPerBag
+                                      })
+                                    }
+                                    
                                     showAlert({
                                       type: 'success',
                                       title: '✅ Job Completed!',
-                                      message: 'Fertilizer application has been marked as completed',
+                                      message: 'Fertilizer application has been marked as completed and expense recorded.',
+                                      details: [
+                                        { label: 'Job Order', value: event.title || 'Fertilizer Application' },
+                                        { label: 'Total Cost', value: `₱${totalCost.toFixed(2)}` },
+                                        { label: 'Status', value: 'Expense added to plantsExpenses' }
+                                      ],
                                       confirmText: 'OK'
                                     })
                                   })

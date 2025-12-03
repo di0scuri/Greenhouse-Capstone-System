@@ -51,6 +51,62 @@ const Inventory = ({ userType = "admin" }) => {
     return stockQty <= threshold;
   };
 
+  const recordInventoryPurchaseExpense = async (itemData, userId) => {
+  try {
+    // Calculate total cost
+    const quantity = itemData.category?.toLowerCase() === 'seed' 
+      ? (itemData.packs || 0) 
+      : (itemData.stock || 0);
+    
+    const pricePerUnit = itemData.category?.toLowerCase() === 'seed'
+      ? (itemData.pricePerPack || 0)
+      : (itemData.pricePerUnit || 0);
+    
+    const totalCost = quantity * pricePerUnit;
+
+    // Create expense record
+    const expenseData = {
+      // Required fields from your schema
+      plantId: 'INVENTORY_PURCHASE', // Special ID for inventory purchases
+      expenseType: itemData.category || 'Inventory', // 'Seed' or 'Fertilizers'
+      description: `Purchased ${quantity} ${itemData.category?.toLowerCase() === 'seed' ? 'packs' : itemData.unit || 'units'} of ${itemData.name}`,
+      date: serverTimestamp(),
+      cost: totalCost,
+      unit: 'PHP',
+      quantity: quantity,
+      unitType: itemData.category?.toLowerCase() === 'seed' ? 'packs' : (itemData.unit || 'units'),
+      userId: userId,
+      createdAt: serverTimestamp(),
+      
+      // Additional details for tracking
+      notes: `Initial inventory purchase: ${itemData.name}`,
+      inventoryItemId: itemData.id || 'PENDING', // Will be updated after item is created
+      inventoryDetails: {
+        itemName: itemData.name,
+        category: itemData.category,
+        pricePerUnit: pricePerUnit,
+        supplier: itemData.supplier || 'N/A',
+        batchNumber: itemData.batchNumber || 'N/A',
+        expirationDate: itemData.expirationDate || null,
+        ...(itemData.category?.toLowerCase() === 'seed' && {
+          seedsPerPack: itemData.seedsPerPack || 0,
+          variety: itemData.variety || 'N/A'
+        })
+      }
+    };
+
+    // Add expense to plantsExpenses collection
+    const expenseRef = await addDoc(collection(db, 'plantsExpenses'), expenseData);
+    
+    console.log(`💰 Created expense record for inventory purchase: ₱${totalCost.toFixed(2)}`);
+    
+    return expenseRef.id;
+  } catch (error) {
+    console.error('Error recording inventory purchase expense:', error);
+    throw error;
+  }
+};
+
   // Fetch inventory data
   const fetchInventory = async () => {
     setLoading(true);

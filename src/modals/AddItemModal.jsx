@@ -4,7 +4,8 @@ import { db } from "../firebase";
 import "./AddItemModal.css";
 import inventoryLogger from "../functions/inventoryLogger";
 
-const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
+// ADD THIS PROP: userId
+const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user" }) => {
   const [formData, setFormData] = useState({
     name: "",
     stock: "",
@@ -28,6 +29,59 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
       ...prev,
       [name]: type === "number" ? (value === "" ? "" : parseFloat(value)) : value
     }));
+  };
+
+  // NEW FUNCTION: Record inventory purchase expense
+  const recordInventoryPurchaseExpense = async (itemData, itemId) => {
+    try {
+      const quantity = Number(itemData.stock);
+      const pricePerUnit = Number(itemData.pricePerUnit);
+      const totalCost = quantity * pricePerUnit;
+
+      const isSeed = activeTab === "Seed";
+
+      const expenseData = {
+        // Required fields from plantsExpenses schema
+        plantId: 'INVENTORY_PURCHASE',
+        expenseType: activeTab, // 'Seed' or 'Fertilizers'
+        description: `Purchased ${quantity} ${itemData.unit} of ${itemData.name}`,
+        date: serverTimestamp(),
+        cost: totalCost,
+        unit: 'PHP',
+        quantity: quantity,
+        unitType: itemData.unit,
+        userId: userId,
+        createdAt: serverTimestamp(),
+        
+        // Additional tracking details
+        notes: `Initial inventory purchase: ${itemData.name}`,
+        inventoryItemId: itemId,
+        inventoryDetails: {
+          itemName: itemData.name,
+          category: activeTab,
+          pricePerUnit: pricePerUnit,
+          ...(isSeed && {
+            seedsPerPack: Number(itemData.seedsPerPack),
+            totalSeeds: Number(itemData.stock) * Number(itemData.seedsPerPack),
+            expirationDate: itemData.expirationDate
+          }),
+          ...(!isSeed && {
+            npk: `${itemData.n_percentage}-${itemData.p_percentage}-${itemData.k_percentage}`,
+            nitrogen: Number(itemData.n_percentage),
+            phosphorus: Number(itemData.p_percentage),
+            potassium: Number(itemData.k_percentage)
+          })
+        }
+      };
+
+      const expenseRef = await addDoc(collection(db, 'plantsExpenses'), expenseData);
+      console.log(`💰 Created expense record for inventory purchase: ₱${totalCost.toFixed(2)}`);
+      
+      return expenseRef.id;
+    } catch (error) {
+      console.error('Error recording inventory purchase expense:', error);
+      throw error;
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -92,9 +146,11 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
       if (activeTab === "Seed") {
         itemData = {
           ...baseItemData,
+          packs: Number(formData.stock), // Store as packs for seeds
+          pricePerPack: Number(formData.pricePerUnit), // Store price per pack
           expirationDate: new Date(formData.expirationDate),
           seedsPerPack: Number(formData.seedsPerPack),
-          totalSeeds: Number(formData.stock) * Number(formData.seedsPerPack) // Calculate total seeds
+          totalSeeds: Number(formData.stock) * Number(formData.seedsPerPack)
         };
       } else { // Fertilizers
         itemData = {
@@ -107,7 +163,18 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
 
       // Add to inventory collection
       const docRef = await addDoc(collection(db, "inventory"), itemData);
-      console.log("Item added to inventory with ID:", docRef.id);
+      console.log("✅ Item added to inventory with ID:", docRef.id);
+      
+      // UPDATED: Record the purchase expense
+      let expenseRecorded = false;
+      try {
+        await recordInventoryPurchaseExpense(formData, docRef.id);
+        expenseRecorded = true;
+        console.log("💰 Purchase expense recorded successfully");
+      } catch (expenseError) {
+        console.error("⚠️ Failed to record expense:", expenseError);
+        // Continue even if expense recording fails
+      }
       
       // Add to inventory_log collection
       await inventoryLogger.logInventoryAdd(
@@ -119,7 +186,7 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
           quantityAdded: Number(formData.stock),
           itemName: formData.name.trim(),
           category: activeTab,
-          supplier: "Not specified", // Add supplier field to form if needed
+          supplier: "Not specified",
           cost: Number(formData.pricePerUnit),
           unit: formData.unit,
           notes: activeTab === "Seed" 
@@ -127,11 +194,19 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
             : `New fertilizer added. NPK: ${formData.n_percentage}-${formData.p_percentage}-${formData.k_percentage}`
         },
         userId,
-        userName
+        "System User" // You can pass userName as prop if available
       );
       
       // Call success callback
       onItemAdded();
+      
+      // Show success message with expense info
+      const totalCost = Number(formData.stock) * Number(formData.pricePerUnit);
+      const successMessage = expenseRecorded 
+        ? `✅ ${activeTab} item added successfully!\n💰 Purchase expense of ₱${totalCost.toFixed(2)} recorded.`
+        : `✅ ${activeTab} item added successfully!\n⚠️ Note: Expense recording failed, but item was added.`;
+      
+      alert(successMessage);
       
     } catch (err) {
       console.error("Error adding item:", err);
@@ -242,7 +317,9 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="pricePerUnit">Price per Unit *</label>
+              <label htmlFor="pricePerUnit">
+                Price per {activeTab === "Seed" ? "Pack" : "Unit"} *
+              </label>
               <input
                 type="number"
                 id="pricePerUnit"
@@ -254,6 +331,12 @@ const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
                 step="0.01"
                 required
               />
+              {/* Show total purchase cost preview */}
+              {formData.stock && formData.pricePerUnit && (
+                <small className="form-hint" style={{ color: '#10b981', fontWeight: 'bold' }}>
+                  💰 Total cost: ₱{(Number(formData.stock) * Number(formData.pricePerUnit)).toFixed(2)}
+                </small>
+              )}
             </div>
 
             <div className="form-group">
