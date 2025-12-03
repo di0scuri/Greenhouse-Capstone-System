@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
@@ -16,6 +16,7 @@ import {
 const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
   const navigate = useNavigate()
   const location = useLocation()
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   // Function to update lastLogout timestamp
   const updateLastLogout = async (userId) => {
@@ -33,13 +34,6 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
   }
 
   const handleLogout = async () => {
-    // Show confirmation dialog
-    const confirmed = window.confirm('Are you sure you want to log out?');
-    
-    if (!confirmed) {
-      return; // User cancelled logout
-    }
-
     try {
       // Get current user before signing out
       const currentUser = auth.currentUser;
@@ -68,6 +62,8 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
       localStorage.removeItem('user');
       localStorage.removeItem('userRole');
       navigate('/user-selection');
+    } finally {
+      setShowLogoutConfirm(false);
     }
   }
 
@@ -135,11 +131,35 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
       </nav>
 
       <div className="finance-sidebar-footer">
-        <button className="finance-logout-btn" onClick={handleLogout}>
+        <button className="finance-logout-btn" onClick={() => setShowLogoutConfirm(true)}>
           <span className="finance-nav-icon"><MdLogout /></span>
           <span className="finance-nav-text">Log out</span>
         </button>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="logout-modal-overlay">
+          <div className="logout-modal">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to log out?</p>
+            <div className="logout-modal-buttons">
+              <button 
+                className="logout-confirm-btn" 
+                onClick={handleLogout}
+              >
+                Yes, Log Out
+              </button>
+              <button 
+                className="logout-cancel-btn" 
+                onClick={() => setShowLogoutConfirm(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
