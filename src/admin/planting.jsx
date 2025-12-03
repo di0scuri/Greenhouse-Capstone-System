@@ -538,7 +538,8 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
         transplantDate: plantData.transplantDate || null,
         
         // Spacing and density
-        plantingDensity: plantData.recommendedSeedlings / (plantData.plotSizeM2 || 1),
+        // Spacing and density
+        plantingDensity: plantData.recommendedSeedlings / (parsePlotSizeToM2(plantData.plotSize) || 1),
         spacing: `${plantData.minSpacing} - ${plantData.maxSpacing} cm`,
         
         // Stage information
@@ -872,42 +873,16 @@ const exportSeedDataToCSV = async () => {
     fetchSensors()
   }, [])
 
-  // Fetch plants data from Firestore
-// Update the fetchPlants useEffect (around line 874-898)
+// Fetch plants data from Firestore
 useEffect(() => {
   const fetchPlants = async () => {
     try {
       const plantsCollection = collection(db, 'plants')
       const plantsSnapshot = await getDocs(plantsCollection)
-      const plantsData = plantsSnapshot.docs.map(doc => {
-        const data = doc.data()
-        
-        // If plotSizeM2 doesn't exist but plotSize does, calculate it
-        if (!data.plotSizeM2 && data.plotSize) {
-          const parsedSize = parsePlotSizeToM2(data.plotSize)
-          data.plotSizeM2 = parsedSize
-          
-          // Optional: Update the document in Firestore with the calculated value
-          // This is commented out to avoid unnecessary writes, but you can enable it
-          // if you want to permanently store plotSizeM2 in your database
-          /*
-          const plantRef = doc(db, 'plants', doc.id)
-          updateDoc(plantRef, { plotSizeM2: parsedSize }).catch(err => 
-            console.error('Error updating plotSizeM2:', err)
-          )
-          */
-        }
-        
-        // If neither exists, set a default to prevent crashes
-        if (!data.plotSizeM2) {
-          data.plotSizeM2 = 0
-        }
-        
-        return {
-          id: doc.id,
-          ...data
-        }
-      })
+      const plantsData = plantsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
       setPlantsData(plantsData)
       setLoading(false)
     } catch (error) {
@@ -918,44 +893,6 @@ useEffect(() => {
 
   fetchPlants()
 }, [])
-
-
-// Update the fetchPlants useEffect (around line 874-898)
-// Update the fetchPlants useEffect (around line 874-898)
-useEffect(() => {
-  const fetchPlants = async () => {
-    try {
-      const plantsCollection = collection(db, 'plants')
-      const plantsSnapshot = await getDocs(plantsCollection)
-      const plantsData = plantsSnapshot.docs.map(doc => {
-        const data = doc.data()
-        
-        // If plotSizeM2 doesn't exist but plotSize does, calculate it
-        if (!data.plotSizeM2 && data.plotSize) {
-          data.plotSizeM2 = parsePlotSizeToM2(data.plotSize)
-        }
-        
-        // If neither exists, set a default to prevent crashes
-        if (!data.plotSizeM2) {
-          data.plotSizeM2 = 0
-        }
-        
-        return {
-          id: doc.id,
-          ...data
-        }
-      })
-      setPlantsData(plantsData)
-      setLoading(false)
-    } catch (error) {
-      console.error('Error fetching plants:', error)
-      setLoading(false)
-    }
-  }
-
-  fetchPlants()
-}, [])
-
 
 const fetchFertilizerRecommendations = async (plant, sensorData) => {
   try {
@@ -1666,7 +1603,6 @@ const handleConfirmPlanting = async () => {
     const newPlant = {
       plotNumber: selectedPlotNumber,
       plotSize: displaySize,
-      plotSizeM2: plotSizeM2,
       soilSensor: selectedSoilSensor,
       plantType: selectedPlantType,
       plantName: generatedPlantName,
@@ -2218,7 +2154,7 @@ const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, use
         
         // Job details
         title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
-        description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo} (for ${plant.plotSizeM2}m² plot)`,
+        description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo} (for ${parsePlotSizeToM2(plant.plotSize).toFixed(4)}m² plot)`,
         
         // Fertilizer details
         fertilizerName: `NPK ${scenario.npkRatio}`,
@@ -3667,13 +3603,8 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
       ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
       : amount;
     
-    let plotSize = parsePlotSizeToM2(selectedPlant.plotSize)
-    
-    if (!plotSize && selectedPlant.plotSize) {
-      plotSize = parsePlotSizeToM2(selectedPlant.plotSize);
-    }
-    
-    plotSize = plotSize || 0;
+    // Always parse plotSize to get m²
+    const plotSize = parsePlotSizeToM2(selectedPlant.plotSize) || 0;
     
     const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, plotSize);
     
@@ -3718,7 +3649,8 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
       </div>
     );
   })}
-</div>                                </span>
+</div>
+                                </span>
                               
                               </div>
 
