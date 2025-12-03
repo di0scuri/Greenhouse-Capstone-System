@@ -209,6 +209,93 @@
   font-size: 12px;
 }
 
+/* ============ PRODUCTION BREAKDOWN ============ */
+.production-breakdown {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  padding: 24px;
+  grid-column: 1 / -1;
+}
+
+.breakdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.breakdown-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.breakdown-total {
+  font-size: 14px;
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.breakdown-items {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.breakdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.breakdown-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.breakdown-label {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.breakdown-value {
+  font-size: 14px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.breakdown-bar {
+  width: 100%;
+  height: 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.breakdown-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.breakdown-fill.labor {
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+}
+
+.breakdown-fill.electricity {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.breakdown-fill.water {
+  background: linear-gradient(90deg, #06b6d4, #0891b2);
+}
+
 /* ============ CHART SECTION ============ */
 .costing-chart {
   background: white;
@@ -437,6 +524,12 @@
   background: #FFF8E1;
   color: #F57C00;
   border: 1px solid #FFE082;
+}
+
+.costing-status.neutral {
+  background: #F5F5F5;
+  color: #616161;
+  border: 1px solid #E0E0E0;
 }
 
 .costing-status.cancelled {

@@ -6,6 +6,7 @@ import './custom-alert.css'
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore'
 import { db, realtimeDb } from '../firebase'
 import { ref, get } from 'firebase/database'
+import inventoryLogger from '../services/inventoryLogger'
 
 import {
   MdLocationOn,
@@ -1528,7 +1529,6 @@ const handleConfirmPlanting = async () => {
     // Calculate how many packs to deduct
     const packsToDeduct = Math.ceil(seedsNeeded / seedsPerPack)
     const newPackCount = availableSeeds - packsToDeduct
-
     // Calculate dates
     const currentDate = new Date()
     const plantedDate = new Date(currentDate.getTime() - (plantAge * 24 * 60 * 60 * 1000))
@@ -1586,6 +1586,24 @@ const handleConfirmPlanting = async () => {
       updatedAt: serverTimestamp(),
       lastUsed: serverTimestamp()
     })
+
+    await inventoryLogger.logSeedUsage(
+      matchingSeed.id,
+      {
+        previousPacks: availableSeeds,
+        newPacks: newPackCount,
+        packsUsed: packsToDeduct,
+        seedsUsed: seedsNeeded,
+        seedsPerPack: seedsPerPack,
+        itemName: matchingSeed.name,
+        category: matchingSeed.category || 'Seed',
+        plantId: docRef.id,
+        plantName: generatedPlantName,
+        plotNumber: selectedPlotNumber
+      },
+      userId,
+      userName || 'Unknown User' // Pass user name if available
+    )
 
     // Create initial stage event
     await addDoc(collection(db, 'events'), {
@@ -3235,7 +3253,7 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
             </div>
           </div>
         )}
-        
+
         {showFertilizerModal && fertilizerInfo && (
           <div className="planting-modal-overlay" onClick={handleCloseFertilizerModal}>
             <div className="fertilizer-modal planting-modal planting-modal-large" onClick={(e) => e.stopPropagation()}>

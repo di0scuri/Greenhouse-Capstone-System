@@ -19,6 +19,7 @@ const Costing = ({ userType = 'admin' }) => {
   const [activeMenu, setActiveMenu] = useState('Costing & Pricing')
   const [searchTerm, setSearchTerm] = useState('')
   const [productionCosts, setProductionCosts] = useState([])
+  const [plantExpenses, setPlantExpenses] = useState([])
   const [inventoryLogs, setInventoryLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [financialData, setFinancialData] = useState({
@@ -34,7 +35,7 @@ const Costing = ({ userType = 'admin' }) => {
   const [chartData, setChartData] = useState([])
   const [viewMode, setViewMode] = useState('Monthly View')
 
-  // Fetch production costs and inventory logs from Firebase
+  // Fetch production costs, plant expenses, and inventory logs from Firebase
   const fetchData = async () => {
     setLoading(true)
     try {
@@ -52,6 +53,21 @@ const Costing = ({ userType = 'admin' }) => {
       
       setProductionCosts(costs)
 
+      // Fetch plant expenses
+      const expensesQuery = query(
+        collection(db, 'plantExpenses'),
+        orderBy('date', 'desc')
+      )
+      const expensesSnapshot = await getDocs(expensesQuery)
+      const expenses = expensesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        date: doc.data().date?.toDate ? doc.data().date.toDate() : new Date(),
+        createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate() : new Date()
+      }))
+
+      setPlantExpenses(expenses)
+
       // Fetch inventory logs
       const logsQuery = query(
         collection(db, 'inventory_log'),
@@ -66,9 +82,9 @@ const Costing = ({ userType = 'admin' }) => {
       
       setInventoryLogs(logs)
       
-      // Calculate financial data with both sources
-      calculateFinancialData(costs, logs)
-      generateChartData(costs, logs)
+      // Calculate financial data with all sources
+      calculateFinancialData(costs, logs, expenses)
+      generateChartData(costs, logs, expenses)
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -76,8 +92,8 @@ const Costing = ({ userType = 'admin' }) => {
     }
   }
 
-  // Calculate financial metrics from production costs and inventory logs
-  const calculateFinancialData = (costs, logs) => {
+  // Calculate financial metrics from production costs, inventory logs, and plant expenses
+  const calculateFinancialData = (costs, logs, expenses) => {
     let totalRevenue = 0
     let totalExpenses = 0
     let totalProductionCost = 0
@@ -96,26 +112,48 @@ const Costing = ({ userType = 'admin' }) => {
         totalElectricityCost += cost.breakdown.electricity || 0
         totalWaterCost += cost.breakdown.water || 0
       } else if (cost.detailedCosts) {
-
         totalLaborCost += parseFloat(cost.detailedCosts.labor || 0)
         totalElectricityCost += parseFloat(cost.detailedCosts.electricity || 0)
         totalWaterCost += parseFloat(cost.detailedCosts.water || 0)
       }
     })
 
-    // Calculate revenue from inventory logs
+    // Calculate expenses from plant expenses (Labor, Seeds, Fertilizer, etc.)
+    expenses.forEach(expense => {
+      const amount = expense.amount || 0
+      totalExpenses += amount
+
+      // Add to specific cost categories
+      const category = expense.category?.toLowerCase()
+      if (category === 'labor') {
+        totalLaborCost += amount
+      } else if (category === 'electricity') {
+        totalElectricityCost += amount
+      } else if (category === 'water') {
+        totalWaterCost += amount
+      }
+    })
+
+    // Calculate expenses from inventory logs
+    // Inventory logs track usage/consumption, which are expenses
     logs.forEach(log => {
-      const amount = (log.quantityChange || 0) * (log.costOrValuePerUnit || 0)
+      // For inventory logs, expenses come from items being used or removed
+      // Actions like 'USE', 'REMOVE', 'ADD', 'RESTOCK' represent inventory costs
+      const quantityChange = Math.abs(log.quantityChange || 0)
+      const cost = log.cost || 0
       
-      // Revenue: Sales, Stock Decrease (assuming sales)
-      if (log.type === 'Sale' || log.type === 'Stock Decrease') {
-        totalRevenue += amount
+      // Expenses: Items added to inventory (purchases) or used
+      if (['ADD', 'RESTOCK', 'USE', 'REMOVE'].includes(log.action)) {
+        // If there's a cost field, use it as the total cost
+        // Otherwise, we don't have enough info to calculate expenses from inventory logs
+        if (cost > 0) {
+          totalExpenses += cost
+        }
       }
       
-      // Additional Expenses from inventory
-      if (log.type === 'Purchase' || log.type === 'Stock Increase' || log.type === 'Initial Stock') {
-        totalExpenses += amount
-      }
+      // Note: Inventory logs typically don't track revenue directly
+      // Revenue would come from sales records, which should be in a separate collection
+      // For now, we're only tracking expenses from inventory
     })
 
     const netProfit = totalRevenue - totalExpenses
@@ -134,7 +172,7 @@ const Costing = ({ userType = 'admin' }) => {
   }
 
   // Generate chart data based on view mode
-  const generateChartData = (costs, logs) => {
+  const generateChartData = (costs, logs, expenses) => {
     const now = new Date()
     const monthlyData = Array.from({ length: 12 }, (_, i) => {
       const month = new Date(now.getFullYear(), i, 1)
@@ -156,18 +194,26 @@ const Costing = ({ userType = 'admin' }) => {
       }
     })
 
+    // Add plant expenses to chart
+    expenses.forEach(expense => {
+      const expenseDate = expense.date
+      const monthIndex = expenseDate.getMonth()
+
+      if (expenseDate.getFullYear() === now.getFullYear()) {
+        monthlyData[monthIndex].expenses += expense.amount || 0
+      }
+    })
+
     // Add inventory logs to chart
     logs.forEach(log => {
       const logDate = log.timestamp
       const monthIndex = logDate.getMonth()
-      const amount = (log.quantityChange || 0) * (log.costOrValuePerUnit || 0)
+      const cost = log.cost || 0
 
       if (logDate.getFullYear() === now.getFullYear()) {
-        if (log.type === 'Sale' || log.type === 'Stock Decrease') {
-          monthlyData[monthIndex].revenue += amount
-        }
-        if (log.type === 'Purchase' || log.type === 'Stock Increase' || log.type === 'Initial Stock') {
-          monthlyData[monthIndex].expenses += amount
+        // Inventory expenses
+        if (['ADD', 'RESTOCK', 'USE', 'REMOVE'].includes(log.action) && cost > 0) {
+          monthlyData[monthIndex].expenses += cost
         }
       }
     })
@@ -175,14 +221,40 @@ const Costing = ({ userType = 'admin' }) => {
     setChartData(monthlyData)
   }
 
-  // Get combined recent transactions (production costs + inventory)
+  // Get combined recent transactions (production costs + plant expenses + inventory)
   const getRecentTransactions = () => {
-    // Combine production costs and inventory logs
+    // Map inventory log actions to readable types
+    const actionToType = {
+      'ADD': 'New Stock',
+      'RESTOCK': 'Restock',
+      'USE': 'Usage',
+      'REMOVE': 'Removed',
+      'ADJUST': 'Adjustment',
+      'UPDATE': 'Update',
+      'TRANSFER': 'Transfer',
+      'EXPIRE': 'Expired',
+      'DAMAGE': 'Damaged'
+    }
+
+    // Map inventory log actions to status
+    const actionToStatus = {
+      'ADD': 'expense',
+      'RESTOCK': 'expense',
+      'USE': 'expense',
+      'REMOVE': 'expense',
+      'ADJUST': 'neutral',
+      'UPDATE': 'neutral',
+      'TRANSFER': 'neutral',
+      'EXPIRE': 'expense',
+      'DAMAGE': 'expense'
+    }
+
+    // Combine production costs, plant expenses, and inventory logs
     const allTransactions = [
       ...productionCosts.map(cost => ({
         id: cost.id,
         date: cost.createdAt,
-        itemName: cost.plantName,
+        itemName: cost.plantName || 'Production',
         type: 'Production Cost',
         quantity: cost.areaOccupied || 0,
         unit: 'm²',
@@ -190,15 +262,26 @@ const Costing = ({ userType = 'admin' }) => {
         status: 'expense',
         details: cost
       })),
+      ...plantExpenses.map(expense => ({
+        id: expense.id,
+        date: expense.date,
+        itemName: expense.plantName || 'Plant Expense',
+        type: expense.category || 'Expense',
+        quantity: 1,
+        unit: 'item',
+        amount: expense.amount,
+        status: 'expense',
+        details: expense
+      })),
       ...inventoryLogs.map(log => ({
         id: log.id,
         date: log.timestamp,
-        itemName: log.itemName,
-        type: log.type,
-        quantity: log.quantityChange,
-        unit: log.unit,
-        amount: (log.quantityChange || 0) * (log.costOrValuePerUnit || 0),
-        status: ['Sale', 'Stock Decrease'].includes(log.type) ? 'revenue' : 'expense',
+        itemName: log.itemName || 'Unknown Item',
+        type: actionToType[log.action] || log.action || 'Unknown',
+        quantity: Math.abs(log.quantityChange || 0),
+        unit: log.unit || 'units',
+        amount: log.cost || 0,
+        status: actionToStatus[log.action] || 'neutral',
         details: log
       }))
     ]
@@ -555,9 +638,11 @@ const Costing = ({ userType = 'admin' }) => {
                           </div>
                           <div>
                             <span className={`costing-status ${
-                              transaction.status === 'revenue' ? 'completed' : 'pending'
+                              transaction.status === 'revenue' ? 'completed' : 
+                              transaction.status === 'expense' ? 'pending' : 'neutral'
                             }`}>
-                              {transaction.status === 'revenue' ? 'Revenue' : 'Expense'}
+                              {transaction.status === 'revenue' ? 'Revenue' : 
+                               transaction.status === 'expense' ? 'Expense' : 'Neutral'}
                             </span>
                           </div>
                         </div>
