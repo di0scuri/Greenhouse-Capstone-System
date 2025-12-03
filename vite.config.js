@@ -1,15 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 export default defineConfig({
-  plugins: [
-    react(),
-    nodePolyfills({
-      // Whether to polyfill `node:` protocol imports.
-      protocolImports: true,
-    })
-  ],
+  plugins: [react()],
   server: {
     port: 3000,
     proxy: {
@@ -21,9 +14,33 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    commonjsOptions: {
+      transformMixedEsModules: true
+    }
   },
   define: {
+    'process.env': {},
+    'process.stdout': {},
+    'process.stderr': {},
+    'process.platform': JSON.stringify('browser'),
     global: 'globalThis'
+  },
+  resolve: {
+    alias: {
+      process: 'process/browser',
+      buffer: 'buffer',
+      util: 'util',
+      stream: 'stream-browserify'
+    }
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      define: {
+        global: 'globalThis'
+      }
+    },
+    include: ['buffer', 'process'],
+    exclude: ['firebase-admin']
   }
 })

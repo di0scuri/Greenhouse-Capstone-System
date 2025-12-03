@@ -1,10 +1,8 @@
-// src/server/config/firebase.js - SAFE VERSION
+// server/config/firebase.js - Node.js only
 import admin from 'firebase-admin';
 import dotenv from 'dotenv';
-
 dotenv.config();
 
-// ✅ SAFE - Uses environment variables
 const serviceAccount = {
   type: "service_account",
   project_id: process.env.FIREBASE_PROJECT_ID,

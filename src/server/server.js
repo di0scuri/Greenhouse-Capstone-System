@@ -11,6 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import { db, realtimeDb } from './config/firebase.js';
+
 import alertService from './services/smsAlertService.js';
 import plantAgeScheduler from './services/plantAgeScheduler.js';
 
