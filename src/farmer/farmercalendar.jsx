@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import FarmerSidebar from './farmersidebar';
 import './farmercalendar.css';
-import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverTimestamp, query, where, orderB, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import inventoryLogger from "../functions/inventoryLogger";
+import { getInventoryItemPrice } from '../functions/inventoryUtils';
+
 
 const FarmerCalendar = () => {
   const [activeMenu, setActiveMenu] = useState('Calendar');
@@ -206,6 +208,94 @@ const FarmerCalendar = () => {
     }
   };
 
+  // New function to log the financial expense to Firestore
+// Function to log the financial expense to the 'plantExpenses' collection
+const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, userId) => {
+    if (!event || !event.plantId || !quantityBags || !costPerBag) {
+        console.warn("Cannot log expense: Missing event data, quantity, or cost.");
+        return;
+    }
+
+    const totalCost = quantityBags * costPerBag;
+
+    const expenseData = {
+        // Use fallbacks for plant details
+        plantId: event.plantId,
+        plantName: plantData?.plantName || plantData?.name || 'N/A',
+        date: serverTimestamp(),
+        category: 'Fertilizer', // Explicitly set the category for production.jsx
+        description: `Used ${quantityBags.toFixed(2)} bags (${costPerBag.toFixed(2)}/bag) for task: ${event.title}`,
+        amount: totalCost,
+        vendor: 'Internal Inventory Withdrawal', 
+        paymentMethod: 'Internal',
+        user: userId, 
+        createdAt: serverTimestamp(),
+    };
+
+    try {
+        await addDoc(collection(db, 'plantExpenses'), expenseData);
+        console.log(`Successfully logged ₱${totalCost.toFixed(2)} fertilizer expense for Plant ID: ${event.plantId}`);
+    } catch (error) {
+        console.error("Error logging fertilizer expense:", error);
+        // Do not use 'alert' here, let the main handler manage user feedback
+    }
+};
+
+// NEW: Function to handle the button click and log the expense
+const handleCompleteTask = async () => {
+    if (!selectedEvent || selectedEvent.type !== 'fertilization') return;
+
+    const eventRef = doc(db, 'calendarEvents', selectedEvent.id);
+    
+    try {
+        // 1. Mark the calendar event as completed
+        await updateDoc(eventRef, {
+            status: 'completed',
+            completedAt: serverTimestamp(),
+            completedBy: userId,
+        });
+
+        // 2. Calculate quantity used (existing logic)
+        const quantityUsed = convertFertilizerToPlotSize(
+            selectedEvent.bagsPerHa, 
+            selectedEvent.plantData.areaOccupiedSqM
+        );
+        
+        // 3. Get the cost of the fertilizer (using the placeholder utility)
+        // In a real app, 'selectedEvent.fertilizerType' would be used here.
+        const costPerBag = getFertilizerUnitCost(selectedEvent.fertilizerType); 
+
+        // 4. Log the quantity consumed to Inventory (Existing inventoryLogger logic)
+        // NOTE: This call relies on the imported inventoryLogger function
+        await inventoryLogger(
+            selectedEvent.inventoryItem || 'Fertilizer-Standard', // Item Key
+            parseFloat(quantityUsed),
+            'consumed'
+        ); 
+
+        // 5. NEW: Log the financial expense to plantExpenses
+        if (costPerBag > 0) {
+             await logFertilizerExpense(
+                selectedEvent, 
+                parseFloat(quantityUsed), 
+                costPerBag, 
+                selectedEvent.plantData, 
+                userId
+            );
+        }
+
+        alert('✅ Task completed and expenses/inventory successfully logged!'); // Update feedback
+        
+        // Close modal and refresh data
+        setSelectedEvent(null);
+        fetchEvents(); 
+
+    } catch (error) {
+        console.error('Error completing task and logging expense:', error);
+        alert('❌ Error completing task. Check console for details.');
+    }
+};
+
   // Helper function to cancel a job order
   const cancelJobOrder = async (jobOrderId, reason = '') => {
     try {
@@ -267,6 +357,8 @@ const FarmerCalendar = () => {
     }
   };
 
+
+  
   // Complete job order and log to inventory
   const completeJobOrder = async (jobOrderId, notes = '') => {
     try {
@@ -1367,6 +1459,7 @@ return (
                           try {
                             await completeJobOrder(selectedEvent.jobOrderId || selectedEvent.id, notes);
                             setSelectedEvent(null);
+                            onClick={handleCompleteTask}
                             alert('✅ Job completed and logged to inventory!');
                           } catch (error) {
                             alert('Failed to complete job order: ' + error.message);

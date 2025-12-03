@@ -50,6 +50,8 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const [isGeneratingJobOrders, setIsGeneratingJobOrders] = useState(false)
   const [plantAge, setPlantAge] = useState(0)
   const [priceRecommendation, setPriceRecommendation] = useState(null)
+
+
   const [harvestData, setHarvestData] = useState({
     actualYield: '',
     yieldUnit: 'kg',
@@ -173,6 +175,36 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
       </div>
     )
   }
+
+  const parsePlotSizeToM2 = (plotSizeStr) => {
+  if (!plotSizeStr) return 0;
+
+  // Normalize the string for easier parsing
+  const normalizedStr = String(plotSizeStr).toLowerCase().replace(/\s/g, '');
+
+  // Case 1: Already in m2 (e.g., "50m2", "50sqm")
+  const m2Match = normalizedStr.match(/^(\d+(\.\d+)?)(m2|sqm|sqmeters|sqmeter)$/);
+  if (m2Match) {
+    return parseFloat(m2Match[1]);
+  }
+
+  // Case 2: Dimensions (e.g., "10x5", "10*5")
+  const dimMatch = normalizedStr.match(/^(\d+(\.\d+)?)[x*](\d+(\.\d+)?)(m|meter)?$/);
+  if (dimMatch) {
+    const length = parseFloat(dimMatch[1]);
+    const width = parseFloat(dimMatch[3]);
+    return length * width;
+  }
+  
+  // Case 3: Simple number (Assume it's the area if only a number is present)
+  const numberMatch = normalizedStr.match(/^(\d+(\.\d+)?)$/);
+  if (numberMatch) {
+    return parseFloat(numberMatch[1]);
+  }
+
+  // Fallback: If parsing fails, return 0 to prevent crashes
+  return 0;
+};
 
   const showAlert = (config) => {
     setAlertConfig({

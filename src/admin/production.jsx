@@ -127,8 +127,10 @@ const PlantProduction = ({ userType = 'admin' }) => {
   }
 
   const [costs, setCosts] = useState({
-  labor: 0
-})
+    labor: 0,
+    seeds: 0, // Add this
+    fertilizer: 0 // Add this
+  })
 
   const addPlantExpense = async (plantId, expenseData) => {
   try {
@@ -190,13 +192,13 @@ const PlantProduction = ({ userType = 'admin' }) => {
   }, [])
 
   const calculateGrandTotal = () => {
-    return parseFloat(costs.labor || 0)
-  }
-  const getCostBreakdown = () => {
-    return {
-      labor: parseFloat(costs.labor || 0)
-    }
-  }
+    // Assumes 'totalTrackedExpenses' is available on the 'selectedPlant' object
+    const manualLabor = parseFloat(costs.labor || 0)
+    const trackedExpenses = selectedPlant?.totalTrackedExpenses || 0
+
+    // This is the ideal aggregation logic: manual labor + other tracked expenses
+    return manualLabor + trackedExpenses 
+}
     
 
   // Handle input change
@@ -1090,21 +1092,29 @@ const PricingCalculatorModal = ({
   // Save costing
   const handleSaveCosting = async () => {
     if (!selectedPlant) return
-
-    const breakdown = getCostBreakdown()
-    const grandTotal = calculateGrandTotal()
+    const trackedExpenses = selectedPlant.totalTrackedExpenses || 0
+    const grandTotal = calculateGrandTotal() 
+    
     const costPerSqm = grandTotal / (selectedPlant.areaOccupiedSqM || 1)
     const estimatedYield = selectedPlant.totalEstimatedYield || selectedPlant.initialSeedQuantity || 0
     const costPerUnit = estimatedYield > 0 ? grandTotal / estimatedYield : 0
 
     const costingRecord = {
       plantId: selectedPlant.id,
-      plantName: selectedPlant.name,
-      plantType: selectedPlant.type,
+      // FIX 1: Use the correct data field name (plantName) from the plants collection
+      plantName: selectedPlant.plantName || selectedPlant.name || 'Unnamed Plant', 
+      // FIX 2: Use the correct data field name (plantType) from the plants collection
+      plantType: selectedPlant.plantType || selectedPlant.type || 'N/A', 
+      
       plotNumber: selectedPlant.plotNumber,
       areaOccupied: selectedPlant.areaOccupiedSqM,
-      detailedCosts: costs,
-      breakdown,
+      
+      // We should include the tracked expenses in detailedCosts for full breakdown
+      detailedCosts: { 
+          ...costs, // Manual inputs (e.g., labor)
+          trackedExpensesTotal: trackedExpenses, // Aggregated non-labor costs
+      }, 
+      
       totalCost: grandTotal,
       costPerSqm: costPerSqm,
       estimatedYield: estimatedYield,
@@ -1115,7 +1125,6 @@ const PricingCalculatorModal = ({
     }
 
     try {
-      // Check if costing already exists
       const q = query(collection(db, 'productionCosts'), where('plantId', '==', selectedPlant.id))
       const snapshot = await getDocs(q)
       
@@ -1148,9 +1157,9 @@ const PricingCalculatorModal = ({
       fetchPlants()
     } catch (error) {
       console.error('Error saving costing:', error)
-      alert('Error saving costing data')
+      alert(`Error saving costing data: ${error.message}`) // Enhanced error reporting
     }
-  }
+}
 
   // View costing details
   const handleViewCosting = async (plant) => {
@@ -1368,6 +1377,40 @@ const PricingCalculatorModal = ({
                       />
                     </div>
                   </div>
+                  <div className="cost-category">
+                    <div className="category-header">
+                      <span className="category-icon"><FaSeedling /></span>
+                      <h3 className="category-title">2. Seeds Costs</h3>
+                      <span className="category-total">₱{parseFloat(costs.seeds || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="category-inputs">
+                      <input 
+                        type="number" 
+                        placeholder="Enter total seed costs" 
+                        value={costs.seeds}
+                        onChange={(e) => handleCostChange('seeds', e.target.value)} 
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 3. Fertilizer Costs - Missing Section */}
+                  <div className="cost-category">
+                    <div className="category-header">
+                      <span className="category-icon"><MdAgriculture /></span>
+                      <h3 className="category-title">3. Fertilizer Costs</h3>
+                      <span className="category-total">₱{parseFloat(costs.fertilizer || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="category-inputs">
+                      <input 
+                        type="number" 
+                        placeholder="Enter total fertilizer costs" 
+                        value={costs.fertilizer}
+                        onChange={(e) => handleCostChange('fertilizer', e.target.value)} 
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Total Summary */}
@@ -1381,7 +1424,7 @@ const PricingCalculatorModal = ({
                     <span className="summary-value">₱{(calculateGrandTotal() / (selectedPlant.areaOccupiedSqM || 1)).toFixed(2)}</span>
                   </div>
                   <div className="summary-row">
-                    <span className="summary-label">Estimated Yield:</span>
+                    <span className="summary-label">Yield:</span>
                     <span className="summary-value">{selectedPlant.totalEstimatedYield || selectedPlant.initialSeedQuantity || 0} kg</span>
                   </div>
                   <div className="summary-row">
