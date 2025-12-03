@@ -244,32 +244,37 @@ const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2, returnWeight = false
   
   if (validPlotSize === 0) {
     return returnWeight ? { 
+      bags: '0.00',
       amount: '0.00', 
-      unit: 'g' 
+      unit: 'g',
+      weightKg: 0,
+      weightGrams: 0
     } : '0.00';
   }
   
   // Calculate bags for plot
   const bagsForPlot = (bagsPerHa * validPlotSize) / hectareInM2;
   const weightKg = bagsForPlot * FERTILIZER_WEIGHT_PER_BAG;
+  const weightGrams = weightKg * 1000;
   
   if (!returnWeight) {
     return bagsForPlot.toFixed(6);
   }
   
-  // Auto-select unit based on weight
+  // Auto-select unit based on weight - MORE AGGRESSIVE gram conversion
   let displayAmount, displayUnit;
   
-  if (weightKg >= 1) {
-    // Use kg for >= 1 kg
+  // NEW LOGIC: Always use grams for amounts less than 0.1 kg (100g)
+  if (weightKg >= 0.1) {
+    // Use kg for >= 0.1 kg (100g)
     displayAmount = weightKg.toFixed(3);
     displayUnit = 'kg';
-  } else if (weightKg >= 0.001) {
-    // Use grams for 1g - 999g
+  } else if (weightKg >= 0.0001) {
+    // Use grams for 0.1g - 99.9g
     displayAmount = (weightKg * 1000).toFixed(1);
     displayUnit = 'g';
   } else {
-    // Use milligrams for < 1g
+    // Use milligrams for < 0.1g
     displayAmount = (weightKg * 1000000).toFixed(0);
     displayUnit = 'mg';
   }
@@ -278,10 +283,10 @@ const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2, returnWeight = false
     bags: bagsForPlot.toFixed(6),
     amount: displayAmount,
     unit: displayUnit,
-    weightKg: weightKg
+    weightKg: weightKg,
+    weightGrams: weightGrams
   };
 };
-
   const closeAlert = () => {
     setAlertConfig(prev => ({ ...prev, show: false }))
   }
@@ -3882,7 +3887,8 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                       display: 'block',
                                       marginBottom: '4px'
                                     }}>
-                                      {fertilizerCalc.bags} bags ({fertilizerCalc.weight})
+                                      {/* CHANGED: Show amount with unit */}
+                                      {fertilizerCalc.bags} bags ({fertilizerCalc.amount} {fertilizerCalc.unit})
                                       {fertilizerCalc.displayUnit === 'g' && (
                                         <div style={{ 
                                           fontSize: '0.7em', 
@@ -3899,16 +3905,6 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                     }}>
                                       ({amount} per hectare = {(bagsPerHa * 50).toFixed(1)} kg/ha)
                                     </span>
-                                    {/* Show conversion info */}
-                                    <div style={{ 
-                                      fontSize: '0.7em', 
-                                      color: '#94a3b8',
-                                      marginTop: '2px'
-                                    }}>
-                                      {fertilizerCalc.displayUnit === 'g' ? 
-                                        `≈ ${fertilizerCalc.weightKg.toFixed(6)} kg` : 
-                                        `≈ ${fertilizerCalc.weightGrams.toFixed(0)} g`}
-                                    </div>
                                   </>
                                 ) : (
                                   <span style={{ 
