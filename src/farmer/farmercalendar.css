@@ -262,7 +262,7 @@
 }
 
 .fc-right-sidebar {
-  width: 300px;
+  width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -393,6 +393,7 @@
   flex: 1;
   overflow-y: auto;
   margin-top: 24px;
+  max-height: calc(100% - 30px);
 }
 
 .fc-event-item {
@@ -690,7 +691,7 @@
   letter-spacing: 0.5px;
 }
 
-/* Upcoming Events - Professional */
+/* Upcoming Events - Professional - FIXED SCROLLABLE */
 .fc-upcoming-events {
   background: white;
   border-radius: 8px;
@@ -699,7 +700,8 @@
   border: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
-  height: 400px;
+  height: 400px; /* Fixed height */
+  overflow: hidden; /* Prevent overflow from container */
 }
 
 .fc-upcoming-events h3 {
@@ -708,7 +710,7 @@
   color: #1f2937;
   margin: 0 0 16px 0;
   letter-spacing: -0.3px;
-  flex-shrink: 0;
+  flex-shrink: 0; /* Prevent header from shrinking */
 }
 
 .fc-upcoming-events-content {
@@ -716,9 +718,12 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+  padding-right: 4px; /* Space for scrollbar */
+  min-height: 0; /* Important for flex scrolling */
 }
 
+/* Custom scrollbar for upcoming events */
 .fc-upcoming-events-content::-webkit-scrollbar {
   width: 6px;
 }
@@ -731,6 +736,7 @@
 .fc-upcoming-events-content::-webkit-scrollbar-thumb {
   background: #d1d5db;
   border-radius: 4px;
+  transition: background 0.2s;
 }
 
 .fc-upcoming-events-content::-webkit-scrollbar-thumb:hover {
@@ -738,7 +744,7 @@
 }
 
 .fc-event-group {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .fc-event-group:last-child {
@@ -757,19 +763,21 @@
   background: white;
   padding: 4px 0;
   z-index: 1;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .fc-upcoming-event {
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 8px;
+  padding: 10px;
+  margin-bottom: 6px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-height: 60px;
 }
 
 .fc-upcoming-event:hover {
@@ -783,13 +791,13 @@
 }
 
 .fc-event-indicator {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   flex-shrink: 0;
   color: white;
 }
@@ -803,35 +811,39 @@
 }
 
 .fc-event-time-range {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #1f2937;
+  white-space: nowrap;
 }
 
 .fc-event-description {
-  font-size: 13px;
+  font-size: 12px;
   color: #374151;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .fc-event-type {
-  font-size: 11px;
+  font-size: 10px;
   color: #6b7280;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 2px;
 }
 
 .fc-status-badge {
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: white;
   text-transform: capitalize;
+  white-space: nowrap;
 }
 
 .fc-status-badge.pending { background: #3b82f6; }
@@ -840,12 +852,26 @@
 .fc-status-badge.cancelled { background: #ef4444; }
 
 .fc-type-badge {
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   background: #f3f4f6;
   color: #6b7280;
+  white-space: nowrap;
+}
+
+/* Empty state */
+.fc-upcoming-events-content:empty::after {
+  content: "No upcoming activities scheduled";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+  font-size: 14px;
+  font-style: italic;
+  padding: 20px;
 }
 
 /* Event Types Legend - Professional */
@@ -1064,6 +1090,10 @@
   .fc-calendar-day {
     min-height: 100px;
   }
+  
+  .fc-upcoming-events {
+    height: 350px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1170,6 +1200,21 @@
   .fc-modal-body {
     padding: 20px;
   }
+  
+  .fc-upcoming-events {
+    height: 300px;
+  }
+  
+  .fc-upcoming-event {
+    padding: 8px;
+    min-height: 55px;
+  }
+  
+  .fc-event-indicator {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1226,7 +1271,19 @@
   }
   
   .fc-upcoming-events {
-    height: 300px;
+    height: 280px;
+  }
+  
+  .fc-upcoming-events-content {
+    gap: 12px;
+  }
+  
+  .fc-event-description {
+    font-size: 11px;
+  }
+  
+  .fc-event-time-range {
+    font-size: 10px;
   }
 }
 
