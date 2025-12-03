@@ -3667,7 +3667,7 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
       ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
       : amount;
     
-    let plotSize = selectedPlant.plotSizeM2;
+    let plotSize = parsePlotSizeToM2(selectedPlant.plotSize)
     
     if (!plotSize && selectedPlant.plotSize) {
       plotSize = parsePlotSizeToM2(selectedPlant.plotSize);
