@@ -126,23 +126,20 @@ const PlantProduction = ({ userType = 'admin' }) => {
     )
   }
 
-  // Simplified cost categories state - only 3 categories with single input each
   const [costs, setCosts] = useState({
-    labor: 0,
-    electricity: 0,
-    water: 0
-  })
+  labor: 0
+})
 
   const addPlantExpense = async (plantId, expenseData) => {
   try {
     const expense = {
       plantId: plantId,
       plantName: expenseData.plantName,
-      category: expenseData.category, // e.g., 'Labor', 'Electricity', 'Water', 'Seeds', 'Fertilizer', 'Equipment', 'Other'
+      category: expenseData.category,
       description: expenseData.description,
       amount: parseFloat(expenseData.amount),
       date: expenseData.date || serverTimestamp(),
-      paymentMethod: expenseData.paymentMethod || 'Cash', // Cash, Bank Transfer, etc.
+      paymentMethod: expenseData.paymentMethod || 'Cash',
       receiptNumber: expenseData.receiptNumber || '',
       vendor: expenseData.vendor || '',
       notes: expenseData.notes || '',
@@ -153,7 +150,6 @@ const PlantProduction = ({ userType = 'admin' }) => {
 
     const docRef = await addDoc(collection(db, 'plantExpenses'), expense)
     
-    // Update plant's total expense
     await updatePlantTotalExpense(plantId)
     
     console.log('Expense added successfully:', docRef.id)
@@ -193,20 +189,15 @@ const PlantProduction = ({ userType = 'admin' }) => {
     fetchPlants()
   }, [])
 
-  // Calculate totals
   const calculateGrandTotal = () => {
-    return parseFloat(costs.labor || 0) + parseFloat(costs.electricity || 0) + parseFloat(costs.water || 0)
+    return parseFloat(costs.labor || 0)
   }
-
   const getCostBreakdown = () => {
     return {
-      labor: parseFloat(costs.labor || 0),
-      electricity: parseFloat(costs.electricity || 0),
-      water: parseFloat(costs.water || 0)
+      labor: parseFloat(costs.labor || 0)
     }
   }
-
-  
+    
 
   // Handle input change
   const handleCostChange = (category, value) => {
@@ -252,25 +243,20 @@ const PlantProduction = ({ userType = 'admin' }) => {
           const existingData = snapshot.docs[0].data()
           
           // Load existing costs - handle both structures
+          // Load existing costs - handle both structures
           if (existingData.detailedCosts) {
             setCosts({
-              labor: existingData.detailedCosts.labor || 0,
-              electricity: existingData.detailedCosts.electricity || 0,
-              water: existingData.detailedCosts.water || 0
+              labor: existingData.detailedCosts.labor || 0
             })
           } else if (existingData.breakdown) {
             setCosts({
-              labor: existingData.breakdown.labor || 0,
-              electricity: existingData.breakdown.electricity || 0,
-              water: existingData.breakdown.water || 0
+              labor: existingData.breakdown.labor || 0
             })
           }
         } else {
           // No data found, reset to 0
           setCosts({
-            labor: 0,
-            electricity: 0,
-            water: 0
+            labor: 0
           })
         }
       } catch (error) {
@@ -1382,42 +1368,6 @@ const PricingCalculatorModal = ({
                       />
                     </div>
                   </div>
-
-                  {/* 2. Electricity */}
-                  <div className="cost-category">
-                    <div className="category-header">
-                      <span className="category-icon"><MdBolt /></span>
-                      <h3 className="category-title">2. Electricity</h3>
-                      <span className="category-total">₱{parseFloat(costs.electricity || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="category-inputs">
-                      <input 
-                        type="number" 
-                        placeholder="Enter total electricity costs" 
-                        value={costs.electricity}
-                        onChange={(e) => handleCostChange('electricity', e.target.value)} 
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 3. Water */}
-                  <div className="cost-category">
-                    <div className="category-header">
-                      <span className="category-icon"><MdWaterDrop /></span>
-                      <h3 className="category-title">3. Water</h3>
-                      <span className="category-total">₱{parseFloat(costs.water || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="category-inputs">
-                      <input 
-                        type="number" 
-                        placeholder="Enter total water costs" 
-                        value={costs.water}
-                        onChange={(e) => handleCostChange('water', e.target.value)} 
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                  </div>
                 </div>
 
                 {/* Total Summary */}
@@ -1537,8 +1487,6 @@ const PricingCalculatorModal = ({
                       const percentage = (value / costingData.totalCost * 100).toFixed(1)
                       const labels = {
                         labor: { icon: <MdPeople />, text: 'Labor Costs' },
-                        electricity: { icon: <MdBolt />, text: 'Electricity' },
-                        water: { icon: <MdWaterDrop />, text: 'Water' }
                       }
                       return (
                         <div key={key} className="breakdown-item">

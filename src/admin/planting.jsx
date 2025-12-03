@@ -189,6 +189,13 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     })
   }
 
+  const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2) => {
+  // 1 hectare = 10,000 m²
+  const hectareInM2 = 10000;
+  const bagsForPlot = (bagsPerHa * plotSizeM2) / hectareInM2;
+  return bagsForPlot.toFixed(2); // Return with 2 decimal places
+};
+
   const closeAlert = () => {
     setAlertConfig(prev => ({ ...prev, show: false }))
   }
@@ -2098,7 +2105,7 @@ const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, use
         
         // Job details
         title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
-        description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo}`,
+        description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo} (for ${plant.plotSizeM2}m² plot)`,
         
         // Fertilizer details
         fertilizerName: `NPK ${scenario.npkRatio}`,
@@ -3477,25 +3484,45 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                                   borderRadius: '8px',
                                   border: '1px solid #e2e8f0'
                                 }}>
-                                  {Object.entries(app.bags).map(([type, amount], i) => (
-                                    <div key={i} style={{ 
-                                      display: 'flex',
-                                      justifyContent: 'space-between',
-                                      padding: '8px 0',
-                                      borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
-                                    }}>
-                                      <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
-                                      <span style={{ 
-                                        fontWeight: 'bold', 
-                                        color: '#0ea5e9',
-                                        background: '#f0f9ff',
-                                        padding: '2px 8px',
-                                        borderRadius: '4px'
-                                      }}>
-                                        {amount}
-                                      </span>
-                                    </div>
-                                  ))}
+                                  {Object.entries(app.bags).map(([type, amount], i) => {
+                                      // Extract numeric value from amount (e.g., "2-3 bags/ha" -> 2.5)
+                                      const bagsPerHa = typeof amount === 'string' 
+                                        ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+                                        : amount;
+                                      
+                                      // Convert to plot size
+                                      const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, selectedPlant.plotSizeM2);
+                                      
+                                      return (
+                                        <div key={i} style={{ 
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          padding: '8px 0',
+                                          borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
+                                        }}>
+                                          <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
+                                          <div style={{ textAlign: 'right' }}>
+                                            <span style={{ 
+                                              fontWeight: 'bold', 
+                                              color: '#0ea5e9',
+                                              background: '#f0f9ff',
+                                              padding: '2px 8px',
+                                              borderRadius: '4px',
+                                              display: 'block',
+                                              marginBottom: '4px'
+                                            }}>
+                                              {bagsForPlot} bags for this plot
+                                            </span>
+                                            <span style={{ 
+                                              fontSize: '0.75em', 
+                                              color: '#64748b'
+                                            }}>
+                                              ({amount} per hectare)
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                 </div>
                               </div>
 
