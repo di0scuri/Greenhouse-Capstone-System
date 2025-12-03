@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Sidebar from './farmersidebar'
 import './farmerplants.css'
-import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db, realtimeDb } from '../firebase'
 import { ref, get } from 'firebase/database'
 import {
@@ -30,30 +30,13 @@ import {
 const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
   const [activeMenu, setActiveMenu] = useState('FarmerPlants')
   const [searchTerm, setSearchTerm] = useState('')
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [showAddPlotModal, setShowAddPlotModal] = useState(false)
   const [showFertilizerModal, setShowFertilizerModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedPlant, setSelectedPlant] = useState(null)
   const [plants, setPlantsData] = useState([])
   const [plantsList, setPlantsList] = useState({})
   const [loading, setLoading] = useState(true)
-  const [editFormData, setEditFormData] = useState({
-    locationZone: '',
-    status: '',
-    currentSellingPrice: '',
-    unit: ''
-  })
   
-  // Add Plot States
-  const [plotStep, setPlotStep] = useState('input')
-  const [selectedPlotNumber, setSelectedPlotNumber] = useState('')
-  const [selectedSoilSensor, setSelectedSoilSensor] = useState('')
-  const [selectedPlantType, setSelectedPlantType] = useState('')
-  const [availableSensors, setAvailableSensors] = useState([])
-  const [sensorData, setSensorData] = useState(null)
-  const [scanProgress, setScanProgress] = useState(0)
-  const [recommendedSeedlings, setRecommendedSeedlings] = useState(0)
   const [fertilizerInfo, setFertilizerInfo] = useState(null)
   const [showPriceModal, setShowPriceModal] = useState(false)
   const [priceRecommendation, setPriceRecommendation] = useState(null)
@@ -61,15 +44,6 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
   const [plantEvents, setPlantEvents] = useState([])
 
   const locationZoneOptions = ['Closed Greenhouse', 'Nursery 1', 'Nursery 2']
-  
-  // Plot options (1-5) with standard size 30x20cm = 0.06 sq meters
-  const plotOptions = [
-    { number: 1, size: 0.06, displaySize: '30x20cm' },
-    { number: 2, size: 0.06, displaySize: '30x20cm' },
-    { number: 3, size: 0.06, displaySize: '30x20cm' },
-    { number: 4, size: 0.06, displaySize: '30x20cm' },
-    { number: 5, size: 0.06, displaySize: '30x20cm' }
-  ]
   
   const unitOptions = ['per kilo', 'per piece', 'per bundle', 'per pack', 'per dozen']
 
@@ -92,39 +66,6 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
     }
 
     fetchPlantsList()
-  }, [])
-
-  // Fetch available soil sensors from Firebase Realtime Database
-  useEffect(() => {
-    const fetchSensors = async () => {
-      try {
-        // Fetch all sensor paths (SoilSensor1, SoilSensor2, etc.)
-        const rootRef = ref(realtimeDb, '/')
-        const snapshot = await get(rootRef)
-        
-        if (snapshot.exists()) {
-          const allData = snapshot.val()
-          const sensorsList = []
-          
-          // Find all keys that start with "SoilSensor"
-          Object.keys(allData).forEach(key => {
-            if (key.startsWith('SoilSensor')) {
-              sensorsList.push({
-                id: key,
-                name: key.replace('SoilSensor', 'Soil Sensor '),
-                data: allData[key]
-              })
-            }
-          })
-          
-          setAvailableSensors(sensorsList)
-        }
-      } catch (error) {
-        console.error('Error fetching sensors:', error)
-      }
-    }
-
-    fetchSensors()
   }, [])
 
   // Fetch plants data from Firestore
@@ -188,268 +129,6 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
     
     // If past all stages, return the last stage
     return plantInfo.stages[plantInfo.stages.length - 1]
-  }
-
-  // Calculate recommended seedlings based on spacing
-  const calculateRecommendedSeedlings = (plantKey, plotSize) => {
-    const plantInfo = plantsList[plantKey]
-    if (!plantInfo) return 0
-    
-    const minSpacing = parseFloat(plantInfo.minSpacingCM) || 20
-    const maxSpacing = parseFloat(plantInfo.maxSpacingCM) || 25
-    const avgSpacing = (minSpacing + maxSpacing) / 2
-    
-    // Convert plot size from m² to cm²
-    const plotSizeCm2 = plotSize * 10000
-    const spacingCm2 = avgSpacing * avgSpacing
-    
-    return Math.floor(plotSizeCm2 / spacingCm2)
-  }
-
-  // Fetch soil sensor data when sensor is selected
-  const fetchSensorData = async (sensorId) => {
-    try {
-      // Read from the actual sensor path (SoilSensor1, etc.)
-      const sensorRef = ref(realtimeDb, sensorId)
-      const snapshot = await get(sensorRef)
-      
-      if (snapshot.exists()) {
-        const data = snapshot.val()
-        
-        // Your Firebase has timestamps as keys (2025-10-27_11:51:12, etc.)
-        // Get the latest timestamp entry
-        let latestData = null
-        let latestTimestamp = null
-        
-        Object.keys(data).forEach(key => {
-          // Skip non-timestamp keys like "25"
-          if (key.includes('_') || key.includes('-')) {
-            if (!latestTimestamp || key > latestTimestamp) {
-              latestTimestamp = key
-              latestData = data[key]
-            }
-          }
-        })
-        
-        // If no timestamped data found, use direct values
-        if (!latestData) {
-          latestData = data
-        }
-        
-        // Map Firebase field names to expected field names
-        // Your Firebase uses: Nitrogen, Phosphorus, Potassium, pH, Moisture, Temperature
-        return {
-          nitrogen: latestData.Nitrogen || latestData.nitrogen || 0,
-          phosphorus: latestData.Phosphorus || latestData.phosphorus || 0,
-          potassium: latestData.Potassium || latestData.potassium || 0,
-          ph: latestData.pH || latestData.ph || 7,
-          moisture: latestData.Moisture || latestData.moisture || 0,
-          temperature: latestData.Temperature || latestData.temperature || 0,
-          conductivity: latestData.Conductivity || latestData.conductivity || 0,
-          timestamp: latestTimestamp
-        }
-      }
-      return null
-    } catch (error) {
-      console.error('Error fetching sensor data:', error)
-      return null
-    }
-  }
-
-  const handleOpenEditModal = (plant) => {
-    setSelectedPlant(plant)
-    setEditFormData({
-      locationZone: plant.locationZone || '',
-      status: plant.status || '',
-      currentSellingPrice: plant.currentSellingPrice || '',
-      unit: plant.unit || ''
-    })
-    setShowEditModal(true)
-  }
-
-  const handleCloseEditModal = () => {
-    setShowEditModal(false)
-    setSelectedPlant(null)
-  }
-
-  const handleEditInputChange = (e) => {
-    const { name, value } = e.target
-    setEditFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
-  }
-
-  const handleSaveEdit = async () => {
-    try {
-      if (selectedPlant) {
-        const plantRef = doc(db, 'plants', selectedPlant.id)
-        await updateDoc(plantRef, {
-          ...editFormData,
-          updatedAt: serverTimestamp()
-        })
-        
-        setPlantsData(prev =>
-          prev.map(plant =>
-            plant.id === selectedPlant.id
-              ? { ...plant, ...editFormData }
-              : plant
-          )
-        )
-        
-        handleCloseEditModal()
-      }
-    } catch (error) {
-      console.error('Error updating plant:', error)
-      alert('Failed to update plant')
-    }
-  }
-
-  const handleOpenAddPlotModal = () => {
-    setShowAddPlotModal(true)
-    setPlotStep('input')
-    setSelectedPlotNumber('')
-    setSelectedSoilSensor('')
-    setSelectedPlantType('')
-    setSensorData(null)
-    setScanProgress(0)
-  }
-
-  const handleCloseAddPlotModal = () => {
-    setShowAddPlotModal(false)
-    setPlotStep('input')
-    setSelectedPlotNumber('')
-    setSelectedSoilSensor('')
-    setSelectedPlantType('')
-    setSensorData(null)
-  }
-
-  const handlePlotSelect = (plotNum) => {
-    setSelectedPlotNumber(plotNum)
-  }
-
-  const handleSensorSelect = (sensorId) => {
-    setSelectedSoilSensor(sensorId)
-  }
-
-  const handlePlantTypeSelect = (plantKey) => {
-    setSelectedPlantType(plantKey)
-    const plotData = plotOptions.find(p => p.number === parseInt(selectedPlotNumber))
-    if (plotData) {
-      const seedlings = calculateRecommendedSeedlings(plantKey, plotData.size)
-      setRecommendedSeedlings(seedlings)
-    }
-  }
-
-  const handleStartScan = async () => {
-    if (!selectedPlotNumber || !selectedSoilSensor || !selectedPlantType) {
-      alert('Please select plot number, soil sensor, and plant type')
-      return
-    }
-
-    setPlotStep('scanning')
-    setScanProgress(0)
-
-    // Fetch sensor data
-    const data = await fetchSensorData(selectedSoilSensor)
-    
-    if (!data) {
-      alert('Failed to fetch sensor data')
-      setPlotStep('input')
-      return
-    }
-
-    setSensorData(data)
-
-    // Simulate scanning progress
-    for (let i = 0; i <= 100; i += 5) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      setScanProgress(i)
-    }
-
-    setPlotStep('confirm')
-  }
-
-  const handleConfirmPlanting = async () => {
-    try {
-      const plotData = plotOptions.find(p => p.number === parseInt(selectedPlotNumber))
-      const plantInfo = plantsList[selectedPlantType]
-
-      if (!plantInfo) {
-        alert('Plant information not found')
-        return
-      }
-
-      const plantedDate = new Date()
-      const daysToHarvest = parseInt(plantInfo.daysToHarvest) || 30
-      const expectedHarvestDate = new Date(plantedDate.getTime() + daysToHarvest * 24 * 60 * 60 * 1000)
-
-      const formattedDate = plantedDate.toISOString().split('T')[0];
-      const generatedPlantName = `${plantInfo.name} - Plot ${selectedPlotNumber} - ${formattedDate}`
-
-      const newPlant = {
-        plotNumber: selectedPlotNumber,
-        plotSize: plotData.displaySize,
-        soilSensor: selectedSoilSensor,
-        plantType: selectedPlantType,
-        plantName: generatedPlantName,
-        scientificName: plantInfo.sName || '',
-        recommendedSeedlings,
-        locationZone: 'Nursery 1',
-        status: 'Germination',
-        plantedDate: plantedDate.toISOString(),
-        expectedHarvestDate: expectedHarvestDate.toISOString(),
-        daysToHarvest: daysToHarvest,
-        sensorData: sensorData,
-        currentSellingPrice: plantInfo.pricing || '',
-        unit: plantInfo.pricingUnit || 'per kilo',
-        minSpacing: plantInfo.minSpacingCM || '20',
-        maxSpacing: plantInfo.maxSpacingCM || '25',
-        description: plantInfo.description || '',
-        stages: plantInfo.stages || [],
-        createdAt: serverTimestamp(),
-        userId: userId
-      }
-
-      const docRef = await addDoc(collection(db, 'plants'), newPlant)
-      
-      // Create initial event for planting
-      await addDoc(collection(db, 'events'), {
-        plantId: docRef.id,
-        type: 'LIFECYCLE_STAGE',
-        status: 'info',
-        message: `Stage start: Germination for ${plantInfo.name} - ${plantedDate.toLocaleDateString()}`,
-        timestamp: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        userId: userId
-      })
-
-      // Create events for each stage change
-      if (plantInfo.stages && plantInfo.stages.length > 0) {
-        for (let i = 1; i < plantInfo.stages.length; i++) {
-          const stage = plantInfo.stages[i]
-          const stageDate = new Date(plantedDate.getTime() + stage.startDuration * 24 * 60 * 60 * 1000)
-          
-          await addDoc(collection(db, 'events'), {
-            plantId: docRef.id,
-            type: 'LIFECYCLE_STAGE',
-            status: 'info',
-            message: `Stage start: ${stage.stage} for ${plantInfo.name} - ${stageDate.toLocaleDateString()}`,
-            timestamp: stageDate.toISOString(),
-            createdAt: serverTimestamp(),
-            userId: userId
-          })
-        }
-      }
-      
-      setPlantsData(prev => [...prev, { id: docRef.id, ...newPlant }])
-      
-      handleCloseAddPlotModal()
-      alert('Plot added successfully!')
-    } catch (error) {
-      console.error('Error adding plant:', error)
-      alert('Failed to add plot')
-    }
   }
 
   const handleOpenFertilizerModal = (plant) => {
@@ -602,17 +281,13 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
                 className="planting-search-input"
               />
             </div>
-
-            <button className="planting-add-btn" onClick={handleOpenAddPlotModal}>
-              + Select Plot
-            </button>
           </div>
         </div>
 
         <div className="planting-grid">
           {filteredPlants.length === 0 ? (
             <div className="planting-empty">
-              <p>No plants found. Click "Select Plot" to add your first plot!</p>
+              <p>No plants found</p>
             </div>
           ) : (
             filteredPlants.map((plant) => {
@@ -670,12 +345,6 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
                   <div className="planting-card-footer" onClick={(e) => e.stopPropagation()}>
                     <button
                       className="planting-card-btn"
-                      onClick={() => handleOpenEditModal(plant)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="planting-card-btn"
                       onClick={() => handleOpenFertilizerModal(plant)}
                     >
                       Fertilizer
@@ -692,345 +361,6 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
             })
           )}
         </div>
-
-        {/* Edit Modal */}
-        {showEditModal && selectedPlant && (
-          <div className="planting-modal-overlay" onClick={handleCloseEditModal}>
-            <div className="planting-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="planting-modal-header">
-                <h2 className="planting-modal-title">Edit Plant</h2>
-                <button className="planting-modal-close" onClick={handleCloseEditModal}>
-                  ✕
-                </button>
-              </div>
-
-              <div className="planting-modal-body">
-                <div className="planting-form-group">
-                  <label>Location Zone</label>
-                  <select
-                    name="locationZone"
-                    value={editFormData.locationZone}
-                    onChange={handleEditInputChange}
-                    className="planting-form-select"
-                  >
-                    <option value="">Select location</option>
-                    {locationZoneOptions.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="planting-form-group">
-                  <label>Current Selling Price (₱)</label>
-                  <input
-                    type="number"
-                    name="currentSellingPrice"
-                    value={editFormData.currentSellingPrice}
-                    onChange={handleEditInputChange}
-                    className="planting-form-input"
-                    placeholder="Enter price"
-                  />
-                </div>
-
-                <div className="planting-form-group">
-                  <label>Unit</label>
-                  <select
-                    name="unit"
-                    value={editFormData.unit}
-                    onChange={handleEditInputChange}
-                    className="planting-form-select"
-                  >
-                    <option value="">Select unit</option>
-                    {unitOptions.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="planting-modal-footer">
-                <button
-                  className="planting-modal-btn planting-modal-cancel"
-                  onClick={handleCloseEditModal}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="planting-modal-btn planting-modal-save"
-                  onClick={handleSaveEdit}
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add Plot Modal */}
-        {showAddPlotModal && (
-          <div className="planting-modal-overlay" onClick={handleCloseAddPlotModal}>
-            <div className="planting-modal planting-modal-large" onClick={(e) => e.stopPropagation()}>
-              <div className="planting-modal-header">
-                <h2 className="planting-modal-title">
-                  {plotStep === 'input' && (
-                    <>
-                      <MdLocationOn style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                      Select Plot, Sensor & Plant
-                    </>
-                  )}
-                  {plotStep === 'scanning' && (
-                    <>
-                      <MdSearch style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                      Scanning Soil...
-                    </>
-                  )}
-                  {plotStep === 'confirm' && (
-                    <>
-                      <MdCheckCircle style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                      Confirm Planting
-                    </>
-                  )}
-                </h2>
-                <button className="planting-modal-close" onClick={handleCloseAddPlotModal}>
-                  ✕
-                </button>
-              </div>
-
-              <div className="planting-modal-body">
-                {plotStep === 'input' && (
-                  <div className="plot-input-step">
-                    <div className="planting-form-group">
-                      <label>Select Plot Number</label>
-                      <select
-                        value={selectedPlotNumber}
-                        onChange={(e) => handlePlotSelect(e.target.value)}
-                        className="planting-form-select"
-                      >
-                        <option value="">Choose a plot...</option>
-                        {plotOptions.map(plot => (
-                          <option key={plot.number} value={plot.number}>
-                            Plot {plot.number} - {plot.displaySize}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="planting-form-group">
-                      <label>Assign Soil Sensor</label>
-                      <select
-                        value={selectedSoilSensor}
-                        onChange={(e) => handleSensorSelect(e.target.value)}
-                        className="planting-form-select"
-                      >
-                        <option value="">Choose a sensor...</option>
-                        {availableSensors.map(sensor => (
-                          <option key={sensor.id} value={sensor.id}>
-                            {sensor.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="planting-form-group">
-                      <label>Select Plant Type</label>
-                      <select
-                        value={selectedPlantType}
-                        onChange={(e) => handlePlantTypeSelect(e.target.value)}
-                        className="planting-form-select"
-                      >
-                        <option value="">Choose a plant...</option>
-                        {Object.keys(plantsList).map(key => (
-                          <option key={key} value={key}>
-                            {plantsList[key].name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {selectedPlantType && plantsList[selectedPlantType] && (
-                      <div className="plant-info-display">
-                        <h3>Plant Information</h3>
-                        <div className="plant-info-grid">
-                          <div className="plant-info-item">
-                            <span className="info-label">Scientific Name:</span>
-                            <span className="info-value">{plantsList[selectedPlantType].sName}</span>
-                          </div>
-                          <div className="plant-info-item">
-                            <span className="info-label">Description:</span>
-                            <span className="info-value">{plantsList[selectedPlantType].description}</span>
-                          </div>
-                          <div className="plant-info-item">
-                            <span className="info-label">Days to Harvest:</span>
-                            <span className="info-value">{plantsList[selectedPlantType].daysToHarvest} days</span>
-                          </div>
-                          <div className="plant-info-item">
-                            <span className="info-label">Ideal Spacing:</span>
-                            <span className="info-value">
-                              {plantsList[selectedPlantType].minSpacingCM} - {plantsList[selectedPlantType].maxSpacingCM} cm
-                            </span>
-                          </div>
-                          <div className="plant-info-item">
-                            <span className="info-label">Recommended Seedlings:</span>
-                            <span className="info-value highlight">{recommendedSeedlings} seedlings</span>
-                          </div>
-                          <div className="plant-info-item">
-                            <span className="info-label">Market Price:</span>
-                            <span className="info-value">
-                              ₱{plantsList[selectedPlantType].pricing} {plantsList[selectedPlantType].pricingUnit}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPlotNumber && selectedSoilSensor && selectedPlantType && (
-                      <div className="plot-summary">
-                        <h3>Selection Summary</h3>
-                        <p><strong>Plot:</strong> Plot {selectedPlotNumber} (30x20cm)</p>
-                        <p><strong>Sensor:</strong> {selectedSoilSensor}</p>
-                        <p><strong>Plant:</strong> {plantsList[selectedPlantType]?.name}</p>
-                        <p><strong>Seedlings:</strong> {recommendedSeedlings}</p>
-                      </div>
-                    )}
-
-                    <button
-                      className="planting-modal-btn planting-modal-save"
-                      onClick={handleStartScan}
-                      disabled={!selectedPlotNumber || !selectedSoilSensor || !selectedPlantType}
-                    >
-                      Start Soil Scan
-                    </button>
-                  </div>
-                )}
-
-                {plotStep === 'scanning' && (
-                  <div className="plot-scanning-step">
-                    <div className="scanning-animation">
-                      <div className="scanning-icon">
-                        <MdSearch style={{ fontSize: '48px' }} />
-                      </div>
-                      <p>Analyzing soil conditions from {selectedSoilSensor}...</p>
-                    </div>
-                    
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-bar-fill" 
-                        style={{ width: `${scanProgress}%` }}
-                      ></div>
-                    </div>
-                    <p className="progress-text">{scanProgress}%</p>
-
-                    {sensorData && (
-                      <div className="sensor-readings">
-                        <h3>Current Soil Readings</h3>
-                        <div className="readings-grid">
-                          <div className="reading-item">
-                            <span className="reading-label">pH Level:</span>
-                            <span className="reading-value">{sensorData.ph?.toFixed(1) || 'N/A'}</span>
-                          </div>
-                          <div className="reading-item">
-                            <span className="reading-label">Nitrogen:</span>
-                            <span className="reading-value">{sensorData.nitrogen || 'N/A'} ppm</span>
-                          </div>
-                          <div className="reading-item">
-                            <span className="reading-label">Phosphorus:</span>
-                            <span className="reading-value">{sensorData.phosphorus || 'N/A'} ppm</span>
-                          </div>
-                          <div className="reading-item">
-                            <span className="reading-label">Potassium:</span>
-                            <span className="reading-value">{sensorData.potassium || 'N/A'} ppm</span>
-                          </div>
-                          <div className="reading-item">
-                            <span className="reading-label">Moisture:</span>
-                            <span className="reading-value">{sensorData.moisture || 'N/A'}%</span>
-                          </div>
-                          <div className="reading-item">
-                            <span className="reading-label">Temperature:</span>
-                            <span className="reading-value">{sensorData.temperature || 'N/A'}°C</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {plotStep === 'confirm' && (
-                  <div className="plot-confirm-step">
-                    <div className="confirm-summary">
-                      <h3>Planting Confirmation</h3>
-                      
-                      <div className="confirm-details">
-                        <div className="confirm-item">
-                          <span className="confirm-label">Plot Number:</span>
-                          <span className="confirm-value">Plot {selectedPlotNumber}</span>
-                        </div>
-                        
-                        <div className="confirm-item">
-                          <span className="confirm-label">Plot Size:</span>
-                          <span className="confirm-value">30x20cm (0.06 m²)</span>
-                        </div>
-
-                        <div className="confirm-item">
-                          <span className="confirm-label">Soil Sensor:</span>
-                          <span className="confirm-value">{selectedSoilSensor}</span>
-                        </div>
-
-                        <div className="confirm-item">
-                          <span className="confirm-label">Selected Plant:</span>
-                          <span className="confirm-value">
-                            {getPlantEmoji(selectedPlantType)} {plantsList[selectedPlantType]?.name}
-                          </span>
-                        </div>
-
-                        <div className="confirm-item highlight">
-                          <span className="confirm-label">Recommended Seedlings:</span>
-                          <span className="confirm-value">{recommendedSeedlings} seedlings</span>
-                        </div>
-
-                        <div className="confirm-item">
-                          <span className="confirm-label">Expected Harvest:</span>
-                          <span className="confirm-value">
-                            {plantsList[selectedPlantType]?.daysToHarvest} days
-                          </span>
-                        </div>
-
-                        <div className="confirm-item">
-                          <span className="confirm-label">Ideal Spacing:</span>
-                          <span className="confirm-value">
-                            {plantsList[selectedPlantType]?.minSpacingCM} - {plantsList[selectedPlantType]?.maxSpacingCM} cm
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="confirm-note">
-                        <p>
-                          <MdInfo style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                          <strong>Note:</strong> This recommendation is based on current soil analysis 
-                          from {selectedSoilSensor}. Monitor regularly and adjust care as needed.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="planting-modal-footer">
-                      <button
-                        className="planting-modal-btn planting-modal-cancel"
-                        onClick={() => setPlotStep('input')}
-                      >
-                        Back
-                      </button>
-                      <button
-                        className="planting-modal-btn planting-modal-save"
-                        onClick={handleConfirmPlanting}
-                      >
-                        Confirm & Add Plot
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Fertilizer Modal */}
         {showFertilizerModal && fertilizerInfo && (
@@ -1229,36 +559,6 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
                   onClick={handleClosePriceModal}
                 >
                   Cancel
-                </button>
-                <button
-                  className="planting-modal-btn planting-modal-save"
-                  onClick={async () => {
-                    try {
-                      if (selectedPlant) {
-                        const plantRef = doc(db, 'plants', selectedPlant.id)
-                        await updateDoc(plantRef, {
-                          currentSellingPrice: priceRecommendation.recommendedPrice,
-                          updatedAt: serverTimestamp()
-                        })
-                        
-                        setPlantsData(prev =>
-                          prev.map(plant =>
-                            plant.id === selectedPlant.id
-                              ? { ...plant, currentSellingPrice: priceRecommendation.recommendedPrice }
-                              : plant
-                          )
-                        )
-                        
-                        alert(`Price set to ₱${priceRecommendation.recommendedPrice} ${priceRecommendation.unit}`)
-                        handleClosePriceModal()
-                      }
-                    } catch (error) {
-                      console.error('Error updating price:', error)
-                      alert('Failed to update price')
-                    }
-                  }}
-                >
-                  Apply Price
                 </button>
               </div>
             </div>
@@ -1673,15 +973,6 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
                   onClick={handleCloseDetailModal}
                 >
                   Close
-                </button>
-                <button
-                  className="planting-modal-btn planting-modal-save"
-                  onClick={() => {
-                    handleCloseDetailModal()
-                    handleOpenEditModal(selectedPlant)
-                  }}
-                >
-                  Edit Plant
                 </button>
               </div>
             </div>

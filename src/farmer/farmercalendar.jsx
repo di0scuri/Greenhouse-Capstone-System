@@ -8,7 +8,7 @@ import inventoryLogger from "../functions/inventoryLogger";
 import { 
   FaSeedling, FaLeaf, FaTint, FaBug, FaCut, FaCarrot, FaTools, FaEye, 
   FaClipboardList, FaCalendarAlt, FaClock, FaPlus, FaEdit, FaTrash, FaTimes,
-  FaChevronLeft, FaChevronRight, FaThList, FaCalendarDay
+  FaChevronLeft, FaChevronRight, FaThList, FaCalendarDay, FaLock, FaUnlock
 } from 'react-icons/fa';
 import { GiPlantSeed, GiWateringCan, GiFertilizerBag, GiGrass } from 'react-icons/gi';
 
@@ -66,6 +66,43 @@ const eventTypes = [
     'cancelled': '#ef4444'
   };
 
+  // Check if job order can be started based on date
+const canStartJobOrder = (eventDate) => {
+  if (!eventDate) return true; // Allow if no date specified
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Start of today
+  
+  const jobDate = new Date(eventDate);
+  jobDate.setHours(0, 0, 0, 0); // Start of job date
+  
+  return jobDate <= today; // Can start if job date is today or in the past
+};
+
+// Get lock status text
+const getLockStatus = (eventDate) => {
+  if (!eventDate) return { canStart: true, message: '' };
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const jobDate = new Date(eventDate);
+  jobDate.setHours(0, 0, 0, 0);
+  
+  const diffDays = Math.ceil((jobDate - today) / (1000 * 60 * 60 * 24));
+  
+  if (diffDays > 0) {
+    return { 
+      canStart: false, 
+      message: `Available in ${diffDays} day${diffDays > 1 ? 's' : ''}` 
+    };
+  } else if (diffDays < 0) {
+    return { canStart: true, message: 'Overdue' };
+  } else {
+    return { canStart: true, message: 'Available today' };
+  }
+};
+
   // Render calendar grid (Admin-style)
 const renderCalendarGrid = () => {
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -92,33 +129,42 @@ const renderCalendarGrid = () => {
         <div className="fc-day-events">
           {dayEvents.slice(0, 3).map((event) => {
             const typeConfig = getEventTypeConfig(event.eventType || event.type);
+            const isJobOrder = event.isJobOrder;
+            const canStart = isJobOrder ? canStartJobOrder(event.date) : true;
+            
             return (
               <div
                 key={event.id}
-                className={`fc-event-item ${event.isJobOrder ? 'job-order' : ''}`}
+                className={`fc-event-item ${isJobOrder ? 'job-order' : ''} ${!canStart ? 'locked' : ''}`}
                 style={{ 
-                  background: statusColors[event.status] || statusColors.info,
-                  borderLeft: `4px solid ${typeConfig.color}`
+                  background: !canStart ? '#f1f5f9' : (statusColors[event.status] || statusColors.info),
+                  borderLeft: `4px solid ${typeConfig.color}`,
+                  opacity: !canStart ? 0.7 : 1
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (!canStart) {
+                    const lockStatus = getLockStatus(event.date);
+                    alert(`🔒 This job is scheduled for ${new Date(event.date).toLocaleDateString()}\n${lockStatus.message}`);
+                    return;
+                  }
                   setSelectedEvent(event);
                   setShowDetailsModal(true);
                 }}
-                title={event.title}
+                title={!canStart ? `Scheduled for ${new Date(event.date).toLocaleDateString()}` : event.title}
               >
-                <span className="fc-event-icon">{typeConfig.icon}</span>
-                {event.isJobOrder && <FaClipboardList className="fc-job-badge" />}
+                <span className="fc-event-icon">
+                  {!canStart ? <FaLock /> : typeConfig.icon}
+                </span>
+                {isJobOrder && <FaClipboardList className="fc-job-badge" />}
                 <span className="fc-event-text">
                   {event.title.substring(0, 20)}
                   {event.title.length > 20 ? '...' : ''}
                 </span>
+                {!canStart && <FaLock className="fc-lock-icon" />}
               </div>
             );
           })}
-          {dayEvents.length > 3 && (
-            <div className="fc-more-events">+{dayEvents.length - 3} more</div>
-          )}
         </div>
       </div>
     );
@@ -159,29 +205,44 @@ const renderListView = () => {
           <div className="fc-events-list">
             {upcomingEvents.map(event => {
               const typeConfig = getEventTypeConfig(event.eventType || event.type);
+              const isJobOrder = event.isJobOrder;
+              const canStart = isJobOrder ? canStartJobOrder(event.date) : true;
+              const lockStatus = getLockStatus(event.date);
+              
               return (
                 <div
                   key={event.id}
-                  className={`fc-event-list-item ${event.isJobOrder ? 'job-order' : ''}`}
+                  className={`fc-event-list-item ${event.isJobOrder ? 'job-order' : ''} ${!canStart ? 'locked' : ''}`}
                   onClick={() => {
+                    if (!canStart) {
+                      alert(`🔒 This job is scheduled for ${new Date(event.date).toLocaleDateString()}\n${lockStatus.message}`);
+                      return;
+                    }
                     setSelectedEvent(event);
                     setShowDetailsModal(true);
                   }}
+                  style={{ opacity: !canStart ? 0.7 : 1 }}
                 >
-                  <div className="fc-event-list-icon" style={{ background: typeConfig.color }}>
-                    {typeConfig.icon}
+                  <div className="fc-event-list-icon" style={{ 
+                    background: !canStart ? '#94a3b8' : typeConfig.color 
+                  }}>
+                    {!canStart ? <FaLock /> : typeConfig.icon}
                   </div>
                   <div className="fc-event-list-content">
                     <div className="fc-event-list-header">
                       <span className="fc-event-list-message">
+                        {!canStart && '🔒 '}
                         {event.isJobOrder && '📋 '}
                         {event.title}
+                        {!canStart && <span className="fc-lock-text"> ({lockStatus.message})</span>}
                       </span>
                       <span 
                         className="fc-event-list-status"
-                        style={{ background: statusColors[event.status] || statusColors.info }}
+                        style={{ 
+                          background: !canStart ? '#94a3b8' : (statusColors[event.status] || statusColors.info) 
+                        }}
                       >
-                        {event.status}
+                        {!canStart ? 'locked' : event.status}
                       </span>
                     </div>
                     <div className="fc-event-list-details">
@@ -201,7 +262,7 @@ const renderListView = () => {
                         🕐 {event.time}
                       </span>
                       <span className="fc-event-detail">
-                        {typeConfig.label}
+                        {!canStart ? '🔒 Locked' : typeConfig.label}
                       </span>
                     </div>
                   </div>
@@ -1348,31 +1409,46 @@ return (
 
                   {dayEvents.slice(0, 3).map(event => {
                     const typeConfig = getEventTypeConfig(event.eventType || event.type);
+                    const isJobOrder = event.isJobOrder;
+                    const canStart = isJobOrder ? canStartJobOrder(event.date) : true;
+                    const lockStatus = getLockStatus(event.date);
+                    
                     return (
                       <div 
                         key={event.id} 
-                        className={`fc-upcoming-event ${event.isJobOrder ? 'job-order' : ''}`}
+                        className={`fc-upcoming-event ${isJobOrder ? 'job-order' : ''} ${!canStart ? 'locked' : ''}`}
                         onClick={() => {
+                          if (!canStart) {
+                            alert(`🔒 This job is scheduled for ${new Date(event.date).toLocaleDateString()}\n${lockStatus.message}`);
+                            return;
+                          }
                           setSelectedEvent(event);
                           setShowDetailsModal(true);
                         }}
+                        style={{ opacity: !canStart ? 0.7 : 1 }}
                       >
-                        <div className="fc-event-indicator" style={{ backgroundColor: typeConfig.color }}>
-                          {typeConfig.icon}
+                        <div className="fc-event-indicator" style={{ 
+                          backgroundColor: !canStart ? '#94a3b8' : typeConfig.color 
+                        }}>
+                          {!canStart ? <FaLock /> : typeConfig.icon}
                         </div>
 
                         <div className="fc-event-details">
                           <div className="fc-event-time-range">
-                            {event.isJobOrder && '📋 '}
+                            {!canStart && '🔒 '}
+                            {isJobOrder && '📋 '}
                             {event.time}
                           </div>
 
-                          <div className="fc-event-description">{event.title}</div>
+                          <div className="fc-event-description">
+                            {event.title}
+                            {!canStart && <span className="fc-lock-badge"> (Locked)</span>}
+                          </div>
 
                           <div className="fc-event-type">
-                            {event.isJobOrder ? (
-                              <span className={`fc-status-badge ${event.status}`}>
-                                {event.status}
+                            {isJobOrder ? (
+                              <span className={`fc-status-badge ${!canStart ? 'locked' : event.status}`}>
+                                {!canStart ? 'locked' : event.status}
                               </span>
                             ) : (
                               <span className="fc-type-badge">{typeConfig.label}</span>
@@ -1435,6 +1511,37 @@ return (
             
             {selectedEvent.isJobOrder ? (
               <>
+
+              <div className="fc-date-check">
+                <p><strong>Scheduled Date:</strong> {new Date(selectedEvent.date).toLocaleDateString('en-US', { 
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}</p>
+                
+                {!canStartJobOrder(selectedEvent.date) && (
+                  <div className="fc-lock-notice" style={{
+                    background: '#fffbeb',
+                    border: '1px solid #f59e0b',
+                    borderRadius: '6px',
+                    padding: '12px',
+                    margin: '10px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <FaLock style={{ color: '#f59e0b', fontSize: '1.2em' }} />
+                    <div>
+                      <strong>Job Locked</strong>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.9em', color: '#666' }}>
+                        This job can only be started on or after its scheduled date.
+                        {getLockStatus(selectedEvent.date).message && ` ${getLockStatus(selectedEvent.date).message}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
                 <p>
                   <strong>Status:</strong> 
                   <span className={`fc-modal-status-badge ${selectedEvent.status}`}>
@@ -1463,33 +1570,56 @@ return (
                   </div>
                 )}
                 
-                {/* Action Buttons */}
                 {selectedEvent.status === 'pending' && (
                   <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
-                    <button
-                      onClick={async () => {
-                        try {
-                          await updateJobOrderStatus(selectedEvent.jobOrderId || selectedEvent.id, 'in-progress');
-                          setSelectedEvent(null);
-                          alert('Job order started!');
-                        } catch (error) {
-                          alert('Failed to start job order: ' + error.message);
-                        }
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '10px 16px',
-                        background: '#f59e0b',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '0.9em',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      ▶️ Start Job
-                    </button>
+                    {canStartJobOrder(selectedEvent.date) ? (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await updateJobOrderStatus(selectedEvent.jobOrderId || selectedEvent.id, 'in-progress');
+                            setSelectedEvent(null);
+                            alert('Job order started!');
+                          } catch (error) {
+                            alert('Failed to start job order: ' + error.message);
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '10px 16px',
+                          background: '#f59e0b',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '0.9em',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <FaUnlock style={{ marginRight: '6px' }} />
+                        Start Job
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        style={{
+                          flex: 1,
+                          padding: '10px 16px',
+                          background: '#94a3b8',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '0.9em',
+                          fontWeight: '600',
+                          cursor: 'not-allowed',
+                          opacity: 0.7
+                        }}
+                      >
+                        <FaLock style={{ marginRight: '6px' }} />
+                        Locked Until {new Date(selectedEvent.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </button>
+                    )}
+                    
+                    {/* Cancel button remains unchanged */}
                     <button
                       onClick={async () => {
                         if (window.confirm('Are you sure you want to cancel this job order?')) {
