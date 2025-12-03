@@ -29,8 +29,8 @@ const Costing = ({ userType = 'admin' }) => {
     roi: 0,
     totalProductionCost: 0,
     totalLaborCost: 0,
-    totalElectricityCost: 0,
-    totalWaterCost: 0
+    totalSeedCost: 0,
+    totalFertilizer: 0
   })
   const [chartData, setChartData] = useState([])
   const [viewMode, setViewMode] = useState('Monthly View')
@@ -98,8 +98,8 @@ const Costing = ({ userType = 'admin' }) => {
     let totalExpenses = 0
     let totalProductionCost = 0
     let totalLaborCost = 0
-    let totalElectricityCost = 0
-    let totalWaterCost = 0
+    let totalSeedCost = 0
+    let totalFertilizer = 0
 
     // Calculate production costs
     costs.forEach(cost => {
@@ -109,12 +109,12 @@ const Costing = ({ userType = 'admin' }) => {
 
       if (cost.breakdown) {
         totalLaborCost += cost.breakdown.labor || 0
-        totalElectricityCost += cost.breakdown.electricity || 0
-        totalWaterCost += cost.breakdown.water || 0
+        totalSeedCost += cost.breakdown.seed || 0
+        totalFertilizer += cost.breakdown.fertilizer || 0
       } else if (cost.detailedCosts) {
         totalLaborCost += parseFloat(cost.detailedCosts.labor || 0)
-        totalElectricityCost += parseFloat(cost.detailedCosts.electricity || 0)
-        totalWaterCost += parseFloat(cost.detailedCosts.water || 0)
+        totalSeedCost += parseFloat(cost.detailedCosts.seed || 0)
+        totalFertilizer += parseFloat(cost.detailedCosts.fertilizer || 0)
       }
     })
 
@@ -127,33 +127,26 @@ const Costing = ({ userType = 'admin' }) => {
       const category = expense.category?.toLowerCase()
       if (category === 'labor') {
         totalLaborCost += amount
-      } else if (category === 'electricity') {
-        totalElectricityCost += amount
-      } else if (category === 'water') {
-        totalWaterCost += amount
+      } else if (category === 'seed') {
+        totalSeedCost += amount
+      } else if (category === 'fertilizer') {
+        totalFertilizer += amount
       }
     })
 
     // Calculate expenses from inventory logs
     // Inventory logs track usage/consumption, which are expenses
     logs.forEach(log => {
-      // For inventory logs, expenses come from items being used or removed
-      // Actions like 'USE', 'REMOVE', 'ADD', 'RESTOCK' represent inventory costs
       const quantityChange = Math.abs(log.quantityChange || 0)
       const cost = log.cost || 0
       
       // Expenses: Items added to inventory (purchases) or used
       if (['ADD', 'RESTOCK', 'USE', 'REMOVE'].includes(log.action)) {
-        // If there's a cost field, use it as the total cost
-        // Otherwise, we don't have enough info to calculate expenses from inventory logs
         if (cost > 0) {
           totalExpenses += cost
         }
       }
-      
-      // Note: Inventory logs typically don't track revenue directly
-      // Revenue would come from sales records, which should be in a separate collection
-      // For now, we're only tracking expenses from inventory
+
     })
 
     const netProfit = totalRevenue - totalExpenses
@@ -166,8 +159,8 @@ const Costing = ({ userType = 'admin' }) => {
       roi: roi,
       totalProductionCost: totalProductionCost,
       totalLaborCost: totalLaborCost,
-      totalElectricityCost: totalElectricityCost,
-      totalWaterCost: totalWaterCost
+      totalSeedCost: totalSeedCost,
+      totalFertilizer: totalFertilizer
     })
   }
 
@@ -447,7 +440,7 @@ const Costing = ({ userType = 'admin' }) => {
                   <div className="breakdown-items">
                     <div className="breakdown-item">
                       <div className="breakdown-info">
-                        <span className="breakdown-label">💼 Labor Costs</span>
+                        <span className="breakdown-label">Fertilizer</span>
                         <span className="breakdown-value">{formatCurrency(financialData.totalLaborCost)}</span>
                       </div>
                       <div className="breakdown-bar">
@@ -461,28 +454,28 @@ const Costing = ({ userType = 'admin' }) => {
                     </div>
                     <div className="breakdown-item">
                       <div className="breakdown-info">
-                        <span className="breakdown-label">⚡ Electricity</span>
-                        <span className="breakdown-value">{formatCurrency(financialData.totalElectricityCost)}</span>
+                        <span className="breakdown-label">Seedling Cost</span>
+                        <span className="breakdown-value">{formatCurrency(financialData.totalSeedCost)}</span>
                       </div>
                       <div className="breakdown-bar">
                         <div 
-                          className="breakdown-fill electricity" 
+                          className="breakdown-fill seed" 
                           style={{ 
-                            width: `${(financialData.totalElectricityCost / financialData.totalProductionCost * 100) || 0}%` 
+                            width: `${(financialData.totalSeedCost / financialData.totalProductionCost * 100) || 0}%` 
                           }}
                         />
                       </div>
                     </div>
                     <div className="breakdown-item">
                       <div className="breakdown-info">
-                        <span className="breakdown-label">💧 Water</span>
-                        <span className="breakdown-value">{formatCurrency(financialData.totalWaterCost)}</span>
+                        <span className="breakdown-label">Labor Cost</span>
+                        <span className="breakdown-value">{formatCurrency(financialData.totalFertilizer)}</span>
                       </div>
                       <div className="breakdown-bar">
                         <div 
                           className="breakdown-fill water" 
                           style={{ 
-                            width: `${(financialData.totalWaterCost / financialData.totalProductionCost * 100) || 0}%` 
+                            width: `${(financialData.totalFertilizer / financialData.totalProductionCost * 100) || 0}%` 
                           }}
                         />
                       </div>

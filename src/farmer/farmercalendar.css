@@ -1,47 +1,24 @@
-/* ============ GLOBAL UTILITIES & MAIN LAYOUT (UPDATED) ============ */
+/* ============ FARMER CALENDAR - PROFESSIONAL FORMAL STYLE ============ */
 
-/* Top-level container to manage the sidebar and main content split */
+/* ============ MAIN LAYOUT ============ */
 .fc-main-layout {
   display: flex;
   height: 100vh;
-  overflow: hidden; /* Prevent body scroll if content exceeds 100vh */
+  overflow: hidden;
+  background: #f5f7fa;
 }
 
-/* Main scrollable content area (next to FarmerSidebar) */
 .fc-container {
   flex: 1;
+  height: 100vh;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   padding: 30px 40px;
   max-width: 100%;
   background: #f5f7fa;
-  display: flex;
-  flex-direction: column;
 }
 
-/* Wrapper for the calendar and right sidebar columns */
-.fc-calendar-layout {
-  display: flex;
-  gap: 30px;
-  flex: 1;
-  padding-top: 10px;
-}
-
-.fc-calendar-wrapper { /* Main Calendar Area (Left Column) */
-  flex: 3;
-  min-width: 0;
-}
-
-.fc-right-sidebar { /* Right Column */
-  flex: 1;
-  max-width: 300px;
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
-}
-
-
-/* ============ HEADER (UPDATED) ============ */
+/* ============ HEADER - PROFESSIONAL ============ */
 .fc-header {
   display: flex;
   justify-content: space-between;
@@ -51,69 +28,75 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
-.fc-greeting { /* NEW */
-  font-size: 28px;
-  font-weight: 700;
+.fc-greeting {
+  font-size: 26px;
+  font-weight: 600;
   color: #1f2937;
-  letter-spacing: -0.8px;
+  letter-spacing: -0.5px;
   margin: 0;
 }
 
-.fc-header-actions { /* NEW */
+.fc-header-actions {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
-/* Search */
-.fc-search-container { /* NEW */
+/* Search - Professional */
+.fc-search-container {
   position: relative;
 }
 
-.fc-search-input { /* NEW */
+.fc-search-input {
   padding: 10px 15px 10px 40px;
   border: 1px solid #d1d5db;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 14px;
   width: 250px;
   transition: all 0.2s ease;
+  font-family: inherit;
+  color: #374151;
 }
 
 .fc-search-input:focus {
+  outline: none;
   border-color: #2E7D32;
   box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
-  outline: none;
 }
 
-.fc-search-icon { /* NEW */
+.fc-search-icon {
   position: absolute;
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: #9ca3af;
   font-size: 16px;
 }
 
-/* Notification */
-.fc-notification { /* NEW */
+/* Notification - Professional */
+.fc-notification {
   position: relative;
   cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
-.fc-notification-icon { /* NEW */
-  font-size: 24px;
-  color: #6b7280;
-  transition: color 0.2s;
+.fc-notification:hover {
+  background: #f3f4f6;
 }
 
-.fc-notification:hover .fc-notification-icon {
-  color: #2E7D32;
+.fc-notification-icon {
+  font-size: 20px;
 }
 
-.fc-notification-badge { /* NEW */
+.fc-notification-badge {
   position: absolute;
-  top: -8px;
-  right: -8px;
+  top: -4px;
+  right: -4px;
   background: #ef4444;
   color: white;
   border-radius: 50%;
@@ -122,26 +105,38 @@
   font-weight: 600;
   min-width: 18px;
   text-align: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* ============ CALENDAR CONTROLS (NEW/REPLACED NAVIGATION) ============ */
-.fc-calendar-controls { /* NEW (Replaces fc-navigation) */
+/* ============ CALENDAR WRAPPER ============ */
+.fc-calendar-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ============ CALENDAR CONTROLS - PROFESSIONAL ============ */
+.fc-calendar-controls {
+  background: white;
+  border-radius: 8px;
+  padding: 16px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding: 10px 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.fc-nav-controls { /* NEW */
+.fc-nav-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.fc-nav-btn { /* NEW (Replaces nav-btn) */
-  padding: 8px 16px;
+.fc-nav-btn {
+  padding: 10px 20px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   background: white;
@@ -150,6 +145,9 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .fc-nav-btn:hover {
@@ -158,27 +156,44 @@
   background: rgba(46, 125, 50, 0.05);
 }
 
-.fc-current-period { /* NEW (Replaces month-title) */
-  font-size: 24px;
+.fc-today-btn {
+  padding: 8px 16px;
+  border: 1px solid #2E7D32;
+  border-radius: 6px;
+  background: rgba(46, 125, 50, 0.05);
+  color: #2E7D32;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fc-today-btn:hover {
+  background: #2E7D32;
+  color: white;
+}
+
+.fc-current-period {
+  font-size: 20px;
   font-weight: 600;
   color: #1f2937;
-  margin: 0 10px;
-  letter-spacing: -0.5px;
+  margin: 0 8px;
+  letter-spacing: -0.3px;
 }
 
-/* View Controls (Replaces view-toggle) */
-.fc-view-controls { /* NEW */
+/* View Controls - Professional */
+.fc-view-controls {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   background: white;
-  padding: 4px;
+  padding: 6px;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-.fc-view-btn { /* NEW (Replaces view-toggle-btn) */
-  padding: 8px 16px;
+.fc-view-btn {
+  padding: 10px 20px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -187,6 +202,9 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
 }
 
@@ -201,21 +219,284 @@
   color: #374151;
 }
 
-/* ============ DAY VIEW (NEW) ============ */
+/* Job Order Filter */
+.fc-job-filter {
+  display: flex;
+  align-items: center;
+}
 
-.fc-day-events-list { /* NEW */
+.fc-filter-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: white;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.fc-filter-select:focus {
+  outline: none;
+  border-color: #2E7D32;
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
+}
+
+.fc-loading-indicator {
+  font-size: 13px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* ============ MAIN CONTENT LAYOUT ============ */
+.fc-main-content {
+  display: flex;
+  gap: 30px;
+}
+
+.fc-calendar-section {
+  flex: 3;
+  min-width: 0;
+}
+
+.fc-right-sidebar {
+  flex: 1;
+  max-width: 350px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
+}
+
+/* ============ CALENDAR NAVIGATION (FOR MONTH VIEW) ============ */
+.fc-calendar-navigation {
+  background: white;
+  border-radius: 8px;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  gap: 16px;
+}
+
+.fc-month-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+  letter-spacing: -0.3px;
+}
+
+/* ============ CALENDAR GRID - PROFESSIONAL ============ */
+.fc-calendar-grid-container {
   background: white;
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5e7eb;
-  min-height: 500px;
+  min-height: 600px;
 }
 
-.fc-event-day { /* NEW - Event card for Day View */
+.fc-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fc-weekday {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 0;
+  background: #f9fafb;
+  border-radius: 4px;
+}
+
+.fc-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.fc-calendar-day {
+  min-height: 120px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px;
+  background: white;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.fc-calendar-day:hover:not(.empty) {
+  border-color: #2E7D32;
+  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.15);
+  transform: translateY(-1px);
+}
+
+.fc-calendar-day.empty {
+  background: #f9fafb;
+  border-color: transparent;
+  cursor: default;
+}
+
+.fc-calendar-day.empty:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.fc-calendar-day.today {
+  border-color: #2E7D32;
+  background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+  border-width: 2px;
+}
+
+.fc-calendar-day.has-events {
+  background: #fefefe;
+}
+
+.fc-day-number {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.fc-calendar-day.today .fc-day-number {
+  color: #1B5E20;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* Event Items on Calendar - Professional */
+.fc-day-events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.fc-event-item {
+  background: white;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid;
+}
+
+.fc-event-item:hover {
+  transform: translateX(3px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border-color: currentColor;
+}
+
+.fc-event-item.job-order {
+  font-style: italic;
+  background: #f8fafc;
+}
+
+.fc-event-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fc-job-badge {
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.fc-event-text {
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.fc-more-events {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  padding: 4px;
+  margin-top: 4px;
+  background: #f9fafb;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fc-more-events:hover {
+  background: #e5e7eb;
+}
+
+/* ============ LIST VIEW - PROFESSIONAL ============ */
+.fc-list-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.fc-list-section {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+}
+
+.fc-list-section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -0.3px;
+}
+
+.fc-no-events {
+  text-align: center;
+  padding: 48px 32px;
+  color: #9ca3af;
+  font-size: 14px;
+  font-style: italic;
+}
+
+.fc-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fc-event-list-item {
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
@@ -225,427 +506,127 @@
   gap: 16px;
   transition: all 0.2s ease;
   cursor: pointer;
-  border-left: 4px solid var(--event-color, #2E7D32);
-
-  /* Job order status colors for the border */
-  &.job-order {
-    border-color: #d1d5db;
-  }
-  &.job-order.pending { border-left-color: #3b82f6; }
-  &.job-order.in-progress { border-left-color: #f59e0b; }
-  &.job-order.completed { border-left-color: #10b981; }
-  &.job-order.cancelled { border-left-color: #ef4444; }
 }
 
-.fc-event-day:hover {
+.fc-event-list-item:hover {
   border-color: #2E7D32;
   box-shadow: 0 4px 12px rgba(46, 125, 50, 0.15);
   transform: translateY(-1px);
 }
 
-.fc-job-icon { /* NEW */
-  font-size: 24px;
-  flex-shrink: 0;
-  color: #6b7280;
+.fc-event-list-item.past {
+  opacity: 0.7;
 }
 
-.fc-event-time { /* NEW */
-  font-size: 14px;
-  font-weight: 500;
-  color: #9ca3af;
-  flex-shrink: 0;
+.fc-event-list-item.job-order {
+  border-left: 4px solid #3b82f6;
 }
 
-.fc-event-content { /* NEW wrapper for title and details */
+.fc-event-list-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  color: white;
+}
+
+.fc-event-list-content {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
-.fc-event-title { /* NEW */
+.fc-event-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.fc-event-list-message {
   font-size: 16px;
   font-weight: 600;
   color: #1f2937;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.fc-event-plant { /* NEW */
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.fc-event-status { /* NEW */
-  padding: 4px 8px;
+.fc-event-list-status {
+  padding: 4px 12px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
   color: white;
   text-transform: capitalize;
-  background: #6b7280; /* Default */
 }
 
-.fc-event-status.pending { background: #3b82f6; }
-.fc-event-status.in-progress { background: #f59e0b; }
-.fc-event-status.completed { background: #10b981; }
-.fc-event-status.cancelled { background: #ef4444; }
-
-.fc-no-events-day { /* NEW */
-  text-align: center;
-  padding: 48px 32px;
-  color: #9ca3af;
-  font-size: 14px;
-  font-style: italic;
-}
-
-/* ============ WEEK VIEW (NEW) ============ */
-
-.fc-week-header { /* NEW */
+.fc-event-list-details {
   display: flex;
-  gap: 1px;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px 8px 0 0;
-  overflow: hidden;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.fc-day-header { /* NEW */
-  flex: 1;
-  padding: 10px 0;
-  text-align: center;
-  border-right: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-.fc-day-header:last-child {
-  border-right: none;
-}
-
-.fc-day-name { /* NEW */
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-}
-
-.fc-day-number { /* NEW */
-  font-size: 20px;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.fc-calendar-grid { /* NEW */
-  display: grid;
-  grid-template-columns: 50px repeat(7, 1fr); /* Time column + 7 days */
-  border: 1px solid #e5e7eb;
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  min-height: 500px;
-  overflow: auto;
-  background: white;
-}
-
-.fc-time-column { /* NEW */
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #e5e7eb;
-  background: #f9fafb;
-  position: sticky;
-  left: 0;
-  z-index: 5;
-}
-
-.fc-time-slot { /* NEW */
-  height: 60px; /* Standard slot height */
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding: 5px 5px 0 0;
-  font-size: 10px;
-  color: #9ca3af;
-  border-bottom: 1px solid #e5e7eb;
-}
-.fc-time-slot:last-child {
-  border-bottom: none;
-}
-
-.fc-day-column { /* NEW */
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #e5e7eb;
-}
-.fc-day-column:last-child {
-  border-right: none;
-}
-
-.fc-time-cell { /* NEW */
-  height: 60px;
-  border-bottom: 1px dashed #e5e7eb;
-  position: relative;
-  padding: 2px;
-}
-.fc-time-cell:last-child {
-  border-bottom: none;
-}
-
-.fc-event { /* NEW - Event card for Week View */
-  position: absolute;
-  width: 95%;
-  background: #4dabf7; /* Default color, overwritten by inline style */
-  color: white;
-  border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 10px;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.1s ease;
-  overflow: hidden;
-
-  /* Week view specific adjustments */
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.fc-event:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  z-index: 20;
-}
-
-.fc-event .fc-job-icon, 
-.fc-event .fc-event-time, 
-.fc-event .fc-event-title, 
-.fc-event .fc-event-plant, 
-.fc-event .fc-event-status {
-  color: white;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0;
-  background: none;
-  line-height: 1.2;
-}
-
-.fc-event .fc-job-icon {
-  font-size: 12px;
-}
-
-.fc-event .fc-event-title {
-  font-weight: 600;
-}
-
-.fc-event .fc-event-status {
-  display: none; /* Hide status badge in small week view event */
-}
-
-/* ============ MONTH VIEW (UPDATED GRID) ============ */
-.fc-month-view { /* NEW (Replaces fc-grid-container) */
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e5e7eb;
-  min-height: 600px;
-}
-
-.fc-month-header { /* NEW (Replaces fc-weekdays) */
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  margin-bottom: 10px;
-  background: #f9fafb;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.fc-month-day-header { /* NEW (Replaces weekday) */
-  text-align: center;
+.fc-event-detail {
   font-size: 13px;
-  font-weight: 600;
   color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 10px 0;
-}
-
-.fc-month-grid { /* NEW (Replaces fc-grid) */
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.fc-day-cell { /* NEW (Replaces fc-day) */
-  min-height: 100px;
-  padding: 8px;
-  background: white;
-  transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  cursor: pointer;
-  border-right: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb;
-}
-.fc-day-cell:nth-child(7n) { border-right: none; }
-.fc-day-cell:nth-last-child(-n + 7) { border-bottom: none; }
-
-.fc-day-cell:hover:not(.empty) {
-  background: #fcfcfc;
-}
-
-.fc-day-cell.empty {
-  background: #f9fafb;
-  cursor: default;
-}
-
-.fc-day-cell.is-today {
-  background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
-  box-shadow: 0 0 0 2px #2E7D32 inset;
-}
-
-.fc-day-cell .day-number { /* Existing class, but adjust context */
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 6px;
-}
-
-.fc-day-cell.is-today .day-number {
-  color: #1B5E20;
-}
-
-.fc-events-month { /* NEW wrapper for events */
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1;
-  overflow: hidden;
-}
-
-.fc-event-month { /* NEW - Event item in Month View */
-  background: #f0f4f8; /* Default light color */
-  border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 11px;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #1f2937;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border-left: 3px solid; /* Color indicator, overwritten by inline style */
 }
 
-.fc-event-month.job-order {
-  font-style: italic;
-}
-
-.fc-event-month:hover {
-  background: #e6eaf0;
-}
-
-.fc-event-indicator { /* NEW - Used in Month/Upcoming views */
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.fc-more-events { /* Existing class, modified for new context */
-  text-align: center;
-  font-size: 11px;
-  font-weight: 500;
-  color: #6b7280;
-  padding: 2px;
-  margin-top: 4px;
-  background: #f3f4f6;
-  border-radius: 4px;
-  border: 1px solid #e5e7eb;
-  cursor: pointer;
-}
-.fc-more-events:hover {
-  background: #e5e7eb;
-}
-
-/* ============ YEAR VIEW (NEW) ============ */
-.fc-year-view { /* NEW */
+/* ============ CALENDAR LEGEND - PROFESSIONAL ============ */
+.fc-calendar-legend {
   background: white;
   border-radius: 8px;
-  padding: 30px;
+  padding: 16px 24px;
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5e7eb;
+  flex-wrap: wrap;
 }
 
-.fc-year-grid { /* NEW */
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-}
-
-.fc-year-month { /* NEW */
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 15px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: #f9fafb;
-}
-
-.fc-year-month:hover {
-  border-color: #2E7D32;
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.1);
-  transform: translateY(-1px);
-}
-
-.fc-year-month-header { /* NEW */
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.fc-year-month-events { /* NEW */
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.fc-year-event-count { /* NEW */
+.fc-legend-title {
   font-size: 13px;
   font-weight: 600;
   color: #6b7280;
-  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.fc-year-event { /* NEW */
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: white;
+.fc-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fc-legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.fc-legend-label {
+  font-size: 13px;
   font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.fc-year-event.job-order {
-  font-style: italic;
+  color: #374151;
+  text-transform: capitalize;
 }
 
-/* ============ RIGHT SIDEBAR (NEW) ============ */
+/* ============ RIGHT SIDEBAR COMPONENTS ============ */
 
-/* Job Order Stats */
-.fc-job-stats { /* NEW */
+/* Job Order Stats - Professional */
+.fc-job-stats {
   background: white;
   border-radius: 8px;
   padding: 20px;
@@ -657,282 +638,351 @@
   font-size: 18px;
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 15px;
+  margin: 0 0 16px 0;
   display: flex;
   align-items: center;
   gap: 8px;
+  letter-spacing: -0.3px;
 }
 
-.fc-stats-grid { /* NEW */
+.fc-stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 12px;
 }
 
-.fc-stat-item { /* NEW */
+.fc-stat-item {
   background: #f9fafb;
   border-radius: 6px;
-  padding: 10px;
+  padding: 12px;
   text-align: center;
   border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
 }
 
-.fc-stat-number { /* NEW */
-  font-size: 24px;
+.fc-stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.fc-stat-number {
+  font-size: 28px;
   font-weight: 700;
   margin-bottom: 4px;
+  line-height: 1;
 }
 
 .fc-stat-item.pending .fc-stat-number { color: #3b82f6; }
 .fc-stat-item.in-progress .fc-stat-number { color: #f59e0b; }
 .fc-stat-item.completed .fc-stat-number { color: #10b981; }
 
-.fc-stat-label { /* NEW */
-  font-size: 12px;
-  font-weight: 500;
+.fc-stat-label {
+  font-size: 11px;
+  font-weight: 600;
   color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-/* Mini Calendar */
-.fc-mini-calendar { /* NEW */
+/* Mini Calendar - Professional */
+.fc-mini-calendar {
   background: white;
   border-radius: 8px;
-  padding: 15px;
+  padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5e7eb;
 }
 
-.fc-mini-header { /* NEW */
+.fc-mini-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-.fc-mini-nav { /* NEW */
+.fc-mini-nav {
   background: none;
   border: none;
   font-size: 16px;
   color: #6b7280;
   cursor: pointer;
-  padding: 5px;
+  padding: 6px 10px;
   border-radius: 4px;
-  transition: background 0.2s;
-}
-.fc-mini-nav:hover {
-  background: #f3f4f6;
+  transition: all 0.2s;
+  font-weight: 600;
 }
 
-.fc-mini-title { /* NEW */
-  font-size: 16px;
+.fc-mini-nav:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.fc-mini-title {
+  font-size: 15px;
   font-weight: 600;
   color: #1f2937;
 }
 
-.fc-mini-weekdays { /* NEW */
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  text-align: center;
-  margin-bottom: 5px;
+.fc-year {
+  color: #6b7280;
+  font-weight: 500;
 }
 
-.fc-mini-weekday { /* NEW */
+.fc-mini-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fc-mini-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.fc-mini-day-header {
+  text-align: center;
   font-size: 10px;
   font-weight: 600;
   color: #9ca3af;
+  padding: 4px 0;
 }
 
-.fc-mini-grid { /* NEW */
+.fc-mini-dates {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  gap: 4px;
 }
 
-.fc-mini-day { /* NEW */
+.fc-mini-date {
   text-align: center;
-  padding: 5px 2px;
+  padding: 6px 4px;
   font-size: 12px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.1s;
-  color: #6b7280;
+  color: #d1d5db;
+  font-weight: 500;
 }
 
-.fc-mini-day:hover {
-  background: #f3f4f6;
-}
-
-.fc-mini-day.current-month {
+.fc-mini-date:not(.other-month) {
   color: #1f2937;
 }
 
-.fc-mini-day.is-today {
+.fc-mini-date:hover {
+  background: #f3f4f6;
+}
+
+.fc-mini-date.today {
   background: #2E7D32;
   color: white;
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.fc-mini-day.has-event:not(.is-today) {
-  font-weight: 600;
-  color: #2E7D32;
+.fc-mini-date.has-events:not(.today) {
   background: #e8f5e9;
+  color: #2E7D32;
+  font-weight: 600;
 }
 
-.fc-mini-day.is-today.has-event {
-  border: 2px solid white;
-  box-shadow: 0 0 0 1px #2E7D32;
+.fc-mini-date.has-jobs:not(.today) {
+  background: #dbeafe;
+  color: #3b82f6;
+  font-weight: 600;
 }
 
-/* Upcoming Events */
-.fc-upcoming-events { /* NEW */
+.fc-today-info {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fc-today-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fc-stats {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+}
+
+/* Upcoming Events - Professional */
+.fc-upcoming-events {
   background: white;
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
 }
 
-.fc-upcoming-header { /* NEW */
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.fc-upcoming-header h3 {
+.fc-upcoming-events h3 {
   font-size: 18px;
   font-weight: 600;
   color: #1f2937;
-  margin: 0;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.3px;
 }
 
-.fc-filter-select { /* NEW */
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid #d1d5db;
-  background: white;
+.fc-event-group {
+  margin-bottom: 20px;
+}
+
+.fc-event-group:last-child {
+  margin-bottom: 0;
+}
+
+.fc-event-date {
   font-size: 13px;
-  color: #374151;
-  cursor: pointer;
-  appearance: none; /* Hide default arrow */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239CA3AF'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 10.958l3.71-3.73a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0l-4.25-4.25a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 1em;
-  padding-right: 25px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.fc-upcoming-list { /* NEW */
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.fc-upcoming-day-group { /* NEW */
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.fc-upcoming-date-header { /* NEW */
-  font-size: 14px;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 5px;
-  padding-bottom: 5px;
-  border-bottom: 1px dashed #e5e7eb;
-}
-
-.fc-upcoming-event { /* NEW */
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
+.fc-upcoming-event {
+  background: white;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: #fefefe;
-  border-left: 4px solid var(--event-color, #2E7D32);
-
-  /* Job order status colors for the border */
-  &.job-order {
-    border-color: #d1d5db;
-    border-left-color: #3b82f6; /* Default pending color for JO */
-  }
-  &.job-order.in-progress { border-left-color: #f59e0b; }
-  &.job-order.completed { border-left-color: #10b981; }
-  &.job-order.cancelled { border-left-color: #ef4444; }
 }
 
 .fc-upcoming-event:hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
+  border-color: #2E7D32;
   transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(46, 125, 50, 0.15);
 }
 
-.fc-event-details { /* NEW - details wrapper in upcoming list */
+.fc-upcoming-event.job-order {
+  border-left: 4px solid #3b82f6;
+}
+
+.fc-event-indicator {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  color: white;
+}
+
+.fc-event-details {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
-.fc-event-time-range { /* NEW */
+.fc-event-time-range {
   font-size: 12px;
   font-weight: 600;
   color: #1f2937;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
-.fc-event-description { /* NEW */
+.fc-event-description {
   font-size: 14px;
   color: #374151;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 500;
 }
 
-.fc-event-type { /* NEW */
+.fc-event-type {
   font-size: 11px;
   color: #6b7280;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
-.fc-status-badge { /* NEW - status badge utility */
-  padding: 2px 6px;
+.fc-status-badge {
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: white;
   text-transform: capitalize;
-
-  &.pending { background: #3b82f6; }
-  &.in-progress { background: #f59e0b; }
-  &.completed { background: #10b981; }
-  &.cancelled { background: #ef4444; }
 }
 
-.fc-no-events { /* Existing class, but adjust context */
-  text-align: center;
-  padding: 20px 0;
-  color: #9ca3af;
-  font-size: 14px;
-  font-style: italic;
+.fc-status-badge.pending { background: #3b82f6; }
+.fc-status-badge.in-progress { background: #f59e0b; }
+.fc-status-badge.completed { background: #10b981; }
+.fc-status-badge.cancelled { background: #ef4444; }
+
+.fc-type-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
+/* Event Types Legend - Professional */
+.fc-event-types-legend {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+}
 
-/* ============ MODAL (EXISTING/UPDATED) ============ */
+.fc-event-types-legend h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.3px;
+}
+
+.fc-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.fc-legend-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #f9fafb;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+}
+
+.fc-legend-type-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.fc-legend-type-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+}
+
+/* ============ MODAL - PROFESSIONAL ============ */
 .fc-modal-overlay {
   position: fixed;
   top: 0;
@@ -940,26 +990,31 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  padding: 24px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .fc-modal {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
   width: 90%;
-  max-width: 600px;
+  max-width: 550px;
+  max-height: 90vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
   animation: slideUp 0.2s ease;
-}
-
-.fc-modal.details-modal {
-  max-width: 500px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 @keyframes slideUp {
@@ -980,7 +1035,6 @@
   justify-content: space-between;
   align-items: center;
   background: #f9fafb;
-  border-radius: 12px 12px 0 0;
 }
 
 .fc-modal-header h3 {
@@ -1018,245 +1072,286 @@
   padding: 24px;
   overflow-y: auto;
   flex: 1;
-  line-height: 1.6;
+}
+
+.fc-modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.fc-modal-body::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+.fc-modal-body::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.fc-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .fc-modal-body p {
-  margin-bottom: 12px;
-}
-
-.fc-modal-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  background: #f9fafb;
-  border-radius: 0 0 12px 12px;
-}
-
-.fc-modal-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
+  margin: 0 0 12px 0;
   font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.cancel-btn {
-  background: white;
-  color: #6b7280;
-  border: 1px solid #d1d5db;
-}
-
-.cancel-btn:hover {
-  background: #f3f4f6;
   color: #374151;
+  line-height: 1.5;
 }
 
-.primary-btn { /* NEW - General primary action button */
-  background: #2E7D32;
+.fc-modal-body strong {
+  font-weight: 600;
+  color: #1f2937;
+  min-width: 100px;
+  display: inline-block;
+}
+
+.fc-modal-status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
   color: white;
-  border: none;
-  box-shadow: 0 1px 3px rgba(46, 125, 50, 0.2);
+  text-transform: capitalize;
+  margin-left: 8px;
 }
 
-.primary-btn:hover {
-  background: #1B5E20;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(46, 125, 50, 0.3);
+.fc-modal-status-badge.pending { background: #3b82f6; }
+.fc-modal-status-badge.in-progress { background: #f59e0b; }
+.fc-modal-status-badge.completed { background: #10b981; }
+.fc-modal-status-badge.cancelled { background: #ef4444; }
+
+.fc-modal-note {
+  padding: 12px;
+  border-radius: 6px;
+  margin: 16px 0;
+  font-size: 14px;
+  border: 1px solid;
 }
 
-.complete-btn { /* NEW - Specific complete job order button */
-  background: #10b981; /* Green for completion */
-  color: white;
-  border: none;
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+.fc-modal-note.success {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: #10b981;
+  color: #047857;
 }
 
-.complete-btn:hover {
-  background: #047857;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.4);
-}
-
-/* ============ MEDIA QUERIES (ADAPTED) ============ */
-
-@media (max-width: 1200px) {
-  .fc-container {
-    padding: 20px 24px;
+/* ============ RESPONSIVE DESIGN ============ */
+@media (max-width: 1024px) {
+  .fc-main-content {
+    flex-direction: column;
   }
   
-  .fc-calendar-layout {
-    flex-direction: column;
-    gap: 20px;
-  }
-
   .fc-right-sidebar {
     max-width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 20px;
   }
   
-  .fc-job-stats {
-    flex: 1 1 300px;
-  }
-  
-  .fc-mini-calendar, .fc-upcoming-events {
-    flex: 1 1 45%;
-    min-width: 300px;
+  .fc-calendar-grid {
+    gap: 6px;
   }
 
-  .fc-search-input {
-    width: 200px;
+  .fc-calendar-day {
+    min-height: 100px;
   }
 }
 
 @media (max-width: 768px) {
+  .fc-container {
+    padding: 20px;
+  }
+
   .fc-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 15px;
+    gap: 16px;
   }
-  
+
+  .fc-greeting {
+    font-size: 22px;
+  }
+
   .fc-header-actions {
     width: 100%;
-    justify-content: space-between;
+    flex-direction: column;
   }
-  
-  .fc-greeting {
-    font-size: 24px;
-  }
-  
-  .fc-current-period {
-    font-size: 20px;
+
+  .fc-search-input {
+    width: 100%;
   }
 
   .fc-calendar-controls {
     flex-direction: column;
     align-items: stretch;
-    gap: 15px;
+    gap: 12px;
   }
-  
+
   .fc-nav-controls {
-    justify-content: space-between;
-  }
-  
-  .fc-right-sidebar {
-    flex-direction: column;
-    gap: 20px;
-  }
-  
-  .fc-job-stats, .fc-mini-calendar, .fc-upcoming-events {
-    flex: 1 1 100%;
-    min-width: unset;
-  }
-  
-  .fc-modal {
-    max-width: 95%;
+    justify-content: center;
   }
 
-  .fc-modal-footer {
-    padding: 16px 20px;
-    flex-direction: column;
-  }
-
-  .fc-modal-btn {
+  .fc-view-controls {
     width: 100%;
+  }
+
+  .fc-view-btn {
+    flex: 1;
+  }
+
+  .fc-calendar-navigation {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .fc-month-title {
+    font-size: 18px;
+    width: 100%;
+  }
+
+  .fc-calendar-grid {
+    gap: 4px;
+  }
+
+  .fc-calendar-day {
+    min-height: 80px;
+    padding: 6px;
+  }
+
+  .fc-day-number {
+    font-size: 14px;
+  }
+
+  .fc-event-item {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+
+  .fc-event-icon {
+    font-size: 12px;
+  }
+
+  .fc-more-events {
+    font-size: 10px;
+  }
+
+  .fc-event-list-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .fc-event-list-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .fc-legend-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fc-calendar-legend {
+    gap: 12px;
+  }
+
+  .fc-modal {
+    max-width: 100%;
+    max-height: 95vh;
+  }
+
+  .fc-modal-header {
+    padding: 16px 20px;
+  }
+
+  .fc-modal-body {
+    padding: 20px;
   }
 }
 
 @media (max-width: 480px) {
-  .fc-container {
-    padding: 16px;
-  }
-
   .fc-greeting {
     font-size: 20px;
   }
 
-  .fc-header-actions {
-    flex-wrap: wrap;
-    gap: 10px;
+  .fc-container {
+    padding: 16px;
   }
-  
-  .fc-search-container {
-    flex: 1 1 auto;
+
+  .fc-calendar-day {
+    min-height: 60px;
+    padding: 4px;
   }
-  
-  .fc-search-input {
-    width: 100%;
-  }
-  
-  .fc-view-controls {
-    flex-wrap: wrap;
-    gap: 2px;
-  }
-  
-  .fc-view-btn {
-    padding: 6px 10px;
-    font-size: 13px;
-  }
-  
-  /* Day View adjustments */
-  .fc-event-day {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 12px;
-    gap: 8px;
-  }
-  .fc-job-icon {
-    display: none;
-  }
-  .fc-event-time {
+
+  .fc-day-number {
     font-size: 12px;
   }
 
-  /* Week View adjustments */
-  .fc-day-header {
+  .fc-day-events {
+    gap: 2px;
+  }
+
+  .fc-event-item {
+    font-size: 10px;
+    padding: 3px 5px;
+  }
+
+  .fc-event-icon {
+    font-size: 11px;
+  }
+
+  .fc-event-list-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .fc-event-list-message {
+    font-size: 14px;
+  }
+
+  .fc-weekday {
+    font-size: 11px;
     padding: 8px 0;
   }
-  .fc-day-name {
-    font-size: 10px;
+
+  .fc-stats-grid {
+    grid-template-columns: 1fr;
   }
-  .fc-day-number {
-    font-size: 16px;
+}
+
+/* ============ PRINT STYLES ============ */
+@media print {
+  .fc-header-actions,
+  .fc-calendar-controls,
+  .fc-calendar-navigation,
+  .fc-calendar-legend,
+  .fc-right-sidebar,
+  .fc-modal-close {
+    display: none !important;
   }
-  .fc-calendar-grid {
-    grid-template-columns: 40px repeat(7, 1fr);
+
+  .fc-container {
+    padding: 0;
+    overflow: visible;
+    height: auto;
   }
-  .fc-time-slot {
-    height: 40px;
-    font-size: 8px;
+
+  .fc-main-layout {
+    height: auto;
+    overflow: visible;
   }
-  .fc-time-cell {
-    height: 40px;
+
+  .fc-modal-overlay {
+    position: relative;
+    background: none;
+    padding: 0;
   }
-  .fc-event {
-    font-size: 8px;
-    padding: 2px 4px;
+
+  .fc-modal {
+    box-shadow: none;
+    max-height: none;
+    width: 100%;
+    max-width: none;
   }
-  .fc-event .fc-event-title, .fc-event .fc-event-plant {
-    font-size: 8px;
-  }
-  
-  /* Month View adjustments */
-  .fc-day-cell {
-    min-height: 80px;
-    padding: 4px;
-  }
-  .fc-day-cell .day-number {
-    font-size: 14px;
-    margin-bottom: 2px;
-  }
-  .fc-event-month {
-    font-size: 10px;
-    padding: 2px 4px;
+
+  .fc-calendar-day {
+    page-break-inside: avoid;
   }
 }

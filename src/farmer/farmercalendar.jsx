@@ -5,6 +5,14 @@ import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverT
 import { db } from '../firebase';
 import inventoryLogger from "../functions/inventoryLogger";
 
+import { 
+  FaSeedling, FaLeaf, FaTint, FaBug, FaCut, FaCarrot, FaTools, FaEye, 
+  FaClipboardList, FaCalendarAlt, FaClock, FaPlus, FaEdit, FaTrash, FaTimes,
+  FaChevronLeft, FaChevronRight, FaThList, FaCalendarDay
+} from 'react-icons/fa';
+import { GiPlantSeed, GiWateringCan, GiFertilizerBag, GiGrass } from 'react-icons/gi';
+
+
 
 const FarmerCalendar = () => {
   const [activeMenu, setActiveMenu] = useState('Calendar');
@@ -33,20 +41,19 @@ const FarmerCalendar = () => {
 
   // Event types with react-icons (you'll need to install react-icons)
 const eventTypes = [
-  { value: 'LIFECYCLE_STAGE', icon: '🌱', color: '#10b981', label: 'Lifecycle Stage' },
-  { value: 'PLANTING', icon: '🌾', color: '#14b8a6', label: 'Planting' },
-  { value: 'WATERING', icon: '💧', color: '#3b82f6', label: 'Watering' },
-  { value: 'FERTILIZING', icon: '🧪', color: '#8b5cf6', label: 'Fertilizing' },
-  { value: 'WEEDING', icon: '🌿', color: '#f59e0b', label: 'Weeding' },
-  { value: 'PEST_CONTROL', icon: '🐛', color: '#ef4444', label: 'Pest Control' },
-  { value: 'PRUNING', icon: '✂️', color: '#ec4899', label: 'Pruning' },
-  { value: 'HARVESTING', icon: '🥕', color: '#059669', label: 'Harvesting' },
-  { value: 'MAINTENANCE', icon: '🔧', color: '#6366f1', label: 'Maintenance' },
-  { value: 'OBSERVATION', icon: '👁️', color: '#06b6d4', label: 'Observation' },
-  { value: 'FERTILIZER_JOB_ORDER', icon: '📋', color: '#3b82f6', label: 'Fertilizer Job' },
-  { value: 'OTHER', icon: '📝', color: '#64748b', label: 'Other' }
+  { value: 'LIFECYCLE_STAGE', icon: <FaSeedling />, color: '#10b981', label: 'Lifecycle Stage' },
+  { value: 'PLANTING', icon: <GiPlantSeed />, color: '#14b8a6', label: 'Planting' },
+  { value: 'WATERING', icon: <GiWateringCan />, color: '#3b82f6', label: 'Watering' },
+  { value: 'FERTILIZING', icon: <GiFertilizerBag />, color: '#8b5cf6', label: 'Fertilizing' },
+  { value: 'WEEDING', icon: <GiGrass />, color: '#f59e0b', label: 'Weeding' },
+  { value: 'PEST_CONTROL', icon: <FaBug />, color: '#ef4444', label: 'Pest Control' },
+  { value: 'PRUNING', icon: <FaCut />, color: '#ec4899', label: 'Pruning' },
+  { value: 'HARVESTING', icon: <FaCarrot />, color: '#059669', label: 'Harvesting' },
+  { value: 'MAINTENANCE', icon: <FaTools />, color: '#6366f1', label: 'Maintenance' },
+  { value: 'OBSERVATION', icon: <FaEye />, color: '#06b6d4', label: 'Observation' },
+  { value: 'FERTILIZER_JOB_ORDER', icon: <FaClipboardList />, color: '#3b82f6', label: 'Fertilizer Job' },
+  { value: 'OTHER', icon: <FaClipboardList />, color: '#64748b', label: 'Other' }
 ];
-
   // Status colors
   const statusColors = {
     'info': '#10b981',
@@ -58,6 +65,67 @@ const eventTypes = [
     'completed': '#10b981',
     'cancelled': '#ef4444'
   };
+
+  // Render calendar grid (Admin-style)
+const renderCalendarGrid = () => {
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  const days = [];
+
+  // Empty cells for days before first day of month
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    days.push(<div key={`empty-${i}`} className="fc-calendar-day empty" />);
+  }
+
+  // Days of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    const cellDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const dayEvents = getEventsForDate(cellDate);
+    const isToday = cellDate.toDateString() === new Date().toDateString();
+
+    days.push(
+      <div
+        key={day}
+        className={`fc-calendar-day ${isToday ? 'today' : ''} ${dayEvents.length > 0 ? 'has-events' : ''}`}
+      >
+        <div className="fc-day-number">{day}</div>
+        <div className="fc-day-events">
+          {dayEvents.slice(0, 3).map((event) => {
+            const typeConfig = getEventTypeConfig(event.eventType || event.type);
+            return (
+              <div
+                key={event.id}
+                className={`fc-event-item ${event.isJobOrder ? 'job-order' : ''}`}
+                style={{ 
+                  background: statusColors[event.status] || statusColors.info,
+                  borderLeft: `4px solid ${typeConfig.color}`
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedEvent(event);
+                  setShowDetailsModal(true);
+                }}
+                title={event.title}
+              >
+                <span className="fc-event-icon">{typeConfig.icon}</span>
+                {event.isJobOrder && <FaClipboardList className="fc-job-badge" />}
+                <span className="fc-event-text">
+                  {event.title.substring(0, 20)}
+                  {event.title.length > 20 ? '...' : ''}
+                </span>
+              </div>
+            );
+          })}
+          {dayEvents.length > 3 && (
+            <div className="fc-more-events">+{dayEvents.length - 3} more</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return days;
+};
 
   // Render list view
 const renderListView = () => {
@@ -82,7 +150,8 @@ const renderListView = () => {
     <div className="fc-list-view">
       <div className="fc-list-section">
         <h3 className="fc-list-section-title">
-          📅 Upcoming & Today
+          <FaCalendarDay style={{ marginRight: '8px' }} />
+          Upcoming & Today
         </h3>
         {upcomingEvents.length === 0 ? (
           <div className="fc-no-events">No upcoming events</div>
@@ -145,7 +214,8 @@ const renderListView = () => {
 
       <div className="fc-list-section">
         <h3 className="fc-list-section-title">
-          🕐 Past Events
+          <FaClock style={{ marginRight: '8px' }} />
+          Past Events
         </h3>
         {pastEvents.length === 0 ? (
           <div className="fc-no-events">No past events</div>
@@ -181,18 +251,21 @@ const renderListView = () => {
                     <div className="fc-event-list-details">
                       {event.plantName && (
                         <span className="fc-event-detail">
-                          🌱 {event.plantName}
+                          <FaSeedling style={{ marginRight: '4px' }} />
+                          {event.plantName}
                         </span>
                       )}
                       <span className="fc-event-detail">
-                        📅 {new Date(event.date).toLocaleDateString('en-US', { 
+                        <FaCalendarAlt style={{ marginRight: '4px' }} />
+                        {new Date(event.date).toLocaleDateString('en-US', { 
                           month: 'short', 
                           day: 'numeric', 
                           year: 'numeric' 
                         })}
                       </span>
                       <span className="fc-event-detail">
-                        🕐 {event.time}
+                        <FaClock style={{ marginRight: '4px' }} />
+                        {event.time}
                       </span>
                       <span className="fc-event-detail">
                         {typeConfig.label}
@@ -209,25 +282,21 @@ const renderListView = () => {
   );
 };
 
-
-  // Get event type config
   const getEventTypeConfig = (type) => {
     return eventTypes.find(t => t.value === type) || eventTypes[eventTypes.length - 1];
   };
 
-  // Get today button function
   const goToToday = () => {
     setCurrentDate(new Date());
-    setViewMode('Week'); // or keep current view
+    setViewMode('Week'); 
   };
-    // Utility function to convert fertilizer from bags/ha to plot size
+
   const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2) => {
     const hectareInM2 = 10000;
     const bagsForPlot = (bagsPerHa * plotSizeM2) / hectareInM2;
     return bagsForPlot.toFixed(2);
   };
 
-  // Fetch plants data to generate activities
   const fetchPlants = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, 'plants'));
@@ -243,17 +312,14 @@ const renderListView = () => {
     }
   };
 
-  // Fetch events from Firebase (including job orders)
   const fetchEvents = async () => {
     try {
-      // Fetch from events collection
       const eventsQuery = query(
         collection(db, 'events'),
         orderBy('createdAt', 'desc')
       );
       const eventsSnapshot = await getDocs(eventsQuery);
       
-      // Fetch from jobOrders collection
       const jobOrdersSnapshot = await getDocs(collection(db, 'jobOrders'));
       
       const eventsData = eventsSnapshot.docs.map(doc => {
@@ -269,7 +335,6 @@ const renderListView = () => {
         };
       });
       
-      // Convert job orders to calendar events
       const jobOrderEvents = jobOrdersSnapshot.docs.map(doc => {
         const data = doc.data();
         const scheduledDate = data.scheduledDate ? new Date(data.scheduledDate) : new Date();
@@ -299,7 +364,6 @@ const renderListView = () => {
         };
       });
       
-      // Convert Firebase events to calendar format
       const calendarEvents = eventsData.map(event => {
         const eventDate = event.type === 'FERTILIZER_JOB_ORDER' && event.scheduledDate 
           ? event.scheduledDate 
@@ -336,17 +400,14 @@ const renderListView = () => {
         };
       });
 
-      // Combine all events
       setEvents([...calendarEvents, ...jobOrderEvents]);
     } catch (error) {
       console.error('Error fetching events:', error);
     }
   };
 
-  // Helper function to update job order status
   const updateJobOrderStatus = async (jobOrderId, status) => {
     try {
-      // Check if this is an event ID or job order ID
       const isEventId = jobOrderId.startsWith('event-');
       const isJobOrderPrefix = jobOrderId.startsWith('joborder-');
       
@@ -356,7 +417,6 @@ const renderListView = () => {
       }
       
       if (isEventId) {
-        // Old event-based system
         const eventRef = doc(db, 'events', jobOrderId.replace('event-', ''));
         const updateData = {
           status: status,
@@ -1167,28 +1227,18 @@ return (
 
           <div className="fc-view-controls">
             <button
-              className={`fc-view-btn ${viewMode === 'Day' ? 'active' : ''}`}
-              onClick={() => setViewMode('Day')}
-            >
-              Day
-            </button>
-            <button
-              className={`fc-view-btn ${viewMode === 'Week' ? 'active' : ''}`}
-              onClick={() => setViewMode('Week')}
-            >
-              Week
-            </button>
-            <button
               className={`fc-view-btn ${viewMode === 'Month' ? 'active' : ''}`}
               onClick={() => setViewMode('Month')}
             >
+              <FaCalendarAlt style={{ marginRight: '6px' }} />
               Month
             </button>
             <button
               className={`fc-view-btn ${viewMode === 'list' ? 'active' : ''}`}
               onClick={() => setViewMode('list')}
             >
-              📋 List
+              <FaThList style={{ marginRight: '6px' }} />
+              List
             </button>
           </div>
           {/* Job Order Filter */}
@@ -1213,316 +1263,53 @@ return (
         </div>
 
       <div className="fc-main-content">
-  {/* Calendar Grid - Dynamic based on view mode */}
         <div className="fc-calendar-section">
           {viewMode === 'list' ? (
-            // List View
+            // List View (keep existing renderListView())
             renderListView()
-          ) : viewMode === 'Day' ? (
-            // Day View
-            <div className="fc-day-view">
-              <div className="fc-day-header-single">
-                <h2>{currentDate.toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  month: 'long', 
-                  day: 'numeric', 
-                  year: 'numeric' 
-                })}</h2>
-              </div>
-              <div className="fc-day-events">
-                {getEventsForDate(currentDate).map(event => {
-                  const typeConfig = getEventTypeConfig(event.eventType || event.type);
-                  return (
-                    <div
-                      key={event.id}
-                      className={`fc-day-event ${event.isJobOrder ? 'job-order' : ''}`}
-                      style={{ borderLeft: `4px solid ${typeConfig.color}` }}
-                      onClick={() => {
-                        setSelectedEvent(event);
-                        setShowDetailsModal(true);
-                      }}
-                    >
-                      <div className="fc-event-icon">{typeConfig.icon}</div>
-                      <div className="fc-event-time">{event.time}</div>
-                      <div className="fc-event-title">
-                        {event.isJobOrder && '📋 '}
-                        {event.title}
-                      </div>
-                      <div className="fc-event-type">
-                        {event.isJobOrder ? (
-                          <span className={`fc-status-badge ${event.status}`}>
-                            {event.status}
-                          </span>
-                        ) : (
-                          <span className="fc-type-label">{typeConfig.label}</span>
-                        )}
-                      </div>
-                      {event.isJobOrder && event.applicationNumber && (
-                        <div className="fc-job-progress">
-                          Application {event.applicationNumber} of {event.totalApplications}
-                        </div>
-                      )}
-                      {event.plantName && (
-                        <div className="fc-event-plant">🌱 {event.plantName}</div>
-                      )}
-                    </div>
-                  );
-                })}
-                {getEventsForDate(currentDate).length === 0 && (
-                  <div className="fc-no-events-day">No activities scheduled for this day</div>
-                )}
-              </div>
-            </div>
-          ) : viewMode === 'Week' ? (
-            // Week View
+          ) : (
+            // Month View (Admin-style)
             <>
-              {/* Week Header */}
-              <div className="fc-week-header">
-                {viewDates.map((date, index) => {
-                  const dayEvents = getEventsForDate(date);
-                  const isToday = date.toDateString() === new Date().toDateString();
-                  return (
-                    <div key={index} className={`fc-day-header ${isToday ? 'today' : ''}`}>
-                      <div className="fc-day-name">
-                        {date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
-                      </div>
-                      <div className="fc-day-number">{date.getDate()}</div>
-                      {dayEvents.length > 0 && (
-                        <div className="fc-day-event-count">{dayEvents.length}</div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="fc-calendar-navigation">
+                <button className="fc-nav-btn" onClick={() => navigateView(-1)}>
+                  <FaChevronLeft style={{ marginRight: '6px' }} />
+                  Previous
+                </button>
+                <button className="fc-today-btn" onClick={goToToday}>
+                  Today
+                </button>
+                <h2 className="fc-month-title">{getCurrentPeriodString()}</h2>
+                <button className="fc-nav-btn" onClick={() => navigateView(1)}>
+                  Next
+                  <FaChevronRight style={{ marginLeft: '6px' }} />
+                </button>
               </div>
 
-              {/* Calendar Grid */}
-              <div className="fc-calendar-grid">
-                {/* Time Column */}
-                <div className="fc-time-column">
-                  {timeSlots.map((time, index) => (
-                    <div key={index} className="fc-time-slot">{time}</div>
+              <div className="fc-calendar-grid-container">
+                <div className="fc-calendar-weekdays">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="fc-weekday">
+                      {day}
+                    </div>
                   ))}
                 </div>
-
-                {/* Days Columns */}
-                {viewDates.map((date, dayIndex) => {
-                  const isToday = date.toDateString() === new Date().toDateString();
-                  return (
-                    <div key={dayIndex} className={`fc-day-column ${isToday ? 'today-column' : ''}`}>
-                      {timeSlots.map((time, timeIndex) => {
-                        const dayEvents = getEventsForDate(date);
-                        const slotEvents = dayEvents.filter(event => getTimeSlotIndex(event.time) === timeIndex);
-
-                        return (
-                          <div key={timeIndex} className="fc-time-cell">
-                            {slotEvents.map(event => {
-                              const typeConfig = getEventTypeConfig(event.eventType || event.type);
-                              return (
-                                <div
-                                  key={event.id}
-                                  className={`fc-event ${event.isJobOrder ? 'job-order' : ''}`}
-                                  style={{ 
-                                    backgroundColor: event.color,
-                                    borderLeft: `3px solid ${typeConfig.color}`
-                                  }}
-                                  onClick={() => {
-                                    setSelectedEvent(event);
-                                    setShowDetailsModal(true);
-                                  }}
-                                  title={`${event.title} - ${event.isJobOrder ? event.status : typeConfig.label}`}
-                                >
-                                  <div className="fc-event-header">
-                                    <span className="fc-event-icon">{typeConfig.icon}</span>
-                                    {event.isJobOrder && <div className="fc-job-icon">📋</div>}
-                                  </div>
-                                  <div className="fc-event-time">{event.time}</div>
-                                  <div className="fc-event-title">{event.title}</div>
-                                  {event.plantData && (
-                                    <div className="fc-event-plant">
-                                      🌱 {event.plantData.plantName || event.plantData.name}
-                                    </div>
-                                  )}
-                                  {event.plantName && !event.plantData && (
-                                    <div className="fc-event-plant">🌱 {event.plantName}</div>
-                                  )}
-                                  {event.isJobOrder && (
-                                    <div className={`fc-event-status ${event.status}`}>
-                                      {event.status}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
+                <div className="fc-calendar-grid">
+                  {renderCalendarGrid()}
+                </div>
               </div>
-            </>
-          ) : viewMode === 'Month' ? (
-            // Month View
-            <div className="fc-month-view">
-              <div className="fc-month-header">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="fc-month-day-header">{day}</div>
+
+              <div className="fc-calendar-legend">
+                <div className="fc-legend-title">Event Status:</div>
+                {Object.entries(statusColors).slice(0, 4).map(([status, color]) => (
+                  <div key={status} className="fc-legend-item">
+                    <div className="fc-legend-color" style={{ background: color }} />
+                    <span className="fc-legend-label">{status}</span>
+                  </div>
                 ))}
               </div>
-              <div className="fc-month-grid">
-                {Array.from({ length: 42 }, (_, i) => {
-                  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-                  const startDate = new Date(firstDay);
-                  startDate.setDate(startDate.getDate() - firstDay.getDay());
-                  
-                  const cellDate = new Date(startDate);
-                  cellDate.setDate(startDate.getDate() + i);
-                  
-                  const isCurrentMonth = cellDate.getMonth() === currentDate.getMonth();
-                  const isToday = cellDate.toDateString() === new Date().toDateString();
-                  const dayEvents = getEventsForDate(cellDate);
-
-                  return (
-                    <div
-                      key={i}
-                      className={`fc-month-cell ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}`}
-                      onClick={() => {
-                        setCurrentDate(cellDate);
-                        setViewMode('Day');
-                      }}
-                    >
-                      <div className="fc-month-date">{cellDate.getDate()}</div>
-                      <div className="fc-month-events">
-                        {dayEvents.slice(0, 3).map(event => {
-                          const typeConfig = getEventTypeConfig(event.eventType || event.type);
-                          return (
-                            <div
-                              key={event.id}
-                              className={`fc-month-event ${event.isJobOrder ? 'job-order' : ''}`}
-                              style={{ 
-                                backgroundColor: event.color,
-                                borderLeft: `3px solid ${typeConfig.color}`
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedEvent(event);
-                                setShowDetailsModal(true);
-                              }}
-                              title={event.title}
-                            >
-                              <span className="fc-month-event-icon">{typeConfig.icon}</span>
-                              {event.isJobOrder && '📋 '}
-                              {event.title.length > 15 ? event.title.substring(0, 15) + '...' : event.title}
-                            </div>
-                          );
-                        })}
-                        {dayEvents.length > 3 && (
-                          <div className="fc-more-events">+{dayEvents.length - 3} more</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : viewMode === 'Year' ? (
-            // Year View
-            <div className="fc-year-view">
-              <div className="fc-year-grid">
-                {Array.from({ length: 12 }, (_, monthIndex) => {
-                  const monthDate = new Date(currentDate.getFullYear(), monthIndex, 1);
-                  const monthEvents = events.filter(event => {
-                    const eventDate = new Date(event.date);
-                    return eventDate.getMonth() === monthIndex && 
-                          eventDate.getFullYear() === currentDate.getFullYear();
-                  });
-
-                  // Apply filters
-                  let filteredMonthEvents = monthEvents;
-                  
-                  if (jobOrderFilter !== 'all') {
-                    filteredMonthEvents = filteredMonthEvents.filter(event => {
-                      if (!event.isJobOrder) return true;
-                      return event.status === jobOrderFilter;
-                    });
-                  }
-                  
-                  if (searchTerm) {
-                    filteredMonthEvents = filteredMonthEvents.filter(event => 
-                      event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      (event.type && event.type.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                      (event.plantName && event.plantName.toLowerCase().includes(searchTerm.toLowerCase()))
-                    );
-                  }
-
-                  const jobOrderCount = filteredMonthEvents.filter(e => e.isJobOrder).length;
-                  const regularEventCount = filteredMonthEvents.filter(e => !e.isJobOrder).length;
-
-                  return (
-                    <div
-                      key={monthIndex}
-                      className="fc-year-month"
-                      onClick={() => {
-                        setCurrentDate(monthDate);
-                        setViewMode('Month');
-                      }}
-                    >
-                      <div className="fc-year-month-header">
-                        {monthDate.toLocaleDateString('en-US', { month: 'long' })}
-                      </div>
-                      <div className="fc-year-month-stats">
-                        <div className="fc-year-stat">
-                          <span className="fc-year-stat-number">{filteredMonthEvents.length}</span>
-                          <span className="fc-year-stat-label">Total</span>
-                        </div>
-                        {jobOrderCount > 0 && (
-                          <div className="fc-year-stat job-orders">
-                            <span className="fc-year-stat-number">{jobOrderCount}</span>
-                            <span className="fc-year-stat-label">📋 Jobs</span>
-                          </div>
-                        )}
-                        {regularEventCount > 0 && (
-                          <div className="fc-year-stat events">
-                            <span className="fc-year-stat-number">{regularEventCount}</span>
-                            <span className="fc-year-stat-label">📅 Events</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="fc-year-month-events">
-                        {filteredMonthEvents.slice(0, 3).map(event => {
-                          const typeConfig = getEventTypeConfig(event.eventType || event.type);
-                          return (
-                            <div
-                              key={event.id}
-                              className={`fc-year-event ${event.isJobOrder ? 'job-order' : ''}`}
-                              style={{ 
-                                backgroundColor: event.color,
-                                borderLeft: `3px solid ${typeConfig.color}`
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedEvent(event);
-                                setShowDetailsModal(true);
-                              }}
-                            >
-                              <span className="fc-year-event-icon">{typeConfig.icon}</span>
-                              {event.isJobOrder && '📋 '}
-                              {event.title.length > 20 ? event.title.substring(0, 20) + '...' : event.title}
-                            </div>
-                          );
-                        })}
-                        {filteredMonthEvents.length > 3 && (
-                          <div className="fc-more-events">+{filteredMonthEvents.length - 3} more</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
+            </>
+          )}
         </div>
-
         {/* Right Sidebar */}
         <div className="fc-right-sidebar">
           {/* Job Order Stats */}
