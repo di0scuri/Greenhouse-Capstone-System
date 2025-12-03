@@ -3862,94 +3862,103 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
     Fertilizer Requirements:
   </div>
   
-  {/* 2. Content Container: This holds the three fertilizer boxes and must wrap them to fit */}
-  <div className="detail-value-container" style={{
-    background: 'white',
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid #e2e8f0',
-    // ADDED: Force the content to display horizontally and wrap if needed
-    display: 'flex',
-    gap: '8px',
-    flexWrap: 'wrap', // IMPORTANT: Allows items to move to the next line on narrow screens
-  }}>
+                          {/* 2. Content Container: This holds the three fertilizer boxes and must wrap them to fit */}
+                          <div className="detail-value-container" style={{
+                            background: 'white',
+                            padding: '12px',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            // CHANGED: Use grid for better control
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                            gap: '12px',
+                          }}>
                         {Object.entries(app.bags).map(([type, amount], i) => {
-  const bagsPerHa = typeof amount === 'string' 
-    ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-    : amount;
-  
-  // FIXED: Use fertilizerInfo.plant.plotSize instead of selectedPlant
-  const plotSize = parsePlotSizeToM2(fertilizerInfo.plant?.plotSize) || 0;
-  
-  // Log for debugging
-  console.log("Plot size string:", fertilizerInfo.plant?.plotSize);
-  console.log("Parsed plot size (m²):", plotSize);
-  console.log("Bags per hectare:", bagsPerHa);
-  
-  const fertilizerCalc = convertFertilizerToPlotSize(bagsPerHa, plotSize, true);
-  
-  console.log("Fertilizer calculation:", fertilizerCalc);
-  
-  return (
-    <div key={i} style={{ 
-      display: 'flex',
-      justifyContent: 'space-between',
-      padding: '8px 0',
-      borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
-    }}>
-      <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
-      <div style={{ textAlign: 'right' }}>
-        {plotSize > 0 ? (
-          <>
-            <div style={{ 
-              fontWeight: 'bold', 
-              color: fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#d97706' : '#0ea5e9',
-              background: fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#fffbeb' : '#f0f9ff',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              display: 'block',
-              marginBottom: '4px'
-            }}>
-              {fertilizerCalc.bags} bags ({fertilizerCalc.amount} {fertilizerCalc.unit})
-              {(fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg') && (
-                <div style={{ 
-                  fontSize: '0.7em', 
-                  color: '#92400e',
-                  marginTop: '2px'
-                }}>
-                  ⚖️ Showing in {fertilizerCalc.unit} for precision
-                </div>
-              )}
-            </div>
-            <span style={{ 
-              fontSize: '0.75em', 
-              color: '#64748b'
-            }}>
-              ({amount} per hectare = {(bagsPerHa * 50).toFixed(1)} kg/ha)
-            </span>
-          </>
-        ) : (
-          <div>
-            <span style={{ 
-              fontSize: '0.85em', 
-              color: '#dc2626',
-              display: 'block',
-              marginBottom: '4px'
-            }}>
-              ⚠️ Cannot calculate: Plot size unavailable
-            </span>
-            <span style={{ 
-              fontSize: '0.75em', 
-              color: '#64748b'
-            }}>
-              ({amount} per hectare = {(bagsPerHa * 50).toFixed(1)} kg/ha)
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-})}
+                          const bagsPerHa = typeof amount === 'string' 
+                            ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+                            : amount;
+                          
+                          const plotSize = parsePlotSizeToM2(fertilizerInfo.plant?.plotSize) || 0;
+                          const fertilizerCalc = convertFertilizerToPlotSize(bagsPerHa, plotSize, true);
+                          
+                          return (
+                            <div key={i} style={{ 
+                              // CHANGED: Compact card layout
+                              background: fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#fffbeb' : '#f0f9ff',
+                              border: `2px solid ${fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#f59e0b' : '#0ea5e9'}`,
+                              borderRadius: '8px',
+                              padding: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px',
+                            }}>
+                              {/* Fertilizer Type - Compact Header */}
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: '4px'
+                              }}>
+                                <span style={{ 
+                                  fontWeight: '700', 
+                                  fontSize: '1.1em',
+                                  color: '#1e293b'
+                                }}>
+                                  {type}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.7em',
+                                  fontWeight: '600',
+                                  color: fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#92400e' : '#0369a1',
+                                  background: fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#fef3c7' : '#e0f2fe',
+                                  padding: '2px 6px',
+                                  borderRadius: '10px'
+                                }}>
+                                  {fertilizerCalc.unit === 'g' ? '⚖️ g' : fertilizerCalc.unit === 'mg' ? '⚖️ mg' : 'kg'}
+                                </span>
+                              </div>
+                              
+                              {/* Main Amount - Compact Display */}
+                              <div style={{
+                                textAlign: 'center',
+                                margin: '8px 0'
+                              }}>
+                                <div style={{
+                                  fontSize: '1.4em',
+                                  fontWeight: '800',
+                                  color: fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#b45309' : '#0c4a6e',
+                                  lineHeight: '1.2'
+                                }}>
+                                  {fertilizerCalc.amount} {fertilizerCalc.unit}
+                                </div>
+                                <div style={{
+                                  fontSize: '0.8em',
+                                  color: '#64748b',
+                                  marginTop: '4px'
+                                }}>
+                                  {fertilizerCalc.bags} bags
+                                </div>
+                              </div>
+                              
+                              {/* Per Hectare Reference - Small text at bottom */}
+                              <div style={{
+                                fontSize: '0.7em',
+                                color: '#94a3b8',
+                                textAlign: 'center',
+                                marginTop: 'auto',
+                                paddingTop: '8px',
+                                borderTop: '1px dashed #cbd5e1'
+                              }}>
+                                <div style={{ marginBottom: '2px' }}>
+                                  {amount} bags/ha
+                                </div>
+                                <div>
+                                  = {(bagsPerHa * 50).toFixed(1)} kg/ha
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                           </div>
                         </div>
                               {/* Application Method */}
