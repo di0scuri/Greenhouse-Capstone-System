@@ -1747,51 +1747,75 @@ const handleConfirmPlanting = async () => {
   }
 }
 
-  const handleOpenFertilizerModal = async (plant) => {
+const handleOpenFertilizerModal = async (plant) => {
+  // Save selected plant
+  setSelectedPlant(plant);
 
-    setSelectedPlant(plant);
-    const plantInfo = plantsList[plant.plantType]
-    const currentStage = getCurrentStage(plant, plantInfo)
+  const plantInfo = plantsList[plant.plantType];
+  const currentStage = getCurrentStage(plant, plantInfo);
 
-    if (!plant || !plant.plotSize) {
-    // Optionally display an alert to the user
+  // Validate essential data BEFORE opening modal
+  if (!plant || !plant.plotSize) {
     console.error("Cannot calculate fertilizer: Plant data or plot size is missing.");
-    return; // Stop execution if data is missing
+    showAlert({
+      type: "error",
+      title: "Missing Plot Size",
+      message: "This plant does not have a valid plot size. Fertilizer calculation cannot continue.",
+      confirmText: "OK"
+    });
+    return;
   }
-    
-    if (currentStage && plant.sensorData) {
-      const deficits = {
-        nitrogen: Math.max(0, currentStage.highN - (plant.sensorData.nitrogen || 0)),
-        phosphorus: Math.max(0, currentStage.highP - (plant.sensorData.phosphorus || 0)),
-        potassium: Math.max(0, currentStage.highK - (plant.sensorData.potassium || 0)),
-        ph: Math.abs(currentStage.highpH - (plant.sensorData.ph || 7))
-      }
 
-      const recommendations = await fetchFertilizerRecommendations(plant, plant.sensorData)
+  // Show modal now — but keep it empty until data loads
+  setShowFertilizerModal(true);
 
-      setFertilizerInfo({
-        plantName: plant.plantName,
-        stage: currentStage.stage,
-        current: plant.sensorData,
-        ideal: {
-          nitrogen: currentStage.highN,
-          phosphorus: currentStage.highP,
-          potassium: currentStage.highK,
-          ph: currentStage.highpH
-        },
-        range: {
-          nitrogen: `${currentStage.lowN} - ${currentStage.highN}`,
-          phosphorus: `${currentStage.lowP} - ${currentStage.highP}`,
-          potassium: `${currentStage.lowK} - ${currentStage.highK}`,
-          ph: `${currentStage.lowpH} - ${currentStage.highpH}`
-        },
-        deficit: deficits,
-        recommendations: recommendations
-      })
-      
-      setShowFertilizerModal(true)
-    }
+  // If no sensor data → display notice instead of crashing
+  if (!plant.sensorData) {
+    setFertilizerInfo({
+      plantName: plant.plantName,
+      stage: currentStage?.stage || "Unknown",
+      current: null,
+      ideal: null,
+      deficit: null,
+      recommendations: null,
+      message: "No soil sensor data available for fertilizer calculation."
+    });
+    return;
   }
+
+  // If sensor data exists → compute recommendation
+  if (currentStage) {
+    const deficits = {
+      nitrogen: Math.max(0, currentStage.highN - (plant.sensorData.nitrogen || 0)),
+      phosphorus: Math.max(0, currentStage.highP - (plant.sensorData.phosphorus || 0)),
+      potassium: Math.max(0, currentStage.highK - (plant.sensorData.potassium || 0)),
+      ph: Math.abs(currentStage.highpH - (plant.sensorData.ph || 7))
+    };
+
+    const recommendations = await fetchFertilizerRecommendations(plant, plant.sensorData);
+
+    setFertilizerInfo({
+      plantName: plant.plantName,
+      stage: currentStage.stage,
+      current: plant.sensorData,
+      ideal: {
+        nitrogen: currentStage.highN,
+        phosphorus: currentStage.highP,
+        potassium: currentStage.highK,
+        ph: currentStage.highpH
+      },
+      range: {
+        nitrogen: `${currentStage.lowN} - ${currentStage.highN}`,
+        phosphorus: `${currentStage.lowP} - ${currentStage.highP}`,
+        potassium: `${currentStage.lowK} - ${currentStage.highK}`,
+        ph: `${currentStage.lowpH} - ${currentStage.highpH}`
+      },
+      deficit: deficits,
+      recommendations
+    });
+  }
+};
+
 
   const handleCloseFertilizerModal = () => {
     setShowFertilizerModal(false)
