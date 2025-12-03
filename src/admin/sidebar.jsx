@@ -160,7 +160,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, userType = 'admin' }) => {
         { name: 'Costing & Pricing', icon: HiOutlineCurrencyDollar },
       ]
     } else {
-      // Admin menu
+      // Admin menuf
       return [
         { name: 'Overview', icon: HiOutlineHome },
         { name: 'Planting', icon: RiSeedlingLine },

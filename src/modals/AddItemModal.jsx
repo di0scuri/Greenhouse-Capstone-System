@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import "./AddItemModal.css";
+import inventoryLogger from "../server/services/inventoryLogger.js";
 
 const AddItemModal = ({ activeTab, onClose, onItemAdded }) => {
   const [formData, setFormData] = useState({

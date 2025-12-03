@@ -6,7 +6,7 @@ import './custom-alert.css'
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore'
 import { db, realtimeDb } from '../firebase'
 import { ref, get } from 'firebase/database'
-import inventoryLogger from '../services/inventoryLogger'
+import inventoryLogger from "../server/services/inventoryLogger.js";
 
 import {
   MdLocationOn,
