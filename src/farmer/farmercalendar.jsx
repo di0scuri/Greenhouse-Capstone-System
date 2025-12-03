@@ -1334,64 +1334,71 @@ return (
           {/* Upcoming Events */}
           <div className="fc-upcoming-events">
             <h3>Upcoming Activities</h3>
-            {Object.entries(upcomingEvents).slice(0, 4).map(([date, dayEvents]) => (
-              <div key={date} className="fc-event-group">
-                <div className="fc-event-date">
-                  {new Date(dayEvents[0].date).toLocaleDateString('en-US', { 
-                    weekday: 'short', 
-                    month: 'numeric', 
-                    day: 'numeric' 
-                  })}
-                </div>
 
-                {dayEvents.slice(0, 3).map(event => {
-                  const typeConfig = getEventTypeConfig(event.eventType || event.type);
-                  return (
-                    <div 
-                      key={event.id} 
-                      className={`fc-upcoming-event ${event.isJobOrder ? 'job-order' : ''}`}
-                      onClick={() => {
-                        setSelectedEvent(event);
-                        setShowDetailsModal(true);
-                      }}
-                    >
-                      <div className="fc-event-indicator" style={{ backgroundColor: typeConfig.color }}>
-                        {typeConfig.icon}
-                      </div>
-                      <div className="fc-event-details">
-                        <div className="fc-event-time-range">
-                          {event.isJobOrder && '📋 '}
-                          {event.time}
-                        </div>
-                        <div className="fc-event-description">{event.title}</div>
-                        <div className="fc-event-type">
-                          {event.isJobOrder ? (
-                            <span className={`fc-status-badge ${event.status}`}>
-                              {event.status}
-                            </span>
-                          ) : (
-                            <span className="fc-type-badge">{typeConfig.label}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                
-                {dayEvents.length > 3 && (
-                  <div className="fc-more-events">
-                    +{dayEvents.length - 3} more activities
+            <div className="fc-upcoming-events-content">
+              {Object.entries(upcomingEvents).slice(0, 4).map(([date, dayEvents]) => (
+                <div key={date} className="fc-event-group">
+                  <div className="fc-event-date">
+                    {new Date(dayEvents[0].date).toLocaleDateString('en-US', { 
+                      weekday: 'short', 
+                      month: 'numeric', 
+                      day: 'numeric' 
+                    })}
                   </div>
-                )}
-              </div>
-            ))}
-            
-            {Object.keys(upcomingEvents).length === 0 && (
-              <div className="fc-no-events">
-                No upcoming activities scheduled
-              </div>
-            )}
+
+                  {dayEvents.slice(0, 3).map(event => {
+                    const typeConfig = getEventTypeConfig(event.eventType || event.type);
+                    return (
+                      <div 
+                        key={event.id} 
+                        className={`fc-upcoming-event ${event.isJobOrder ? 'job-order' : ''}`}
+                        onClick={() => {
+                          setSelectedEvent(event);
+                          setShowDetailsModal(true);
+                        }}
+                      >
+                        <div className="fc-event-indicator" style={{ backgroundColor: typeConfig.color }}>
+                          {typeConfig.icon}
+                        </div>
+
+                        <div className="fc-event-details">
+                          <div className="fc-event-time-range">
+                            {event.isJobOrder && '📋 '}
+                            {event.time}
+                          </div>
+
+                          <div className="fc-event-description">{event.title}</div>
+
+                          <div className="fc-event-type">
+                            {event.isJobOrder ? (
+                              <span className={`fc-status-badge ${event.status}`}>
+                                {event.status}
+                              </span>
+                            ) : (
+                              <span className="fc-type-badge">{typeConfig.label}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {dayEvents.length > 3 && (
+                    <div className="fc-more-events">
+                      +{dayEvents.length - 3} more activities
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {Object.keys(upcomingEvents).length === 0 && (
+                <div className="fc-no-events">
+                  No upcoming activities scheduled
+                </div>
+              )}
+            </div>
           </div>
+
 
           {/* Event Type Legend */}
           <div className="fc-event-types-legend">
