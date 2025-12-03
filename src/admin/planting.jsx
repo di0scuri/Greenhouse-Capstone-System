@@ -538,7 +538,6 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
         transplantDate: plantData.transplantDate || null,
         
         // Spacing and density
-        // Spacing and density
         plantingDensity: plantData.recommendedSeedlings / (parsePlotSizeToM2(plantData.plotSize) || 1),
         spacing: `${plantData.minSpacing} - ${plantData.maxSpacing} cm`,
         
@@ -1751,6 +1750,12 @@ const handleConfirmPlanting = async () => {
   const handleOpenFertilizerModal = async (plant) => {
     const plantInfo = plantsList[plant.plantType]
     const currentStage = getCurrentStage(plant, plantInfo)
+
+    if (!plant || !plant.plotSize) {
+    // Optionally display an alert to the user
+    console.error("Cannot calculate fertilizer: Plant data or plot size is missing.");
+    return; // Stop execution if data is missing
+  }
     
     if (currentStage && plant.sensorData) {
       const deficits = {
