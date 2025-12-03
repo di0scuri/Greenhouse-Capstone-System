@@ -1019,26 +1019,45 @@ const getNutrientCondition = (currentValue, lowThreshold, highThreshold) => {
 }
 
   // Fetch events for a specific plant
-  const fetchPlantEvents = async (plantId) => {
-    try {
-      const eventsCollection = collection(db, 'events')
-      const q = query(eventsCollection, where('plantId', '==', plantId))
-      const eventsSnapshot = await getDocs(q)
-      const events = eventsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-      events.sort((a, b) => {
-        const timeA = a.timestamp?.toDate?.() || new Date(a.timestamp)
-        const timeB = b.timestamp?.toDate?.() || new Date(b.timestamp)
-        return timeA - timeB
-      })
-      setPlantEvents(events)
-    } catch (error) {
-      console.error('Error fetching plant events:', error)
-      setPlantEvents([])
-    }
+const fetchPlantEvents = async (plantId) => {
+  try {
+    // Fetch events
+    const eventsCollection = collection(db, 'events')
+    const eventsQuery = query(eventsCollection, where('plantId', '==', plantId))
+    const eventsSnapshot = await getDocs(eventsQuery)
+    const events = eventsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      isEvent: true  // Mark as event
+    }))
+    
+    // Fetch job orders
+    const jobOrdersCollection = collection(db, 'jobOrders')
+    const jobOrdersQuery = query(jobOrdersCollection, where('plantId', '==', plantId))
+    const jobOrdersSnapshot = await getDocs(jobOrdersQuery)
+    const jobOrders = jobOrdersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      isJobOrder: true,  // Mark as job order
+      type: 'FERTILIZER_JOB_ORDER'  // Add consistent type
+    }))
+    
+    // Merge and sort by timestamp/scheduledDate
+    const combined = [...events, ...jobOrders]
+    combined.sort((a, b) => {
+      const timeA = a.scheduledDate ? new Date(a.scheduledDate) : 
+                    a.timestamp?.toDate?.() || new Date(a.timestamp)
+      const timeB = b.scheduledDate ? new Date(b.scheduledDate) : 
+                    b.timestamp?.toDate?.() || new Date(b.timestamp)
+      return timeA - timeB
+    })
+    
+    setPlantEvents(combined)
+  } catch (error) {
+    console.error('Error fetching plant events:', error)
+    setPlantEvents([])
   }
+}
 
   // Get current stage based on plant age
   const getCurrentStage = (plantData, plantInfo) => {
@@ -2112,172 +2131,219 @@ const handleOpenFertilizerModal = async (plant) => {
     return Object.values(filters).some(value => value !== 'all')
   }
 
-const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, userId) => {
-  try {
-    if (!fertilizerRecommendations || !fertilizerRecommendations.matchedScenario) {
-      console.error('No fertilizer recommendation provided')
-      return []
-    }
+  const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, userId) => {
+    try {
+      if (!fertilizerRecommendations || !fertilizerRecommendations.matchedScenario) {
+        console.error('No fertilizer recommendation provided')
+        return []
+      }
 
-    const scenario = fertilizerRecommendations.matchedScenario
-    const applications = scenario.applications || []
-    
-    if (applications.length === 0) {
-      console.error('No applications found in scenario')
-      return []
-    }
-    
-    const createdEventIds = []
-    
-    // Create job order for each application in the schedule
-    for (let i = 0; i < applications.length; i++) {
-      const application = applications[i]
+      const scenario = fertilizerRecommendations.matchedScenario
+      const applications = scenario.applications || []
       
-      // Calculate scheduled date based on timing description
-      const scheduledDate = new Date()
-      scheduledDate.setHours(8, 0, 0, 0) // Set to 8:00 AM
-      
-      // Parse timing to determine when to schedule
-      const timingLower = application.timing.toLowerCase()
-      if (timingLower.includes('at planting')) {
-        // Schedule for tomorrow (assuming planting is soon)
-        scheduledDate.setDate(scheduledDate.getDate() + 1)
-      } else if (timingLower.includes('10-14 days after planting')) {
-        // Schedule for 12 days from now (middle of range)
-        scheduledDate.setDate(scheduledDate.getDate() + 12)
-      } else if (timingLower.includes('days after planting')) {
-        // Try to extract number of days
-        const daysMatch = timingLower.match(/(\d+)\s*days?\s*after/)
-        if (daysMatch) {
-          scheduledDate.setDate(scheduledDate.getDate() + parseInt(daysMatch[1]))
-        } else {
-          // Default: schedule sequentially
-          scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
-        }
-      } else if (timingLower.includes('weeks after planting')) {
-        // Try to extract number of weeks
-        const weeksMatch = timingLower.match(/(\d+)\s*weeks?\s*after/)
-        if (weeksMatch) {
-          scheduledDate.setDate(scheduledDate.getDate() + (parseInt(weeksMatch[1]) * 7))
-        } else {
-          // Default: schedule sequentially
-          scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
-        }
-      } else {
-        // Default: schedule sequentially (1 week apart)
-        scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
+      if (applications.length === 0) {
+        console.error('No applications found in scenario')
+        return []
       }
       
-      // Format fertilizer bags information
-      const bagsInfo = Object.entries(application.bags)
-        .map(([type, amount]) => `${type}: ${amount}`)
-        .join(', ')
+      const createdJobOrderIds = []
+      const applicationEvents = [] // Store events for bulk creation
       
-      // Create the job order event
-      const jobOrderEvent = {
+      // Create job order for each application in the schedule
+      for (let i = 0; i < applications.length; i++) {
+        const application = applications[i]
+        
+        // Calculate scheduled date based on timing description
+        const scheduledDate = new Date()
+        scheduledDate.setHours(8, 0, 0, 0) // Set to 8:00 AM
+        
+        // Parse timing to determine when to schedule
+        const timingLower = application.timing.toLowerCase()
+        if (timingLower.includes('at planting')) {
+          // Schedule for tomorrow (assuming planting is soon)
+          scheduledDate.setDate(scheduledDate.getDate() + 1)
+        } else if (timingLower.includes('10-14 days after planting')) {
+          // Schedule for 12 days from now (middle of range)
+          scheduledDate.setDate(scheduledDate.getDate() + 12)
+        } else if (timingLower.includes('days after planting')) {
+          // Try to extract number of days
+          const daysMatch = timingLower.match(/(\d+)\s*days?\s*after/)
+          if (daysMatch) {
+            scheduledDate.setDate(scheduledDate.getDate() + parseInt(daysMatch[1]))
+          } else {
+            // Default: schedule sequentially
+            scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
+          }
+        } else if (timingLower.includes('weeks after planting')) {
+          // Try to extract number of weeks
+          const weeksMatch = timingLower.match(/(\d+)\s*weeks?\s*after/)
+          if (weeksMatch) {
+            scheduledDate.setDate(scheduledDate.getDate() + (parseInt(weeksMatch[1]) * 7))
+          } else {
+            // Default: schedule sequentially
+            scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
+          }
+        } else {
+          // Default: schedule sequentially (1 week apart)
+          scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
+        }
+        
+        // Format fertilizer bags information
+        const bagsInfo = Object.entries(application.bags)
+          .map(([type, amount]) => `${type}: ${amount}`)
+          .join(', ')
+        
+        // Create the job order document
+        const jobOrderData = {
+          plantId: plant.id,
+          plantName: plant.plantName,
+          plantType: plant.plantType,
+          plotNumber: plant.plotNumber,
+          
+          // Job details
+          type: 'FERTILIZER_APPLICATION',
+          title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
+          description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo} (for ${parsePlotSizeToM2(plant.plotSize).toFixed(4)}m² plot)`,
+          
+          // Status tracking
+          status: 'pending', // pending, in-progress, completed, cancelled
+          priority: i === 0 ? 'high' : 'medium', // First application is high priority
+          
+          // Fertilizer details
+          fertilizerName: `NPK ${scenario.npkRatio}`,
+          fertilizerBags: application.bags,
+          fertilizerAmount: bagsInfo,
+          npkRatio: scenario.npkRatio,
+          applicationMethod: application.method,
+          applicationInstructions: application.method,
+          
+          // Scheduling
+          scheduledDate: scheduledDate.toISOString(),
+          dueDate: scheduledDate.toISOString(),
+          frequency: application.timing,
+          applicationNumber: i + 1,
+          totalApplications: applications.length,
+          applicationStage: application.stage,
+          applicationTiming: application.timing,
+          
+          // Context
+          stage: fertilizerRecommendations.stage,
+          nutrientCondition: fertilizerRecommendations.currentCondition,
+          soilCondition: scenario.condition,
+          reason: `Nutrient levels: N=${fertilizerRecommendations.nCondition}, P=${fertilizerRecommendations.pCondition}, K=${fertilizerRecommendations.kCondition}`,
+          
+          // Expected results
+          expectedResult: `Follow ${application.stage} schedule for optimal growth`,
+          
+          // Metadata
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          userId: userId,
+          createdBy: userId,
+          assignedTo: null, // Can be assigned to specific user
+          completedAt: null,
+          completedBy: null,
+          notes: '',
+          
+          // Cost tracking
+          estimatedCost: 0, // Will be calculated when completed
+          actualCost: null
+        }
+        
+        // Add to Firebase jobOrders collection
+        const docRef = await addDoc(collection(db, 'jobOrders'), jobOrderData)
+        createdJobOrderIds.push(docRef.id)
+        
+        // Create a scheduled event for this application
+        const scheduledEvent = {
+          plantId: plant.id,
+          plantName: plant.plantName,
+          plotNumber: plant.plotNumber,
+          type: 'FERTILIZER_SCHEDULED',
+          status: 'scheduled',
+          message: `Fertilizer application scheduled: ${application.stage} on ${scheduledDate.toLocaleDateString()}`,
+          scheduledDate: scheduledDate.toISOString(),
+          timestamp: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          userId: userId,
+          details: {
+            jobOrderId: docRef.id,
+            applicationStage: application.stage,
+            timing: application.timing,
+            npkRatio: scenario.npkRatio,
+            fertilizerBags: application.bags,
+            scheduledFor: scheduledDate.toISOString(),
+            applicationNumber: i + 1,
+            totalApplications: applications.length
+          }
+        }
+        
+        // Store event for later creation
+        applicationEvents.push(scheduledEvent)
+        
+        console.log(`✅ Created job order ${i + 1}/${applications.length} in jobOrders collection: ${application.stage} for ${scheduledDate.toLocaleDateString()}`)
+      }
+      
+      // Create all scheduled events
+      const eventPromises = applicationEvents.map(event => 
+        addDoc(collection(db, 'events'), event)
+      )
+      await Promise.all(eventPromises)
+      
+      // Create a summary event in events collection
+      const summaryEvent = {
         plantId: plant.id,
         plantName: plant.plantName,
-        plantType: plant.plantType,
-        plotNumber: plant.plotNumber,
-        type: 'FERTILIZER_JOB_ORDER',
-        status: 'pending', // pending, in-progress, completed, cancelled
-        priority: i === 0 ? 'high' : 'medium', // First application is high priority
-        
-        // Job details
-        title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
-        description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo} (for ${parsePlotSizeToM2(plant.plotSize).toFixed(4)}m² plot)`,
-        
-        // Fertilizer details
-        fertilizerName: `NPK ${scenario.npkRatio}`,
-        fertilizerBags: application.bags,
-        fertilizerAmount: bagsInfo,
-        npkRatio: scenario.npkRatio,
-        applicationMethod: application.method,
-        applicationInstructions: application.method,
-        
-        // Scheduling
-        scheduledDate: scheduledDate.toISOString(),
-        frequency: application.timing,
-        applicationNumber: i + 1,
-        totalApplications: applications.length,
-        applicationStage: application.stage,
-        applicationTiming: application.timing,
-        
-        // Context
-        stage: fertilizerRecommendations.stage,
-        nutrientCondition: fertilizerRecommendations.currentCondition,
-        soilCondition: scenario.condition,
-        reason: `Nutrient levels: N=${fertilizerRecommendations.nCondition}, P=${fertilizerRecommendations.pCondition}, K=${fertilizerRecommendations.kCondition}`,
-        
-        // Expected results
-        expectedResult: `Follow ${application.stage} schedule for optimal growth`,
-        
-        // Metadata
+        type: 'FERTILIZER_SCHEDULE_CREATED',
+        status: 'info',
+        message: `Created fertilizer schedule: ${applications.length} applications for NPK ${scenario.npkRatio}`,
+        timestamp: serverTimestamp(),
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
         userId: userId,
-        createdBy: userId,
-        completedAt: null,
-        completedBy: null,
-        notes: ''
+        details: {
+          npkRatio: scenario.npkRatio,
+          condition: scenario.condition,
+          totalApplications: applications.length,
+          jobOrderIds: createdJobOrderIds, // Reference to created job orders
+          firstApplicationDate: applicationEvents[0]?.scheduledDate,
+          lastApplicationDate: applicationEvents[applicationEvents.length - 1]?.scheduledDate,
+          applications: applications.map(app => app.stage).join(', '),
+          schedules: applications.map((app, i) => ({
+            stage: app.stage,
+            timing: app.timing,
+            scheduledDate: applicationEvents[i]?.scheduledDate
+          }))
+        }
       }
       
-      // Add to Firebase events collection
-      const docRef = await addDoc(collection(db, 'events'), jobOrderEvent)
-      createdEventIds.push(docRef.id)
+      await addDoc(collection(db, 'events'), summaryEvent)
       
-      console.log(`✅ Created job order ${i + 1}/${applications.length}: ${application.stage} for ${scheduledDate.toLocaleDateString()}`)
+      console.log(`📋 Summary: Created ${createdJobOrderIds.length} job orders and ${applicationEvents.length + 1} events for ${plant.plantName}`)
+      
+      return createdJobOrderIds
+      
+    } catch (error) {
+      console.error('Error generating fertilizer job orders:', error)
+      throw error
     }
-    
-    // Create a summary event
-    const summaryEvent = {
-      plantId: plant.id,
-      plantName: plant.plantName,
-      type: 'FERTILIZER_SCHEDULE_CREATED',
-      status: 'info',
-      message: `Created fertilizer schedule: ${applications.length} applications for NPK ${scenario.npkRatio}`,
-      timestamp: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      userId: userId,
-      details: {
-        npkRatio: scenario.npkRatio,
-        condition: scenario.condition,
-        totalApplications: applications.length,
-        applications: applications.map(app => app.stage).join(', '),
-        schedules: applications.map((app, i) => ({
-          stage: app.stage,
-          timing: app.timing
-        }))
-      }
-    }
-    
-    await addDoc(collection(db, 'events'), summaryEvent)
-    
-    console.log(`📋 Summary: Created ${createdEventIds.length} job orders for ${plant.plantName}`)
-    
-    return createdEventIds
-    
-  } catch (error) {
-    console.error('Error generating fertilizer job orders:', error)
-    throw error
   }
-}
 
 // Helper function to complete a job order
-const completeJobOrder = async (eventId, userId, notes = '') => {
+const completeJobOrder = async (jobOrderId, userId, notes = '') => {
   try {
     // Get the job order details first
-    const eventRef = doc(db, 'events', eventId)
-    const eventDoc = await getDoc(eventRef)
+    const jobOrderRef = doc(db, 'jobOrders', jobOrderId)
+    const jobOrderDoc = await getDoc(jobOrderRef)
     
-    if (!eventDoc.exists()) {
+    if (!jobOrderDoc.exists()) {
       throw new Error('Job order not found')
     }
     
-    const jobOrderData = eventDoc.data()
+    const jobOrderData = jobOrderDoc.data()
+    const completionDate = new Date()
     
     // Update job order status
-    await updateDoc(eventRef, {
+    await updateDoc(jobOrderRef, {
       status: 'completed',
       completedAt: serverTimestamp(),
       completedBy: userId,
@@ -2285,36 +2351,35 @@ const completeJobOrder = async (eventId, userId, notes = '') => {
       updatedAt: serverTimestamp()
     })
     
+    // Calculate total cost based on fertilizer bags
+    let totalCost = 0
+    let quantityDetails = []
+    let totalBags = 0
+    
+    if (jobOrderData.fertilizerBags) {
+      Object.entries(jobOrderData.fertilizerBags).forEach(([type, amount]) => {
+        // Estimate cost per bag (adjust these prices to match your actual costs)
+        const costPerBag = type.includes('14-14-14') ? 800 : 
+                         type.includes('Urea') ? 600 : 
+                         type.includes('Complete') ? 900 : 
+                         type.includes('16-16-16') ? 850 :
+                         700 // Default price
+        
+        // Parse the amount (handles formats like "2-3 bags/ha" or just "2")
+        const bags = typeof amount === 'string' 
+          ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+          : parseFloat(amount) || 0
+        
+        const cost = bags * costPerBag
+        totalCost += cost
+        totalBags += bags
+        
+        quantityDetails.push(`${type}: ${bags} bags @ ₱${costPerBag}/bag`)
+      })
+    }
+    
     // Create expense record for fertilizer application
-    if (jobOrderData.type === 'FERTILIZER_JOB_ORDER' && jobOrderData.plantId) {
-      // Calculate total cost based on fertilizer bags
-      let totalCost = 0
-      let quantityDetails = []
-      let totalBags = 0
-      
-      if (jobOrderData.fertilizerBags) {
-        Object.entries(jobOrderData.fertilizerBags).forEach(([type, amount]) => {
-          // Estimate cost per bag (adjust these prices to match your actual costs)
-          const costPerBag = type.includes('14-14-14') ? 800 : 
-                           type.includes('Urea') ? 600 : 
-                           type.includes('Complete') ? 900 : 
-                           type.includes('16-16-16') ? 850 :
-                           700 // Default price
-          
-          // Parse the amount (handles formats like "2-3 bags/ha" or just "2")
-          const bags = typeof amount === 'string' 
-            ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-            : parseFloat(amount) || 0
-          
-          const cost = bags * costPerBag
-          totalCost += cost
-          totalBags += bags
-          
-          quantityDetails.push(`${type}: ${bags} bags @ ₱${costPerBag}/bag`)
-        })
-      }
-      
-      // Create expense record
+    if (jobOrderData.type === 'FERTILIZER_APPLICATION' && jobOrderData.plantId) {
       const expenseData = {
         plantId: jobOrderData.plantId,
         expenseType: 'Fertilizer',
@@ -2327,7 +2392,7 @@ const completeJobOrder = async (eventId, userId, notes = '') => {
         userId: userId,
         createdAt: serverTimestamp(),
         notes: notes || `Completed ${jobOrderData.applicationStage || 'fertilizer application'}. ${quantityDetails.join(', ')}`,
-        jobOrderId: eventId,
+        jobOrderId: jobOrderId,
         fertilizerDetails: {
           npkRatio: jobOrderData.npkRatio || 'N/A',
           applicationStage: jobOrderData.applicationStage || 'N/A',
@@ -2338,10 +2403,42 @@ const completeJobOrder = async (eventId, userId, notes = '') => {
       
       await addDoc(collection(db, 'plantsExpenses'), expenseData)
       
-      console.log(`💰 Created expense record for job order ${eventId}: ₱${totalCost.toFixed(2)}`)
+      // Update job order with actual cost
+      await updateDoc(jobOrderRef, {
+        actualCost: totalCost,
+        updatedAt: serverTimestamp()
+      })
+      
+      console.log(`💰 Created expense record for job order ${jobOrderId}: ₱${totalCost.toFixed(2)}`)
     }
     
-    console.log(`✅ Job order ${eventId} marked as completed`)
+    // Create completion event
+    const completionEvent = {
+      plantId: jobOrderData.plantId,
+      plantName: jobOrderData.plantName,
+      plotNumber: jobOrderData.plotNumber,
+      type: 'FERTILIZER_APPLIED',
+      status: 'success',
+      message: `Fertilizer applied: ${jobOrderData.applicationStage} - NPK ${jobOrderData.npkRatio}`,
+      timestamp: serverTimestamp(),
+      completedDate: completionDate.toISOString(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        jobOrderId: jobOrderId,
+        jobOrderTitle: jobOrderData.title,
+        applicationStage: jobOrderData.applicationStage,
+        npkRatio: jobOrderData.npkRatio,
+        applicationMethod: jobOrderData.applicationMethod,
+        notes: notes,
+        cost: totalCost,
+        quantity: quantityDetails.join(', ')
+      }
+    }
+    
+    await addDoc(collection(db, 'events'), completionEvent)
+    
+    console.log(`✅ Job order ${jobOrderId} marked as completed and event created`)
     return true
   } catch (error) {
     console.error('Error completing job order:', error)
@@ -2349,11 +2446,20 @@ const completeJobOrder = async (eventId, userId, notes = '') => {
   }
 }
 
+
 // Helper function to cancel a job order
-const cancelJobOrder = async (eventId, userId, reason = '') => {
+const cancelJobOrder = async (jobOrderId, userId, reason = '') => {
   try {
-    const eventRef = doc(db, 'events', eventId)
-    await updateDoc(eventRef, {
+    const jobOrderRef = doc(db, 'jobOrders', jobOrderId)
+    const jobOrderDoc = await getDoc(jobOrderRef)
+    
+    if (!jobOrderDoc.exists()) {
+      throw new Error('Job order not found')
+    }
+    
+    const jobOrderData = jobOrderDoc.data()
+    
+    await updateDoc(jobOrderRef, {
       status: 'cancelled',
       cancelledAt: serverTimestamp(),
       cancelledBy: userId,
@@ -2361,7 +2467,29 @@ const cancelJobOrder = async (eventId, userId, reason = '') => {
       updatedAt: serverTimestamp()
     })
     
-    console.log(`❌ Job order ${eventId} cancelled`)
+    // Create cancellation event
+    const cancellationEvent = {
+      plantId: jobOrderData.plantId,
+      plantName: jobOrderData.plantName,
+      plotNumber: jobOrderData.plotNumber,
+      type: 'FERTILIZER_CANCELLED',
+      status: 'warning',
+      message: `Fertilizer application cancelled: ${jobOrderData.applicationStage}`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        jobOrderId: jobOrderId,
+        applicationStage: jobOrderData.applicationStage,
+        npkRatio: jobOrderData.npkRatio,
+        scheduledDate: jobOrderData.scheduledDate,
+        reason: reason
+      }
+    }
+    
+    await addDoc(collection(db, 'events'), cancellationEvent)
+    
+    console.log(`❌ Job order ${jobOrderId} cancelled and event created`)
     return true
   } catch (error) {
     console.error('Error cancelling job order:', error)
@@ -2369,10 +2497,19 @@ const cancelJobOrder = async (eventId, userId, reason = '') => {
   }
 }
 
+
 // Helper function to update job order status
-const updateJobOrderStatus = async (eventId, status, userId) => {
+const updateJobOrderStatus = async (jobOrderId, status, userId) => {
   try {
-    const eventRef = doc(db, 'events', eventId)
+    const jobOrderRef = doc(db, 'jobOrders', jobOrderId)
+    const jobOrderDoc = await getDoc(jobOrderRef)
+    
+    if (!jobOrderDoc.exists()) {
+      throw new Error('Job order not found')
+    }
+    
+    const jobOrderData = jobOrderDoc.data()
+    const previousStatus = jobOrderData.status
     const updateData = {
       status: status,
       updatedAt: serverTimestamp(),
@@ -2382,11 +2519,55 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
     if (status === 'in-progress') {
       updateData.startedAt = serverTimestamp()
       updateData.startedBy = userId
+      
+      // Create "in progress" event
+      const progressEvent = {
+        plantId: jobOrderData.plantId,
+        plantName: jobOrderData.plantName,
+        plotNumber: jobOrderData.plotNumber,
+        type: 'FERTILIZER_IN_PROGRESS',
+        status: 'info',
+        message: `Fertilizer application started: ${jobOrderData.applicationStage}`,
+        timestamp: serverTimestamp(),
+        startedDate: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        userId: userId,
+        details: {
+          jobOrderId: jobOrderId,
+          applicationStage: jobOrderData.applicationStage,
+          npkRatio: jobOrderData.npkRatio,
+          scheduledDate: jobOrderData.scheduledDate
+        }
+      }
+      
+      await addDoc(collection(db, 'events'), progressEvent)
     }
     
-    await updateDoc(eventRef, updateData)
+    await updateDoc(jobOrderRef, updateData)
     
-    console.log(`✅ Job order ${eventId} status updated to ${status}`)
+    // Create status update event
+    const statusEvent = {
+      plantId: jobOrderData.plantId,
+      plantName: jobOrderData.plantName,
+      plotNumber: jobOrderData.plotNumber,
+      type: 'FERTILIZER_STATUS_CHANGE',
+      status: 'info',
+      message: `Fertilizer application status changed: ${previousStatus} → ${status}`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        jobOrderId: jobOrderId,
+        applicationStage: jobOrderData.applicationStage,
+        previousStatus: previousStatus,
+        newStatus: status,
+        scheduledDate: jobOrderData.scheduledDate
+      }
+    }
+    
+    await addDoc(collection(db, 'events'), statusEvent)
+    
+    console.log(`✅ Job order ${jobOrderId} status updated to ${status} and events created`)
     return true
   } catch (error) {
     console.error('Error updating job order status:', error)
@@ -3613,78 +3794,89 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                               </div>
 
                               {/* Fertilizer Bags */}
-                              <div className="detail-row" style={{ marginBottom: '12px' }}>
-                                <span className="detail-label" style={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center',
-                                  fontWeight: '600',
-                                  color: '#475569',
-                                  marginBottom: '8px'
-                                }}>
-                                  <MdScience style={{ marginRight: '6px', fontSize: '1.2em', color: '#0ea5e9' }} />
-                                  Fertilizer Requirements:
-<div className="detail-value" style={{
-  background: 'white',
-  padding: '12px',
-  borderRadius: '8px',
-  border: '1px solid #e2e8f0'
-}}>
-  {Object.entries(app.bags).map(([type, amount], i) => {
-    const bagsPerHa = typeof amount === 'string' 
-      ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-      : amount;
-    
-    // Always parse plotSize to get m²
-    const plotSize = parsePlotSizeToM2(selectedPlant.plotSize) || 0;
-    
-    const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, plotSize);
-    
-    return (
-      <div key={i} style={{ 
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '8px 0',
-        borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
-      }}>
-        <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
-        <div style={{ textAlign: 'right' }}>
-          {plotSize > 0 ? (
-            <>
-              <span style={{ 
-                fontWeight: 'bold', 
-                color: '#0ea5e9',
-                background: '#f0f9ff',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                display: 'block',
-                marginBottom: '4px'
+                              {/* Fertilizer Bags */}
+<div className="detail-row" style={{ marginBottom: '12px' }}>
+  {/* 1. Label/Header: Put this on its own line */}
+  <div className="detail-label-header" style={{ 
+    display: 'flex', 
+    alignItems: 'center',
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: '8px'
+  }}>
+    <MdScience style={{ marginRight: '6px', fontSize: '1.2em', color: '#0ea5e9' }} />
+    Fertilizer Requirements:
+  </div>
+  
+  {/* 2. Content Container: This holds the three fertilizer boxes and must wrap them to fit */}
+  <div className="detail-value-container" style={{
+    background: 'white',
+    padding: '12px',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+    // ADDED: Force the content to display horizontally and wrap if needed
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap', // IMPORTANT: Allows items to move to the next line on narrow screens
+  }}>
+      {/* The MAP function now sits here, *outside* the label header */}
+      {Object.entries(app.bags).map(([type, amount], i) => {
+        const bagsPerHa = typeof amount === 'string' 
+                                          ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+                                          : amount;
+                                        
+                                        // Always parse plotSize to get m²
+                                        const plotSize = parsePlotSizeToM2(selectedPlant.plotSize) || 0;
+                                        
+                                        const bagsForPlot = convertFertilizerToPlotSize(bagsPerHa, plotSize);
+          
+          return (
+              <div key={i} style={{ 
+                  // ADDED: Give each fertilizer box a fixed/relative width for better wrapping
+                  flex: '1 1 120px', // Allow flex-grow (1), flex-shrink (1), and base width of 120px
+                  display: 'flex',
+                  flexDirection: 'column', // Stack the NPK, Bags, and per Hectare text vertically
+                  justifyContent: 'space-between',
+                  padding: '8px', // Reduced padding for compactness
+                  border: '1px solid #f1f5f9', // Added an inner border for separation
+                  borderRadius: '4px',
+                  background: '#f0f9ff', // Light background for visibility
+                  textAlign: 'center'
               }}>
-                {bagsForPlot} bags for this plot ({plotSize.toFixed(4)} m²)
-              </span>
-              <span style={{ 
-                fontSize: '0.75em', 
-                color: '#64748b'
-              }}>
-                ({amount} per hectare)
-              </span>
-            </>
-          ) : (
-            <span style={{ 
-              fontSize: '0.85em', 
-              color: '#dc2626'
-            }}>
-              ⚠️ Plot size not available
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  })}
+                  <span style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}>{type}</span>
+                  <div style={{ textAlign: 'center' }}>
+                      {plotSize > 0 ? (
+                          <>
+                              <span style={{ 
+                                  fontWeight: 'bold', 
+                                  color: '#0ea5e9',
+                                  // Removed display: 'block' for in-line styling consistency
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  display: 'block',
+                                  marginBottom: '2px'
+                              }}>
+                                  {bagsForPlot} bags
+                              </span>
+                              <span style={{ 
+                                  fontSize: '0.75em', 
+                                  color: '#64748b',
+                                  display: 'block' // Keep this block for the smallest text
+                              }}>
+                                  ({amount} per hectare)
+                              </span>
+                          </>
+                      ) : (
+                          <span style={{ fontSize: '0.85em', color: '#dc2626' }}>
+                              ⚠️ Plot size not available
+                          </span>
+                      )}
+                  </div>
+              </div>
+          );
+      })}
+  </div>
 </div>
-                                </span>
-                              
-                              </div>
-
                               {/* Application Method */}
                               <div className="detail-row">
                                 <span className="detail-label" style={{ 
@@ -3740,78 +3932,79 @@ const updateJobOrderStatus = async (eventId, status, userId) => {
                         </p>
                         
                         <button
-                          className="generate-job-order-btn"
-                          onClick={async () => {
-                            setIsGeneratingJobOrders(true)
-                            try {
-                              const eventIds = await generateFertilizerJobOrders(
-                                selectedPlant,
-                                fertilizerInfo.recommendations,
-                                userId
-                              )
-                              
-                              showAlert({
-                                type: 'success',
-                                title: '✅ Job Orders Created!',
-                                message: `Successfully created ${eventIds.length} fertilizer application job orders`,
-                                details: [
-                                  { label: 'NPK Ratio', value: fertilizerInfo.recommendations.matchedScenario.npkRatio },
-                                  { label: 'Condition', value: fertilizerInfo.recommendations.matchedScenario.condition },
-                                  { label: 'Total applications', value: eventIds.length.toString() },
-                                  { label: 'Applications', value: fertilizerInfo.recommendations.matchedScenario.applications?.map(app => app.stage).join(', ') || 'N/A' }
-                                ],
-                                confirmText: 'View Events'
-                              })
-                              
-                              handleCloseFertilizerModal()
-                            } catch (error) {
-                              showAlert({
-                                type: 'error',
-                                title: 'Failed to Create Job Orders',
-                                message: 'An error occurred while generating job orders',
-                                details: [{ label: 'Error', value: error.message }],
-                                confirmText: 'OK'
-                              })
-                            } finally {
-                              setIsGeneratingJobOrders(false)
-                            }
-                          }}
-                          disabled={isGeneratingJobOrders}
-                          style={{
-                            width: '100%',
-                            padding: '14px 20px',
-                            background: isGeneratingJobOrders 
-                              ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)' 
-                              : 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '8px',
-                            fontSize: '1em',
-                            fontWeight: '600',
-                            cursor: isGeneratingJobOrders ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '10px',
-                            transition: 'all 0.3s',
-                            boxShadow: isGeneratingJobOrders ? 'none' : '0 4px 6px rgba(14, 165, 233, 0.3)'
-                          }}
-                        >
-                          {isGeneratingJobOrders ? (
-                            <>
-                              <span className="loading-spinner" style={{ 
-                                animation: 'spin 1s linear infinite',
-                                display: 'inline-block'
-                              }}>🔄</span>
-                              Creating Job Orders...
-                            </>
-                          ) : (
-                            <>
-                              <MdCalendarToday />
-                              Generate {fertilizerInfo.recommendations.matchedScenario.applications?.length || 0} Job Orders
-                            </>
-                          )}
-                        </button>
+                            className="generate-job-order-btn"
+                            onClick={async () => {
+                              setIsGeneratingJobOrders(true)
+                              try {
+                                const eventIds = await generateFertilizerJobOrders(
+                                  selectedPlant,
+                                  fertilizerInfo.recommendations,
+                                  userId
+                                )
+                                
+                                showAlert({
+                                  type: 'success',
+                                  title: '✅ Job Orders & Events Created!',
+                                  message: `Successfully created ${eventIds.length} fertilizer application job orders and events`,
+                                  details: [
+                                    { label: 'NPK Ratio', value: fertilizerInfo.recommendations.matchedScenario.npkRatio },
+                                    { label: 'Condition', value: fertilizerInfo.recommendations.matchedScenario.condition },
+                                    { label: 'Total applications', value: eventIds.length.toString() },
+                                    { label: 'First application', value: new Date().toLocaleDateString() },
+                                    { label: 'Events created', value: `${eventIds.length + 1} events (scheduled + summary)` }
+                                  ],
+                                  confirmText: 'View Events'
+                                })
+                                
+                                handleCloseFertilizerModal()
+                              } catch (error) {
+                                showAlert({
+                                  type: 'error',
+                                  title: 'Failed to Create Job Orders',
+                                  message: 'An error occurred while generating job orders',
+                                  details: [{ label: 'Error', value: error.message }],
+                                  confirmText: 'OK'
+                                })
+                              } finally {
+                                setIsGeneratingJobOrders(false)
+                              }
+                            }}
+                            disabled={isGeneratingJobOrders}
+                            style={{
+                              width: '100%',
+                              padding: '14px 20px',
+                              background: isGeneratingJobOrders 
+                                ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)' 
+                                : 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontSize: '1em',
+                              fontWeight: '600',
+                              cursor: isGeneratingJobOrders ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '10px',
+                              transition: 'all 0.3s',
+                              boxShadow: isGeneratingJobOrders ? 'none' : '0 4px 6px rgba(14, 165, 233, 0.3)'
+                            }}
+                          >
+                            {isGeneratingJobOrders ? (
+                              <>
+                                <span className="loading-spinner" style={{ 
+                                  animation: 'spin 1s linear infinite',
+                                  display: 'inline-block'
+                                }}>🔄</span>
+                                Creating Job Orders...
+                              </>
+                            ) : (
+                              <>
+                                <MdCalendarToday />
+                                Generate {fertilizerInfo.recommendations.matchedScenario.applications?.length || 0} Job Orders
+                              </>
+                            )}
+                          </button>
                         
                         <p style={{ 
                           fontSize: '0.8em', 
