@@ -855,25 +855,33 @@ const exportSeedDataToCSV = async () => {
 
   // Fetch plants data from Firestore
   useEffect(() => {
-    const fetchPlants = async () => {
-      try {
-        const plantsCollection = collection(db, 'plants')
-        const plantsSnapshot = await getDocs(plantsCollection)
-        const plantsData = plantsSnapshot.docs.map(doc => ({
+  const fetchPlants = async () => {
+    try {
+      const plantsCollection = collection(db, 'plants')
+      const plantsSnapshot = await getDocs(plantsCollection)
+      const plantsData = plantsSnapshot.docs.map(doc => {
+        const data = doc.data()
+        
+        // If plotSizeM2 doesn't exist but plotSize does, calculate it
+        if (!data.plotSizeM2 && data.plotSize) {
+          data.plotSizeM2 = parsePlotSizeToM2(data.plotSize)
+        }
+        
+        return {
           id: doc.id,
-          ...doc.data()
-        }))
-        setPlantsData(plantsData)
-        setLoading(false)
-      } catch (error) {
-        console.error('Error fetching plants:', error)
-        setLoading(false)
-      }
+          ...data
+        }
+      })
+      setPlantsData(plantsData)
+      setLoading(false)
+    } catch (error) {
+      console.error('Error fetching plants:', error)
+      setLoading(false)
     }
+  }
 
-    fetchPlants()
-  }, [])
-
+  fetchPlants()
+}, [])
 
 
 const fetchFertilizerRecommendations = async (plant, sensorData) => {
