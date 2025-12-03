@@ -1748,6 +1748,9 @@ const handleConfirmPlanting = async () => {
 }
 
   const handleOpenFertilizerModal = async (plant) => {
+
+    setSelectedPlant(plant);
+    setShowFertilizerModal(true);
     const plantInfo = plantsList[plant.plantType]
     const currentStage = getCurrentStage(plant, plantInfo)
 
