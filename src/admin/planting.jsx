@@ -176,8 +176,14 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     )
   }
 
-  const parsePlotSizeToM2 = (plotSizeStr) => {
-  if (!plotSizeStr) return 0;
+const parsePlotSizeToM2 = (plotSizeStr) => {
+  if (!plotSizeStr) {
+    console.warn("parsePlotSizeToM2: No plot size string provided");
+    return 0;
+  }
+
+  // Log the input for debugging
+  console.log("Parsing plot size string:", plotSizeStr);
 
   // Normalize the string for easier parsing
   const normalizedStr = String(plotSizeStr).toLowerCase().replace(/\s/g, '');
@@ -185,7 +191,9 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   // Case 1: Already in m2 (e.g., "50m2", "50sqm")
   const m2Match = normalizedStr.match(/^(\d+(\.\d+)?)(m2|sqm|sqmeters|sqmeter)$/);
   if (m2Match) {
-    return parseFloat(m2Match[1]);
+    const result = parseFloat(m2Match[1]);
+    console.log("Matched m2 format, result:", result);
+    return result;
   }
 
   // Case 2: Dimensions in cm (e.g., "30x20cm")
@@ -194,7 +202,9 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     const lengthCm = parseFloat(cmMatch[1]);
     const widthCm = parseFloat(cmMatch[3]);
     // Convert cm² to m²: (length * width) / 10000
-    return (lengthCm * widthCm) / 10000;
+    const result = (lengthCm * widthCm) / 10000;
+    console.log("Matched cm dimensions, result:", result, "from", lengthCm, "x", widthCm, "cm");
+    return result;
   }
 
   // Case 3: Dimensions in meters (e.g., "10x5m", "10*5")
@@ -202,13 +212,17 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   if (mMatch) {
     const length = parseFloat(mMatch[1]);
     const width = parseFloat(mMatch[3]);
-    return length * width;
+    const result = length * width;
+    console.log("Matched m dimensions, result:", result, "from", length, "x", width, "m");
+    return result;
   }
   
   // Case 4: Simple number (Assume it's the area in m² if only a number is present)
   const numberMatch = normalizedStr.match(/^(\d+(\.\d+)?)$/);
   if (numberMatch) {
-    return parseFloat(numberMatch[1]);
+    const result = parseFloat(numberMatch[1]);
+    console.log("Matched simple number, result:", result);
+    return result;
   }
 
   // Fallback: If parsing fails, return 0 to prevent crashes
@@ -1870,7 +1884,9 @@ const handleOpenFertilizerModal = async (plant) => {
         ph: `${currentStage.lowpH} - ${currentStage.highpH}`
       },
       deficit: deficits,
-      recommendations
+      recommendations,
+      // ADD THIS: Include the plant itself in fertilizerInfo
+      plant: plant
     });
   }
 };
@@ -3858,66 +3874,82 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
     flexWrap: 'wrap', // IMPORTANT: Allows items to move to the next line on narrow screens
   }}>
                         {Object.entries(app.bags).map(([type, amount], i) => {
-                          const bagsPerHa = typeof amount === 'string' 
-                            ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-                            : amount;
-                          
-                          // Always parse plotSize to get m²
-                          const plotSize = parsePlotSizeToM2(selectedPlant?.plotSize) || 0;
-                          
-                          const fertilizerCalc = convertFertilizerToPlotSize(bagsPerHa, plotSize, true);
-                          
-                          return (
-                            <div key={i} style={{ 
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              padding: '8px 0',
-                              borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
-                            }}>
-                              <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
-                              <div style={{ textAlign: 'right' }}>
-                                {plotSize > 0 ? (
-                                  <>
-                                    <div style={{ 
-                                      fontWeight: 'bold', 
-                                      color: fertilizerCalc.displayUnit === 'g' ? '#d97706' : '#0ea5e9',
-                                      background: fertilizerCalc.displayUnit === 'g' ? '#fffbeb' : '#f0f9ff',
-                                      padding: '4px 8px',
-                                      borderRadius: '4px',
-                                      display: 'block',
-                                      marginBottom: '4px'
-                                    }}>
-                                      {/* CHANGED: Show amount with unit */}
-                                      {fertilizerCalc.bags} bags ({fertilizerCalc.amount} {fertilizerCalc.unit})
-                                      {fertilizerCalc.displayUnit === 'g' && (
-                                        <div style={{ 
-                                          fontSize: '0.7em', 
-                                          color: '#92400e',
-                                          marginTop: '2px'
-                                        }}>
-                                          ⚖️ Showing in grams for precision
-                                        </div>
-                                      )}
-                                    </div>
-                                    <span style={{ 
-                                      fontSize: '0.75em', 
-                                      color: '#64748b'
-                                    }}>
-                                      ({amount} per hectare = {(bagsPerHa * 50).toFixed(1)} kg/ha)
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span style={{ 
-                                    fontSize: '0.85em', 
-                                    color: '#dc2626'
-                                  }}>
-                                    ⚠️ Plot size not available
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+  const bagsPerHa = typeof amount === 'string' 
+    ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
+    : amount;
+  
+  // FIXED: Use fertilizerInfo.plant.plotSize instead of selectedPlant
+  const plotSize = parsePlotSizeToM2(fertilizerInfo.plant?.plotSize) || 0;
+  
+  // Log for debugging
+  console.log("Plot size string:", fertilizerInfo.plant?.plotSize);
+  console.log("Parsed plot size (m²):", plotSize);
+  console.log("Bags per hectare:", bagsPerHa);
+  
+  const fertilizerCalc = convertFertilizerToPlotSize(bagsPerHa, plotSize, true);
+  
+  console.log("Fertilizer calculation:", fertilizerCalc);
+  
+  return (
+    <div key={i} style={{ 
+      display: 'flex',
+      justifyContent: 'space-between',
+      padding: '8px 0',
+      borderBottom: i < Object.entries(app.bags).length - 1 ? '1px solid #f1f5f9' : 'none'
+    }}>
+      <span style={{ fontWeight: '500', color: '#334155' }}>{type}</span>
+      <div style={{ textAlign: 'right' }}>
+        {plotSize > 0 ? (
+          <>
+            <div style={{ 
+              fontWeight: 'bold', 
+              color: fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#d97706' : '#0ea5e9',
+              background: fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg' ? '#fffbeb' : '#f0f9ff',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              display: 'block',
+              marginBottom: '4px'
+            }}>
+              {fertilizerCalc.bags} bags ({fertilizerCalc.amount} {fertilizerCalc.unit})
+              {(fertilizerCalc.unit === 'g' || fertilizerCalc.unit === 'mg') && (
+                <div style={{ 
+                  fontSize: '0.7em', 
+                  color: '#92400e',
+                  marginTop: '2px'
+                }}>
+                  ⚖️ Showing in {fertilizerCalc.unit} for precision
+                </div>
+              )}
+            </div>
+            <span style={{ 
+              fontSize: '0.75em', 
+              color: '#64748b'
+            }}>
+              ({amount} per hectare = {(bagsPerHa * 50).toFixed(1)} kg/ha)
+            </span>
+          </>
+        ) : (
+          <div>
+            <span style={{ 
+              fontSize: '0.85em', 
+              color: '#dc2626',
+              display: 'block',
+              marginBottom: '4px'
+            }}>
+              ⚠️ Cannot calculate: Plot size unavailable
+            </span>
+            <span style={{ 
+              fontSize: '0.75em', 
+              color: '#64748b'
+            }}>
+              ({amount} per hectare = {(bagsPerHa * 50).toFixed(1)} kg/ha)
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+})}
                           </div>
                         </div>
                               {/* Application Method */}
