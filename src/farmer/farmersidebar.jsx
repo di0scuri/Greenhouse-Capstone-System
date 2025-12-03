@@ -10,14 +10,15 @@ import {
   MdCalendarToday,
   MdInventory,
   MdLogout,
-  MdAgriculture
+  MdAgriculture,
+  MdSensors,
+  MdHome
 } from 'react-icons/md'
 
 const FarmerSidebar = ({ activeMenu, setActiveMenu }) => {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Function to update lastLogout timestamp
   const updateLastLogout = async (userId) => {
     try {
       console.log('Updating lastLogout timestamp for user:', userId);
@@ -28,36 +29,28 @@ const FarmerSidebar = ({ activeMenu, setActiveMenu }) => {
       console.log('LastLogout timestamp updated successfully');
     } catch (error) {
       console.error('Error updating lastLogout timestamp:', error);
-      // Don't throw error since logout should continue even if timestamp update fails
     }
   }
 
   const handleLogout = async () => {
     try {
-      // Get current user before signing out
       const currentUser = auth.currentUser;
       
       if (currentUser) {
-        // Update lastLogout timestamp
         await updateLastLogout(currentUser.uid);
       }
 
-      // Sign out from Firebase Auth
       await signOut(auth);
       
-      // Clear localStorage
       localStorage.removeItem('user');
       localStorage.removeItem('userRole');
       
       console.log('User logged out successfully');
       
-      // Navigate to user selection
       navigate('/user-selection');
     } catch (error) {
       console.error('Error during logout:', error);
       
-      // Even if there's an error, still navigate to user selection
-      // Clear localStorage as a fallback
       localStorage.removeItem('user');
       localStorage.removeItem('userRole');
       navigate('/user-selection');
@@ -67,12 +60,13 @@ const FarmerSidebar = ({ activeMenu, setActiveMenu }) => {
   const handleMenuClick = (menuName) => {
     setActiveMenu && setActiveMenu(menuName)
 
-    // Farmer routes (direct sa tamang components)
     const routes = {
       'Overview': '/farmer/overview',
       'Plants': '/farmer/plants',
       'Calendar': '/farmer/calendar',
-      'Inventory': '/farmer/inventory'
+      'Inventory': '/farmer/inventory',
+      'Greenhouse': '/farmer/greenhouse',
+      'Sensors': '/farmer/sensors'
     }
 
     const route = routes[menuName]
@@ -85,6 +79,8 @@ const FarmerSidebar = ({ activeMenu, setActiveMenu }) => {
     if (path.startsWith('/farmer/plants')) return 'Plants'
     if (path.startsWith('/farmer/calendar')) return 'Calendar'
     if (path.startsWith('/farmer/inventory')) return 'Inventory'
+    if (path.startsWith('/farmer/greenhouse')) return 'Greenhouse'
+    if (path.startsWith('/farmer/sensors')) return 'Sensors'
     return activeMenu || 'Overview'
   }
 
@@ -94,12 +90,13 @@ const FarmerSidebar = ({ activeMenu, setActiveMenu }) => {
     { name: 'Overview', icon: <MdDashboard /> },
     { name: 'Plants', icon: <MdEco /> },
     { name: 'Calendar', icon: <MdCalendarToday /> },
-    { name: 'Inventory', icon: <MdInventory /> }
+    { name: 'Inventory', icon: <MdInventory /> },
+    { name: 'Greenhouse', icon: <MdHome /> },
+    { name: 'Sensors', icon: <MdSensors /> }
   ]
 
   return (
     <div className="farmer-sidebar">
-      {/* Sidebar Header */}
       <div className="farmer-sidebar-header">
         <div className="farmer-logo-section">
           <div className="farmer-logo-icon">
@@ -112,7 +109,6 @@ const FarmerSidebar = ({ activeMenu, setActiveMenu }) => {
         </div>
       </div>
 
-      {/* Nav Menu */}
       <nav className="farmer-sidebar-nav">
         {menuItems.map((item, index) => (
           <button
@@ -126,7 +122,6 @@ const FarmerSidebar = ({ activeMenu, setActiveMenu }) => {
         ))}
       </nav>
 
-      {/* Footer */}
       <div className="farmer-sidebar-footer">
         <button className="farmer-logout-btn" onClick={handleLogout}>
           <span className="farmer-nav-icon"><MdLogout /></span>

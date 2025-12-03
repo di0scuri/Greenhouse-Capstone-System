@@ -20,6 +20,7 @@ import './sensors.css'
 import './greenhousecontrols.css'
 
 const GreenhouseControls = ({ userType = 'admin' }) => {
+  const hasAccess = userType === 'admin' || userType === 'farmer'
   const [searchTerm, setSearchTerm] = useState('')
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)

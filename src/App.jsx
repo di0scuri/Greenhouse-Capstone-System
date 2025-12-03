@@ -324,7 +324,7 @@ function App() {
           <Route 
             path="/greenhousecontrols/admin" 
             element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
                 <Greenhouse userType="admin" user={user} />
               </ProtectedRoute>
             } 
@@ -332,8 +332,48 @@ function App() {
           <Route 
             path="/greenhousecontrols" 
             element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Greenhouse userType="admin" user={user} />
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+                <Greenhouse 
+                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
+                  user={user} 
+                />
+
+              </ProtectedRoute>
+            } 
+          />
+          {/* Farmer Sensors - Already exists */}
+          <Route 
+            path="/farmer/sensors" 
+            element={
+              <ProtectedRoute user={user} allowedRoles="Farmer">
+                <Sensors userType="farmer" user={user} />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Add Farmer Greenhouse route */}
+          <Route 
+            path="/farmer/greenhouse" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+                <Greenhouse userType="farmer" user={user} />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="/greenhousecontrols/farmer" 
+            element={
+              <ProtectedRoute user={user} allowedRoles="Farmer">
+                <Greenhouse userType="farmer" user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/farmer/greenhouse" 
+            element={
+              <ProtectedRoute user={user} allowedRoles="Farmer">
+                <Greenhouse userType="farmer" user={user} />
               </ProtectedRoute>
             } 
           />
