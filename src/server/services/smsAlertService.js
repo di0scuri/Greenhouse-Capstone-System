@@ -15,6 +15,9 @@ let lastCheckedTimestamp = null;
 // Cache for plant requirements to reduce Firestore reads
 const plantRequirementsCache = new Map();
 
+// Track last processed timestamps for each sensor
+const lastProcessedTimestamps = new Map();
+
 /**
  * Send SMS using Semaphore API
  */
@@ -663,7 +666,6 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
 /**
  * Track last processed timestamps for each sensor
  */
-const lastProcessedTimestamps = new Map();
 
 /**
  * Setup real-time listener for sensor changes - ONLY LATEST TIMESTAMP
@@ -676,24 +678,23 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
   const sensorNames = ['SoilSensor1', 'SoilSensor2', 'SoilSensor3', 'SoilSensor4', 'SoilSensor5'];
   
   sensorNames.forEach(sensorName => {
-    const sensorRef = realtimeDb.ref(sensorName);
+    // Listen ONLY to the last child (latest timestamp)
+    const sensorRef = realtimeDb.ref(sensorName).orderByKey().limitToLast(1);
     
-    // Listen for new readings
+    // Listen for new readings (only triggers for the latest one)
     sensorRef.on('child_added', async (snapshot) => {
       const timestamp = snapshot.key;
       const sensorData = snapshot.val();
       
-      console.log(`\n📥 [NEW READING] ${sensorName} at ${timestamp}`);
-      
-      // Check if this is the latest timestamp
-      const isLatest = await isLatestTimestamp(realtimeDb, sensorName, timestamp);
-      
-      if (!isLatest) {
-        console.log(`⏭️  [SKIP] Not the latest timestamp - ignoring old data`);
+      // Check if we already processed this exact timestamp
+      const lastProcessed = lastProcessedTimestamps.get(sensorName);
+      if (lastProcessed === timestamp) {
+        console.log(`⏭️  [SKIP] ${sensorName} at ${timestamp} - already processed`);
         return;
       }
       
-      console.log(`✅ [LATEST] Processing this reading`);
+      console.log(`\n📥 [NEW READING] ${sensorName} at ${timestamp}`);
+      console.log('✅ [LATEST] Processing this reading');
       console.log('Data keys:', Object.keys(sensorData).join(', '));
       
       // Update last processed timestamp
@@ -707,22 +708,13 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
       }, firestoreDb);
     });
     
-    // Also listen for updates to latest reading
+    // Listen for updates to the latest reading
     sensorRef.on('child_changed', async (snapshot) => {
       const timestamp = snapshot.key;
       const sensorData = snapshot.val();
       
       console.log(`\n🔄 [UPDATED] ${sensorName} at ${timestamp}`);
-      
-      // Check if this is the latest timestamp
-      const isLatest = await isLatestTimestamp(realtimeDb, sensorName, timestamp);
-      
-      if (!isLatest) {
-        console.log(`⏭️  [SKIP] Not the latest timestamp - ignoring old data`);
-        return;
-      }
-      
-      console.log(`✅ [LATEST] Processing this update`);
+      console.log('✅ [LATEST] Processing this update');
       console.log('Data keys:', Object.keys(sensorData).join(', '));
       
       // Update last processed timestamp
@@ -741,36 +733,12 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
   
   return () => {
     sensorNames.forEach(sensorName => {
-      realtimeDb.ref(sensorName).off('child_added');
-      realtimeDb.ref(sensorName).off('child_changed');
+      realtimeDb.ref(sensorName).orderByKey().limitToLast(1).off('child_added');
+      realtimeDb.ref(sensorName).orderByKey().limitToLast(1).off('child_changed');
     });
     lastProcessedTimestamps.clear();
     console.log('🛑 Real-time listener stopped');
   };
-}
-
-/**
- * Check if a timestamp is the latest for a sensor
- */
-async function isLatestTimestamp(realtimeDb, sensorName, timestamp) {
-  try {
-    const snapshot = await realtimeDb.ref(sensorName)
-      .orderByKey()
-      .limitToLast(1)
-      .once('value');
-    
-    if (!snapshot.exists()) {
-      return false;
-    }
-    
-    const data = snapshot.val();
-    const latestTimestamp = Object.keys(data)[0];
-    
-    return timestamp === latestTimestamp;
-  } catch (error) {
-    console.error('Error checking latest timestamp:', error);
-    return true; // Process if we can't check
-  }
 }
 
 /**
