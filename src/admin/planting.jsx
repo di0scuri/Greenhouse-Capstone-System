@@ -89,7 +89,7 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const [filters, setFilters] = useState({
     locationZone: 'all',
     plantType: 'all',
-    status: 'all',
+    status: 'Active',
     plotNumber: 'all'
   })
 
@@ -2748,14 +2748,23 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
       return false
     }
 
-    if (filters.status !== 'all') {
-      const plantInfo = plantsList[plant.plantType]
+    const plantInfo = plantsList[plant.plantType]
       const currentStage = getCurrentStage(plant, plantInfo)
       const plantStatus = currentStage?.stage || plant.status
-      if (plantStatus !== filters.status) {
-        return false
+
+      if (filters.status === 'Active') {
+        // SCENARIO 1: The new 'Active' default is selected
+        // Exclude all plants that are marked as 'Harvested'
+        if (plantStatus === 'Harvested') {
+          return false
+        }
+      } else if (filters.status !== 'all') {
+        // SCENARIO 2: A specific status (e.g., 'Germination') is selected
+        // Only show plants that match the selected status
+        if (plantStatus !== filters.status) {
+          return false
+        }
       }
-    }
 
     if (filters.plotNumber !== 'all' && plant.plotNumber !== filters.plotNumber) {
       return false
@@ -2904,18 +2913,19 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                   </div>
 
                   <div className="filter-section">
-                    <label>Growth Stage</label>
-                    <select
-                      value={filters.status}
-                      onChange={(e) => handleFilterChange('status', e.target.value)}
-                      className="filter-select"
-                    >
-                      <option value="all">All Stages</option>
-                      {filterOptions.statuses.map(status => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  </div>
+      <label>Growth Stage</label>
+      <select 
+        value={filters.status} 
+        onChange={(e) => handleFilterChange('status', e.target.value)} 
+        className="filter-select"
+      >
+        <option value="Active">Active Plants (Default)</option>
+        <option value="all">All Stages (Including Harvested)</option>
+        {filterOptions.statuses.map(status => (
+          <option key={status} value={status}>{status}</option>
+        ))}
+      </select>
+    </div>
 
                   <div className="filter-section">
                     <label>Plot Number</label>
