@@ -192,7 +192,6 @@ export async function checkThresholdsForPlant(sensorData, plantRequirements) {
     ph: 'ph',
     temperature: 'temperature',
     humidity: 'humidity',
-    // moisture: 'humidity' // Remove redundant or non-standard mappings unless 'moisture' is actually a humidity sensor
   };
   
   // Use `Object.entries` for cleaner iteration
@@ -351,7 +350,6 @@ async function shouldSendAlert(db, plantId, currentAlerts) {
     const lastSentAt = lastAlertInfo.sentAt.getTime();
     
     const now = new Date().getTime();
-    // Use a simpler timestamp comparison
     const HOURS_24_MS = 24 * 60 * 60 * 1000;
     const isWithin24Hours = (now - lastSentAt) < HOURS_24_MS;
     
@@ -532,7 +530,9 @@ export async function processSoilSensorAlert(sensorId, sensorData, db) {
   }
 }
 
-// ... (setupAlertRoute remains mostly the same)
+/**
+ * Setup API routes for sensor readings and alerts
+ */
 export function setupAlertRoute(app, realtimeDb, firestoreDb) {
   // POST endpoint for sensor readings - SAVES TO YOUR STRUCTURE
   app.post('/api/soil-sensor/reading', async (req, res) => {
@@ -545,15 +545,11 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
 
       // Save in YOUR existing structure: SoilSensor1/timestamp/data
       const timestamp = new Date().toISOString()
-        .replace(/[:.]/g, '_'); // Replaced all non-alphanumeric chars for safety
+        .replace(/[:.]/g, '_'); // Replaced non-alphanumeric chars for safety
       
-      // Use set to save the data
       await realtimeDb.ref(`${sensorId}/${timestamp}`).set(sensorData);
       
-      // Process alerts only if not running a dedicated listener to avoid duplicates
-      // NOTE: If you use the setupRealtimeAlertListener, you might want to remove this immediate call
-      // or ensure the listener doesn't trigger on this path change.
-      // For this optimized code, we'll keep it for direct API use.
+      // Process alerts
       const alertResult = await processSoilSensorAlert(sensorId, {
         ...sensorData,
         timestamp: timestamp
@@ -600,7 +596,6 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
 
 /**
  * Setup real-time listener for sensor changes - EFFICIENTLY ONLY CHECKS LATEST READING
- * THIS IS THE KEY FIX FOR THE CRASH.
  * @param {admin.database.Database} realtimeDb 
  * @param {admin.firestore.Firestore} firestoreDb 
  * @returns {() => void}
@@ -612,18 +607,13 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
   const sensorNames = ['SoilSensor1', 'SoilSensor2', 'SoilSensor3', 'SoilSensor4', 'SoilSensor5'];
   
   sensorNames.forEach(sensorName => {
-    // 💡 FIX: Query for the latest child added.
+    // Query for the latest child added.
     const sensorRef = realtimeDb.ref(sensorName).orderByKey().limitToLast(1);
     
     // Use 'child_added' on the limited query. 
-    // On connection, it fires for the last item. 
-    // On new item, it fires only for the new item.
     sensorRef.on('child_added', async (snapshot) => {
       const timestamp = snapshot.key;
       const sensorData = snapshot.val();
-      
-      // 💡 FIX: Removed the redundant and problematic `once('value')` check.
-      // The `limitToLast(1)` query should already ensure this is the latest.
       
       // Check if we already processed this timestamp (important for reconnects)
       if (lastProcessedTimestamp.get(sensorName) === timestamp) {
@@ -660,10 +650,67 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
   };
 }
 
-// ... (cleanupOldAlerts and SMSAlertService class remain the same)
-export async function cleanupOldAlerts(db, daysToKeep = 30) { /* ... */ }
+/**
+ * Cleanup old alerts (run periodically)
+ * @param {admin.firestore.Firestore} db 
+ * @param {number} daysToKeep 
+ */
+export async function cleanupOldAlerts(db, daysToKeep = 30) {
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-class SMSAlertService { /* ... */ }
+    const snapshot = await db.collection('lastAlerts')
+      .where('sentAt', '<', cutoffDate)
+      .get();
+
+    if (snapshot.empty) {
+      console.log('No old alerts to clean up');
+      return;
+    }
+
+    const batch = db.batch();
+    snapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+
+    await batch.commit();
+    console.log(`[OK] Cleaned up ${snapshot.size} old alert records`);
+  } catch (error) {
+    console.error('Error cleaning up old alerts:', error);
+  }
+}
+
+/**
+ * SMS Alert Service Class (Encapsulates all logic)
+ */
+class SMSAlertService {
+  constructor() {
+    this.apiKey = SEMAPHORE_API_KEY;
+    this.apiUrl = SEMAPHORE_API_URL;
+  }
+
+  // Expose core functions as methods
+  async sendSMS(phoneNumber, message) {
+    return sendSMS(phoneNumber, message);
+  }
+
+  async processSoilSensorAlert(sensorId, sensorData, firestoreDb) {
+    return processSoilSensorAlert(sensorId, sensorData, firestoreDb);
+  }
+
+  setupAlertRoute(app, realtimeDb, firestoreDb) {
+    return setupAlertRoute(app, realtimeDb, firestoreDb);
+  }
+
+  setupRealtimeAlertListener(realtimeDb, firestoreDb) {
+    return setupRealtimeAlertListener(realtimeDb, firestoreDb);
+  }
+
+  async cleanupOldAlerts(firestoreDb, daysToKeep = 30) {
+    return cleanupOldAlerts(firestoreDb, daysToKeep);
+  }
+}
 
 export const smsAlertService = new SMSAlertService();
 export default smsAlertService;

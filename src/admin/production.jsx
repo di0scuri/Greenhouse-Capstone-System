@@ -1864,7 +1864,6 @@ const PricingCalculatorModal = ({
           </div>
         )}
 
-        {/* Edit Expense Modal */}
         {showEditExpenseModal && editingExpense && (
           <div className="production-modal-overlay" onClick={() => setShowEditExpenseModal(false)}>
             <div className="production-modal small-modal" onClick={(e) => e.stopPropagation()}>
