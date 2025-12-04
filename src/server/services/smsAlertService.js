@@ -661,10 +661,16 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
 }
 
 /**
- * Setup real-time listener for sensor changes - UPDATED
+ * Track last processed timestamps for each sensor
+ */
+const lastProcessedTimestamps = new Map();
+
+/**
+ * Setup real-time listener for sensor changes - ONLY LATEST TIMESTAMP
  */
 export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
   console.log('\n📡 [LISTENER] Setting up Realtime Database listener for soil sensors...');
+  console.log('   ⚡ Only processing LATEST timestamp per sensor\n');
   
   // List of sensors to monitor (based on your structure)
   const sensorNames = ['SoilSensor1', 'SoilSensor2', 'SoilSensor3', 'SoilSensor4', 'SoilSensor5'];
@@ -678,7 +684,20 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
       const sensorData = snapshot.val();
       
       console.log(`\n📥 [NEW READING] ${sensorName} at ${timestamp}`);
+      
+      // Check if this is the latest timestamp
+      const isLatest = await isLatestTimestamp(realtimeDb, sensorName, timestamp);
+      
+      if (!isLatest) {
+        console.log(`⏭️  [SKIP] Not the latest timestamp - ignoring old data`);
+        return;
+      }
+      
+      console.log(`✅ [LATEST] Processing this reading`);
       console.log('Data keys:', Object.keys(sensorData).join(', '));
+      
+      // Update last processed timestamp
+      lastProcessedTimestamps.set(sensorName, timestamp);
       
       // Process with sensor ID and timestamp (normalization happens inside)
       await processSoilSensorAlert(sensorName, {
@@ -694,7 +713,20 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
       const sensorData = snapshot.val();
       
       console.log(`\n🔄 [UPDATED] ${sensorName} at ${timestamp}`);
+      
+      // Check if this is the latest timestamp
+      const isLatest = await isLatestTimestamp(realtimeDb, sensorName, timestamp);
+      
+      if (!isLatest) {
+        console.log(`⏭️  [SKIP] Not the latest timestamp - ignoring old data`);
+        return;
+      }
+      
+      console.log(`✅ [LATEST] Processing this update`);
       console.log('Data keys:', Object.keys(sensorData).join(', '));
+      
+      // Update last processed timestamp
+      lastProcessedTimestamps.set(sensorName, timestamp);
       
       await processSoilSensorAlert(sensorName, {
         ...sensorData,
@@ -705,15 +737,40 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
   });
   
   console.log(`✅ [OK] Real-time listener active - monitoring: ${sensorNames.join(', ')}`);
-  console.log('   🚨 Alerts will be sent when thresholds are violated\n');
+  console.log('   🚨 Alerts will be sent ONLY for the latest readings\n');
   
   return () => {
     sensorNames.forEach(sensorName => {
       realtimeDb.ref(sensorName).off('child_added');
       realtimeDb.ref(sensorName).off('child_changed');
     });
+    lastProcessedTimestamps.clear();
     console.log('🛑 Real-time listener stopped');
   };
+}
+
+/**
+ * Check if a timestamp is the latest for a sensor
+ */
+async function isLatestTimestamp(realtimeDb, sensorName, timestamp) {
+  try {
+    const snapshot = await realtimeDb.ref(sensorName)
+      .orderByKey()
+      .limitToLast(1)
+      .once('value');
+    
+    if (!snapshot.exists()) {
+      return false;
+    }
+    
+    const data = snapshot.val();
+    const latestTimestamp = Object.keys(data)[0];
+    
+    return timestamp === latestTimestamp;
+  } catch (error) {
+    console.error('Error checking latest timestamp:', error);
+    return true; // Process if we can't check
+  }
 }
 
 /**
