@@ -193,63 +193,177 @@ async function getCurrentStageRequirements(db, plant) {
 }
 
 /**
- * Check sensor data against plant-specific thresholds
+ * Normalize sensor data keys to lowercase for consistent matching
+ */
+function normalizeSensorData(sensorData) {
+  const normalized = {};
+  
+  for (const [key, value] of Object.entries(sensorData)) {
+    const lowerKey = key.toLowerCase();
+    normalized[lowerKey] = value;
+  }
+  
+  console.log('[NORMALIZE] Original keys:', Object.keys(sensorData).join(', '));
+  console.log('[NORMALIZE] Normalized keys:', Object.keys(normalized).join(', '));
+  
+  return normalized;
+}
+
+/**
+ * Check sensor data against plant-specific thresholds - FIXED VERSION
  */
 export async function checkThresholdsForPlant(sensorData, plantRequirements) {
   const alerts = [];
 
+  console.log('\n╔════════════════════════════════════════════════════════╗');
+  console.log('║         THRESHOLD CHECK - DETAILED DEBUG              ║');
+  console.log('╚════════════════════════════════════════════════════════╝\n');
+
   if (!plantRequirements || !plantRequirements.thresholds) {
-    console.log('No plant requirements available for threshold checking');
+    console.log('❌ No plant requirements available for threshold checking');
     return alerts;
   }
 
   const thresholds = plantRequirements.thresholds;
 
-  // Map of sensor data keys to threshold keys
-  const parameterMap = {
-    'nitrogen': 'nitrogen',
-    'phosphorus': 'phosphorus',
-    'potassium': 'potassium',
-    'ph': 'ph',
-    'temperature': 'temperature',
-    'humidity': 'humidity',
-    'moisture': 'humidity' // Map moisture to humidity if needed
-  };
+  // Normalize sensor data to lowercase keys
+  const normalizedData = normalizeSensorData(sensorData);
 
-  for (const [sensorKey, thresholdKey] of Object.entries(parameterMap)) {
-    const sensorValue = sensorData[sensorKey];
-    const threshold = thresholds[thresholdKey];
+  console.log('📊 SENSOR DATA (normalized):');
+  console.log(JSON.stringify(normalizedData, null, 2));
+  console.log('\n📏 THRESHOLDS:');
+  console.log(JSON.stringify(thresholds, null, 2));
+  console.log('\n');
 
-    if (!threshold || sensorValue === undefined || sensorValue === null) {
+  // Define parameter checks with proper mapping
+  const checks = [
+    {
+      name: 'Nitrogen',
+      sensorKeys: ['nitrogen', 'n'],
+      thresholdKey: 'nitrogen'
+    },
+    {
+      name: 'Phosphorus',
+      sensorKeys: ['phosphorus', 'p'],
+      thresholdKey: 'phosphorus'
+    },
+    {
+      name: 'Potassium',
+      sensorKeys: ['potassium', 'k'],
+      thresholdKey: 'potassium'
+    },
+    {
+      name: 'pH',
+      sensorKeys: ['ph'],
+      thresholdKey: 'ph'
+    },
+    {
+      name: 'Temperature',
+      sensorKeys: ['temperature', 'temp'],
+      thresholdKey: 'temperature'
+    },
+    {
+      name: 'Humidity',
+      sensorKeys: ['humidity', 'moisture'],
+      thresholdKey: 'humidity'
+    }
+  ];
+
+  console.log('🔍 CHECKING EACH PARAMETER:\n');
+  console.log('─'.repeat(70));
+
+  for (const check of checks) {
+    // Find sensor value
+    let sensorValue = null;
+    let usedKey = null;
+    
+    for (const key of check.sensorKeys) {
+      if (normalizedData[key] !== undefined && normalizedData[key] !== null) {
+        sensorValue = normalizedData[key];
+        usedKey = key;
+        break;
+      }
+    }
+
+    const threshold = thresholds[check.thresholdKey];
+
+    // Header for this parameter
+    console.log(`\n${check.name}:`);
+    
+    // Check if we have both value and threshold
+    if (sensorValue === null) {
+      console.log(`  ⚠️  No sensor data (tried: ${check.sensorKeys.join(', ')})`);
+      continue;
+    }
+
+    if (!threshold) {
+      console.log(`  ⚠️  No threshold defined`);
       continue;
     }
 
     const numValue = parseFloat(sensorValue);
+    const minThreshold = parseFloat(threshold.min);
+    const maxThreshold = parseFloat(threshold.max);
     
-    if (isNaN(numValue) || isNaN(threshold.min) || isNaN(threshold.max)) {
+    if (isNaN(numValue)) {
+      console.log(`  ❌ Invalid sensor value: "${sensorValue}"`);
+      continue;
+    }
+    
+    if (isNaN(minThreshold) || isNaN(maxThreshold)) {
+      console.log(`  ❌ Invalid threshold: min=${threshold.min}, max=${threshold.max}`);
       continue;
     }
 
-    if (numValue < threshold.min) {
-      alerts.push({
-        parameter: sensorKey.charAt(0).toUpperCase() + sensorKey.slice(1),
+    // Display the check
+    console.log(`  📍 Sensor: ${numValue}${threshold.unit} (from key: "${usedKey}")`);
+    console.log(`  📏 Range: ${minThreshold}${threshold.unit} - ${maxThreshold}${threshold.unit}`);
+
+    // Perform the threshold check
+    if (numValue < minThreshold) {
+      const alert = {
+        parameter: check.name,
         value: numValue,
         status: 'LOW',
-        threshold: threshold.min,
+        threshold: minThreshold,
         unit: threshold.unit,
-        message: `${sensorKey.charAt(0).toUpperCase() + sensorKey.slice(1)}: ${numValue}${threshold.unit} (below ${threshold.min}${threshold.unit})`
-      });
-    } else if (numValue > threshold.max) {
-      alerts.push({
-        parameter: sensorKey.charAt(0).toUpperCase() + sensorKey.slice(1),
+        message: `${check.name}: ${numValue}${threshold.unit} (below ${minThreshold}${threshold.unit})`
+      };
+      alerts.push(alert);
+      const diff = ((minThreshold - numValue) / minThreshold * 100).toFixed(1);
+      console.log(`  🔴 ALERT: TOO LOW by ${diff}%`);
+      console.log(`     └─> ${alert.message}`);
+    } else if (numValue > maxThreshold) {
+      const alert = {
+        parameter: check.name,
         value: numValue,
         status: 'HIGH',
-        threshold: threshold.max,
+        threshold: maxThreshold,
         unit: threshold.unit,
-        message: `${sensorKey.charAt(0).toUpperCase() + sensorKey.slice(1)}: ${numValue}${threshold.unit} (above ${threshold.max}${threshold.unit})`
-      });
+        message: `${check.name}: ${numValue}${threshold.unit} (above ${maxThreshold}${threshold.unit})`
+      };
+      alerts.push(alert);
+      const diff = ((numValue - maxThreshold) / maxThreshold * 100).toFixed(1);
+      console.log(`  🔴 ALERT: TOO HIGH by ${diff}%`);
+      console.log(`     └─> ${alert.message}`);
+    } else {
+      console.log(`  ✅ WITHIN RANGE`);
     }
   }
+
+  console.log('\n' + '─'.repeat(70));
+  console.log(`\n📊 SUMMARY: ${alerts.length} ALERT(S) DETECTED\n`);
+
+  if (alerts.length > 0) {
+    console.log('🚨 ALERTS TO BE SENT:');
+    alerts.forEach((alert, i) => {
+      console.log(`   ${i + 1}. ${alert.message}`);
+    });
+  } else {
+    console.log('✅ All parameters within acceptable range');
+  }
+
+  console.log('\n' + '═'.repeat(70) + '\n');
 
   return alerts;
 }
@@ -338,71 +452,77 @@ async function markAlertAsSent(db, alertId, alertData) {
 }
 
 /**
- * Main function to process soil sensor alerts
+ * Main function to process soil sensor alerts - UPDATED WITH NORMALIZATION
  */
 export async function processSoilSensorAlert(sensorId, sensorData, db) {
   try {
-    console.log('\n=== Processing Soil Sensor Alert ===');
-    console.log('Sensor ID:', sensorId);
-    console.log('Sensor Data:', JSON.stringify(sensorData, null, 2));
+    console.log('\n' + '═'.repeat(70));
+    console.log('🌱 PROCESSING SOIL SENSOR ALERT');
+    console.log('═'.repeat(70));
+    console.log(`\n📍 Sensor ID: ${sensorId}`);
+    console.log(`⏰ Timestamp: ${sensorData.timestamp || 'N/A'}`);
+    console.log('\n📥 Raw Sensor Data:');
+    console.log(JSON.stringify(sensorData, null, 2));
 
     // Step 1: Find plant associated with this sensor
     const plant = await getPlantBySensor(db, sensorId);
     
     if (!plant) {
-      console.log(`No plant found for sensor ${sensorId} - skipping alert`);
+      console.log(`\n❌ No plant found for sensor ${sensorId} - skipping alert`);
       return { success: false, message: 'No plant associated with sensor' };
     }
 
-    console.log(`Plant found: ${plant.plantName || plant.plantType} (Plot ${plant.plotNumber})`);
-    console.log(`Current stage: ${plant.status}`);
+    console.log(`\n✅ Plant Found: ${plant.plantName || plant.plantType}`);
+    console.log(`   📊 Plot: ${plant.plotNumber}`);
+    console.log(`   🌱 Stage: ${plant.status}`);
 
     // Step 2: Get current stage requirements from plantsList
     const plantRequirements = await getCurrentStageRequirements(db, plant);
     
     if (!plantRequirements) {
-      console.log('Could not fetch plant requirements - skipping alert');
+      console.log('\n❌ Could not fetch plant requirements - skipping alert');
       return { success: false, message: 'Plant requirements not found' };
     }
 
-    console.log('Requirements loaded for stage:', plantRequirements.currentStage);
+    console.log(`\n📋 Requirements loaded for stage: ${plantRequirements.currentStage}`);
 
-    // Step 3: Check thresholds
+    // Step 3: Check thresholds (normalization happens inside checkThresholdsForPlant)
     const alerts = await checkThresholdsForPlant(sensorData, plantRequirements);
     
     if (alerts.length === 0) {
-      console.log('[OK] All readings within normal range - no alerts needed');
+      console.log('✅ All readings within normal range - no alerts needed\n');
       return { success: true, message: 'No alerts needed' };
     }
 
-    console.log(`[WARNING] ${alerts.length} threshold violation(s) detected:`);
-    alerts.forEach(alert => console.log(`   - ${alert.message}`));
+    console.log(`\n🚨 ${alerts.length} THRESHOLD VIOLATION(S) DETECTED!`);
 
     // Step 4: Check if we already sent this alert recently
     const alertId = createAlertId(plant.id, sensorData.timestamp || Date.now(), alerts);
     const alertCheck = await isAlertAlreadySent(db, alertId);
     
     if (alertCheck.shouldSkip) {
-      console.log(`[SKIP] ${alertCheck.reason}`);
+      console.log(`\n⏭️  [SKIP] ${alertCheck.reason}\n`);
       return { success: true, message: alertCheck.reason, skipped: true };
     }
 
     // Step 5: Generate alert message
     const message = generateAlertMessage(plant, plantRequirements, alerts);
-    console.log('\n[SMS] Alert Message:');
-    console.log('─────────────────');
-    console.log(message);
-    console.log('─────────────────\n');
+    console.log('\n📱 [SMS] Alert Message:');
+    console.log('┌' + '─'.repeat(68) + '┐');
+    message.split('\n').forEach(line => {
+      console.log(`│ ${line.padEnd(67)}│`);
+    });
+    console.log('└' + '─'.repeat(68) + '┘\n');
 
     // Step 6: Get recipients
     const recipients = await fetchAlertRecipients(db);
     
     if (recipients.length === 0) {
-      console.log('[ERROR] No recipients found - cannot send alerts');
+      console.log('❌ [ERROR] No recipients found - cannot send alerts\n');
       return { success: false, message: 'No recipients found' };
     }
 
-    console.log(`[SENDING] SMS to ${recipients.length} recipient(s)...`);
+    console.log(`📤 [SENDING] SMS to ${recipients.length} recipient(s)...`);
 
     // Step 7: Send SMS alerts
     const sendPromises = recipients.map(user => 
@@ -427,12 +547,13 @@ export async function processSoilSensorAlert(sensorId, sensorData, db) {
     const successCount = results.filter(r => r.success).length;
     const failCount = results.length - successCount;
     
-    console.log('\n[SUMMARY] SMS Alert Summary:');
-    console.log(`   [SUCCESS] Sent: ${successCount}/${recipients.length}`);
+    console.log('\n' + '═'.repeat(70));
+    console.log('📊 [SUMMARY] SMS Alert Summary:');
+    console.log(`   ✅ [SUCCESS] Sent: ${successCount}/${recipients.length}`);
     if (failCount > 0) {
-      console.log(`   [FAILED] Failed: ${failCount}`);
+      console.log(`   ❌ [FAILED] Failed: ${failCount}`);
     }
-    console.log('═══════════════════════════════\n');
+    console.log('═'.repeat(70) + '\n');
 
     return {
       success: true,
@@ -448,13 +569,13 @@ export async function processSoilSensorAlert(sensorId, sensorData, db) {
     };
 
   } catch (error) {
-    console.error('[ERROR] Error processing soil sensor alert:', error);
+    console.error('❌ [ERROR] Error processing soil sensor alert:', error);
     return { success: false, error: error.message };
   }
 }
 
 /**
- * Setup API routes for sensor readings and alerts - MODIFIED FOR YOUR STRUCTURE
+ * Setup API routes for sensor readings and alerts - UPDATED
  */
 export function setupAlertRoute(app, realtimeDb, firestoreDb) {
   // POST endpoint for sensor readings - SAVES TO YOUR STRUCTURE
@@ -466,6 +587,10 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
         return res.status(400).json({ error: 'sensorId is required' });
       }
 
+      console.log('\n📥 API: Received sensor reading');
+      console.log('Sensor ID:', sensorId);
+      console.log('Data keys:', Object.keys(sensorData).join(', '));
+
       // Save in YOUR existing structure: SoilSensor1/timestamp/data
       const timestamp = new Date().toISOString()
         .replace(/[:]/g, '_')
@@ -473,9 +598,9 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
       
       await realtimeDb.ref(`${sensorId}/${timestamp}`).set(sensorData);
       
-      console.log(`Sensor reading saved to ${sensorId}/${timestamp}`);
+      console.log(`✅ Sensor reading saved to ${sensorId}/${timestamp}`);
       
-      // Process alerts
+      // Process alerts (normalization happens inside processSoilSensorAlert)
       const alertResult = await processSoilSensorAlert(sensorId, {
         ...sensorData,
         timestamp: timestamp
@@ -488,7 +613,7 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
         alertResult
       });
     } catch (error) {
-      console.error('Error in sensor reading endpoint:', error);
+      console.error('❌ Error in sensor reading endpoint:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -501,6 +626,8 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
       if (!sensorId) {
         return res.status(400).json({ error: 'sensorId is required' });
       }
+
+      console.log(`\n🔍 API: Manually checking alerts for ${sensorId}`);
 
       // Get latest reading from YOUR structure
       const snapshot = await realtimeDb.ref(sensorId)
@@ -516,6 +643,8 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
       const latestTimestamp = Object.keys(data)[0];
       const latestReading = data[latestTimestamp];
       
+      console.log('Latest reading timestamp:', latestTimestamp);
+      
       const alertResult = await processSoilSensorAlert(sensorId, {
         ...latestReading,
         timestamp: latestTimestamp
@@ -523,19 +652,19 @@ export function setupAlertRoute(app, realtimeDb, firestoreDb) {
       
       res.json(alertResult);
     } catch (error) {
-      console.error('Error checking alerts:', error);
+      console.error('❌ Error checking alerts:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  console.log('[OK] Alert routes registered');
+  console.log('✅ [OK] Alert routes registered');
 }
 
 /**
- * Setup real-time listener for sensor changes - MODIFIED FOR YOUR STRUCTURE
+ * Setup real-time listener for sensor changes - UPDATED
  */
 export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
-  console.log('[LISTENER] Setting up Realtime Database listener for soil sensors...');
+  console.log('\n📡 [LISTENER] Setting up Realtime Database listener for soil sensors...');
   
   // List of sensors to monitor (based on your structure)
   const sensorNames = ['SoilSensor1', 'SoilSensor2', 'SoilSensor3', 'SoilSensor4', 'SoilSensor5'];
@@ -548,10 +677,10 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
       const timestamp = snapshot.key;
       const sensorData = snapshot.val();
       
-      console.log(`\n[NEW READING] ${sensorName} at ${timestamp}:`);
-      console.log('Data:', sensorData);
+      console.log(`\n📥 [NEW READING] ${sensorName} at ${timestamp}`);
+      console.log('Data keys:', Object.keys(sensorData).join(', '));
       
-      // Process with sensor ID and timestamp
+      // Process with sensor ID and timestamp (normalization happens inside)
       await processSoilSensorAlert(sensorName, {
         ...sensorData,
         timestamp: timestamp,
@@ -564,8 +693,8 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
       const timestamp = snapshot.key;
       const sensorData = snapshot.val();
       
-      console.log(`\n[UPDATED] ${sensorName} at ${timestamp}:`);
-      console.log('Data:', sensorData);
+      console.log(`\n🔄 [UPDATED] ${sensorName} at ${timestamp}`);
+      console.log('Data keys:', Object.keys(sensorData).join(', '));
       
       await processSoilSensorAlert(sensorName, {
         ...sensorData,
@@ -575,15 +704,15 @@ export function setupRealtimeAlertListener(realtimeDb, firestoreDb) {
     });
   });
   
-  console.log(`[OK] Real-time listener active - monitoring: ${sensorNames.join(', ')}`);
-  console.log('   Alerts will be sent when thresholds are violated\n');
+  console.log(`✅ [OK] Real-time listener active - monitoring: ${sensorNames.join(', ')}`);
+  console.log('   🚨 Alerts will be sent when thresholds are violated\n');
   
   return () => {
     sensorNames.forEach(sensorName => {
       realtimeDb.ref(sensorName).off('child_added');
       realtimeDb.ref(sensorName).off('child_changed');
     });
-    console.log('Real-time listener stopped');
+    console.log('🛑 Real-time listener stopped');
   };
 }
 
@@ -610,7 +739,7 @@ export async function cleanupOldAlerts(db, daysToKeep = 7) {
     });
 
     await batch.commit();
-    console.log(`[OK] Cleaned up ${snapshot.size} old alerts`);
+    console.log(`✅ [OK] Cleaned up ${snapshot.size} old alerts`);
   } catch (error) {
     console.error('Error cleaning up old alerts:', error);
   }
