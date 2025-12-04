@@ -13,7 +13,8 @@ import {
   FaArrowUp,
   FaArrowDown,
   FaArrowRight,
-  FaSeedling
+  FaSeedling,
+  FaWaveBillWave
 } from 'react-icons/fa'
 
 
