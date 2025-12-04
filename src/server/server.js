@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import { db, realtimeDb } from './config/firebase.js';
-import alertService from './services/smsAlertService.js';
+import { smsAlertService } from './services/smsAlertService.js';
 import plantAgeScheduler from './services/plantAgeScheduler.js';
 
 const app = express();
@@ -22,11 +22,12 @@ app.use(express.json());
 
 // Setup real-time listener
 console.log('Setting up real-time SMS alert listener...');
-const unsubscribe = alertService.setupRealtimeAlertListener(realtimeDb, db);
+const alertServiceInit = await smsAlertService.initialize(realtimeDb, db, true);
 console.log('SMS Alert Service is active - monitoring for new sensor readings...');
+const cleanupListener = alertServiceInit.cleanupListener;
 
 // Setup alert routes
-alertService.setupAlertRoute(app, realtimeDb, db);
+smsAlertService.setupAlertRoute(app, realtimeDb, db);
 
 // Setup plant age scheduler
 console.log('Setting up plant age update scheduler...');
@@ -48,9 +49,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Get current thresholds
+// Get current thresholds (if needed - you can adjust based on your THRESHOLDS export)
 app.get('/api/thresholds', (req, res) => {
-  res.json(alertService.THRESHOLDS);
+  // If you have a THRESHOLDS constant exported from smsAlertService
+  // res.json(smsAlertService.THRESHOLDS);
+  // Otherwise, just return a placeholder or fetch from database
+  res.json({ 
+    message: 'Thresholds are plant-specific and stored in plantsList collection',
+    note: 'Each plant type and stage has its own thresholds'
+  });
 });
 
 // Test endpoint to check users from Firestore
@@ -81,8 +88,7 @@ app.get('/api/test/recipients', async (req, res) => {
   }
 });
 
-
-// In server.js, add:
+// Debug endpoint to check all sensors
 app.get('/api/debug/sensors', async (req, res) => {
   try {
     const sensors = {};
@@ -134,6 +140,54 @@ app.get('/api/test/latest-reading', async (req, res) => {
   }
 });
 
+// Admin endpoint to trigger startup messages
+app.post('/api/admin/trigger-startup', async (req, res) => {
+  const results = await smsAlertService.sendStartupMessages(realtimeDb, db);
+  res.json({ success: true, results });
+});
+
+// Test endpoint to manually trigger an alert check for a specific sensor
+app.post('/api/admin/test-alert', async (req, res) => {
+  try {
+    const { sensorId } = req.body;
+    
+    if (!sensorId) {
+      return res.status(400).json({ error: 'sensorId is required' });
+    }
+
+    // Get latest reading
+    const snapshot = await realtimeDb.ref(sensorId)
+      .orderByKey()
+      .limitToLast(1)
+      .once('value');
+
+    if (!snapshot.exists()) {
+      return res.status(404).json({ error: 'No readings found for sensor' });
+    }
+
+    const data = snapshot.val();
+    const timestamp = Object.keys(data)[0];
+    const sensorData = data[timestamp];
+
+    // Process alert
+    const result = await smsAlertService.processSoilSensorAlert(sensorId, {
+      ...sensorData,
+      timestamp
+    }, db);
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Schedule periodic cleanup (optional)
+setInterval(async () => {
+  await smsAlertService.cleanupOldAlerts(db, 30); // Clean alerts older than 30 days
+  await smsAlertService.cleanupOldStartupNotifications(db, 7); // Clean startup notifications older than 7 days
+  console.log('Periodic cleanup completed at:', new Date().toISOString());
+}, 24 * 60 * 60 * 1000); // Run every 24 hours
+
 // ========================
 // Serve Frontend (MUST come AFTER API routes)
 // ========================
@@ -157,16 +211,33 @@ app.use((req, res, next) => {
 // ========================
 process.on('SIGINT', () => {
   console.log('\nShutting down gracefully...');
-  unsubscribe();
-  plantAgeScheduler.stopScheduler();
+  
+  // Cleanup realtime listener
+  if (cleanupListener) {
+    cleanupListener();
+  }
+  
+  // Stop plant age scheduler
+  if (plantAgeScheduler && plantAgeScheduler.stopScheduler) {
+    plantAgeScheduler.stopScheduler();
+  }
+  
   console.log('Listeners and schedulers stopped');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   console.log('\nShutting down gracefully...');
-  unsubscribe();
-  plantAgeScheduler.stopScheduler();
+  
+  if (cleanupListener) {
+    cleanupListener();
+  }
+  
+  if (plantAgeScheduler && plantAgeScheduler.stopScheduler) {
+    plantAgeScheduler.stopScheduler();
+  }
+  
+  console.log('Listeners and schedulers stopped');
   process.exit(0);
 });
 
@@ -180,4 +251,5 @@ app.listen(PORT, () => {
   console.log('Services active:');
   console.log('  ✓ SMS Alert Service (real-time monitoring)');
   console.log('  ✓ Plant Age Scheduler (daily at midnight)');
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
