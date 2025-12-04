@@ -35,7 +35,6 @@ import FarmerCalendar from './farmer/farmercalendar'
 // ============================================
 import FinanceDashboard from './finance/financedashboard'
 import FinanceInventory from './finance/financeinventory'
-// Removed: import FinanceCosting from './finance/financecosting'
 import PlantProduction from './admin/production'
 import './App.css'
 import PlantMasterList from './admin/plantlist'
@@ -244,7 +243,7 @@ function App() {
             } 
           />
           
-          {/* Costing - Now shared between Admin and Finance */}
+          {/* Costing - Shared between Admin and Finance */}
           <Route 
             path="/costing/admin" 
             element={
@@ -301,103 +300,46 @@ function App() {
             } 
           />
 
-          <Route path='/admincalendar' element={
-            <ProtectedRoute user={user} allowedRoles="Admin">
-              <AdminCalendar userType="admin" userId={user?.uid} />
-            </ProtectedRoute>
-          } />
-
-          <Route path='/admincalendar/admin' element={
-            <ProtectedRoute user={user} allowedRoles="Admin">
-              <AdminCalendar userType="admin" userId={user?.uid} />
-            </ProtectedRoute>
-          } />
-
-          <Route path='/farmercalendar' element={
-            <ProtectedRoute user={user} allowedRoles="Farmer">
-              <FarmerCalendar userType="farmer" userId={user?.uid} />
-            </ProtectedRoute>
-          } />
+          {/* Calendar */}
+          <Route 
+            path="/admincalendar" 
+            element={
+              <ProtectedRoute user={user} allowedRoles="Admin">
+                <AdminCalendar userType="admin" userId={user?.uid} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admincalendar/admin" 
+            element={
+              <ProtectedRoute user={user} allowedRoles="Admin">
+                <AdminCalendar userType="admin" userId={user?.uid} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/farmercalendar" 
+            element={
+              <ProtectedRoute user={user} allowedRoles="Farmer">
+                <FarmerCalendar userType="farmer" userId={user?.uid} />
+              </ProtectedRoute>
+            } 
+          />
 
           
-          {/* Greenhouse - ADMIN ONLY */}
+          {/* Greenhouse - Shared between Admin and Farmer (FIXED) */}
+
+          {/* Admin Specific Greenhouse Route */}
           <Route 
-            path="/greenhousecontrols" 
+            path="/greenhousecontrols/admin" 
             element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Greenhouse 
-                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
-                  user={user} 
-                />
+              <ProtectedRoute user={user} allowedRoles="Admin">
+                <Greenhouse userType="admin" user={user} />
               </ProtectedRoute>
             } 
           />
 
-          <Route 
-            path="/farmer/greenhouse" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <Greenhouse userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-
-          <Route 
-            path="/greenhousecontrols/farmer" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <Greenhouse userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-
-          <Route 
-            path="/greenhousecontrols" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Greenhouse 
-                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
-                  user={user} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-
-
-          <Route 
-            path="/greenhousecontrols" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Greenhouse 
-                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
-                  user={user} 
-                />
-
-              </ProtectedRoute>
-            } 
-          />
-          {/* Farmer Sensors - Already exists */}
-          <Route 
-            path="/farmer/sensors" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <Sensors userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-
-          <Route 
-            path="/greenhousecontrols" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Greenhouse 
-                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
-                  user={user} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-
+          {/* Farmer Specific Greenhouse Route */}
           <Route 
             path="/greenhousecontrols/farmer" 
             element={
@@ -411,6 +353,19 @@ function App() {
             element={
               <ProtectedRoute user={user} allowedRoles="Farmer">
                 <Greenhouse userType="farmer" user={user} />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Generic Greenhouse Route (Determines userType based on role) */}
+          <Route 
+            path="/greenhousecontrols" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+                <Greenhouse 
+                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
+                  user={user} 
+                />
               </ProtectedRoute>
             } 
           />
@@ -483,19 +438,6 @@ function App() {
               </ProtectedRoute>
             } 
           />
-
-          <Route 
-            path="/sensors" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Sensors 
-                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
-                  user={user} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-
           <Route 
             path="/sensors" 
             element={
@@ -509,12 +451,12 @@ function App() {
           />
 
           {/* ============================================ */}
-          {/* CALENDAR ROUTES (ADMIN & FARMER) */}
+          {/* CALENDAR ROUTES (ADMIN & FARMER) - Consolidated */}
           {/* ============================================ */}
           <Route 
             path="/calendar/admin" 
             element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+              <ProtectedRoute user={user} allowedRoles={"Admin"}>
                 <AdminCalendar userType="admin" userId={user?.uid} />
               </ProtectedRoute>
             } 
@@ -523,7 +465,7 @@ function App() {
             path="/calendar/farmer" 
             element={
               <ProtectedRoute user={user} allowedRoles="Farmer">
-                <AdminCalendar userType="farmer" userId={user?.uid} />
+                <FarmerCalendar userType="farmer" userId={user?.uid} />
               </ProtectedRoute>
             } 
           />
@@ -531,10 +473,11 @@ function App() {
             path="/calendar" 
             element={
               <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <AdminCalendar 
-                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
-                  userId={user?.uid}
-                />
+                {user?.role?.toLowerCase() === 'farmer' ? (
+                  <FarmerCalendar userType="farmer" userId={user?.uid} />
+                ) : (
+                  <AdminCalendar userType="admin" userId={user?.uid} />
+                )}
               </ProtectedRoute>
             } 
           />
@@ -567,14 +510,6 @@ function App() {
             } 
           />
           <Route 
-            path="/farmercalendar" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <FarmerCalendar userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
             path="/farmer/inventory" 
             element={
               <ProtectedRoute user={user} allowedRoles="Farmer">
@@ -582,14 +517,7 @@ function App() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/farmer/sensors" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <Sensors userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
+          {/* /farmer/sensors is already defined above */}
 
           {/* ============================================ */}
           {/* FINANCE ROUTES */}
@@ -618,7 +546,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          {/* Finance Costing - Now uses Admin Costing component */}
+          {/* Finance Costing - Uses shared Costing component */}
           <Route 
             path="/finance/costing-pricing" 
             element={
