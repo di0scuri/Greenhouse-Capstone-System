@@ -12,7 +12,8 @@ import {
   FaPercentage,
   FaArrowUp,
   FaArrowDown,
-  FaArrowRight
+  FaArrowRight,
+  FaSeedling
 } from 'react-icons/fa'
 
 const Costing = ({ userType = 'admin' }) => {
