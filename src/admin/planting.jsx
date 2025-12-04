@@ -70,9 +70,6 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     survivingPlants: ''
   })
 
-  const selectedPlantInfo = selectedPlant ? plantsList[selectedPlant.plantType] : null;
-  const idealRanges = extractIdealRanges(selectedPlantInfo);
-
 
   const getStatusAndClass = (currentValue, min, max) => {
   if (currentValue === undefined || min === undefined || max === undefined) {
@@ -236,6 +233,14 @@ const ParameterBar = ({ label, currentValue, idealRange, unit = '' }) => {
   const [sensorStatus, setSensorStatus] = useState(null)
   const [rankedPlants, setRankedPlants] = useState([])
   const [loadingSensorStatus, setLoadingSensorStatus] = useState(false)
+
+  const selectedPlantInfo = React.useMemo(() => {
+    return selectedPlant ? plantsList[selectedPlant.plantType] : null;
+  }, [selectedPlant, plantsList]);
+
+  const idealRanges = React.useMemo(() => {
+    return extractIdealRanges(selectedPlantInfo)
+  }, [selectedPlantInfo]);
 
   const locationZoneOptions = ['Closed Greenhouse', 'Nursery 1', 'Nursery 2']
   
