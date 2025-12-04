@@ -82,7 +82,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, userType = 'admin' }) => {
       'Sensors': '/sensors/admin',
       'Production': '/production/admin',
       'Plant List': '/plantlist',
-      'Settings': '/settings/admin',
+      'User Management': '/settings/admin',
     }
     
     // Farmer routes
@@ -128,7 +128,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, userType = 'admin' }) => {
     if (path.includes('/calendar')) return 'Calendar'
     if (path.includes('/sensors')) return 'Sensors'
     if (path.includes('/greenhousecontrols')) return 'Greenhouse'
-    if (path.includes('/settings')) return 'Settings'
+    if (path.includes('/settings')) return 'User Management'
     if (path.includes('/plantlist')) return 'Plant List'
     if (path.includes('/production')) return 'Production'
     
@@ -171,7 +171,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, userType = 'admin' }) => {
         { name: 'Greenhouse', icon: GiGreenhouse },
         { name: 'Costing & Pricing', icon: HiOutlineCurrencyDollar },        
         { name: 'Plant List', icon: HiOutlineClipboardList },
-        { name: 'Settings', icon: HiOutlineCog },
+        { name: 'User Management', icon: HiOutlineCog },
       ]
     }
   }
