@@ -70,6 +70,45 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     survivingPlants: ''
   })
 
+  const ParameterBar = ({ label, currentValue, idealRange, unit, type }) => {
+  const { min, max } = idealRange;
+  const percentage = calculateRelativePercentage(currentValue, min, max);
+  const { className } = getStatusAndClass(percentage);
+
+  // Clamps the visible bar to 0-100 for visual fit, but the class indicates true status
+  const barWidth = Math.max(0, Math.min(100, percentage)); 
+
+  return (
+    <div className="param-bar-item">
+      <div className="param-label">
+        <span className="param-name">{label}</span>
+        <span className="param-value">{currentValue} {unit}</span>
+      </div>
+      <div className="progress-bar-wrapper">
+        <div className={`progress-bar-fill ${className}`} style={{ width: `${barWidth}%` }}></div>
+        {/* Optional: Add a visual indicator for the exact center of the ideal range */}
+        <div className="ideal-range-marker" style={{ left: '50%' }}></div>
+      </div>
+      <p className={`param-status ${className}`}>{min} - {max} {unit}</p>
+    </div>
+  );
+};
+
+  const getStatusAndClass = (percentage) => {
+  if (percentage < 0) {
+    return { status: 'Low', className: 'status-low' };
+  } else if (percentage > 100) {
+    return { status: 'High', className: 'status-high' };
+  } else {
+    return { status: 'Optimal', className: 'status-optimal' };
+  }
+};
+
+  const calculateRelativePercentage = (currentValue, min, max) => {
+  if (min === max) return 50; // Avoid division by zero
+  return ((currentValue - min) / (max - min)) * 100;
+};
+
   // Custom Alert State
   const [alertConfig, setAlertConfig] = useState({
     show: false,
@@ -115,6 +154,16 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const [plantEvents, setPlantEvents] = useState([])
   const [customPlotSize, setCustomPlotSize] = useState({ length: 30, width: 20 })
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const [manualSoilData, setManualSoilData] = useState({
+    nitrogen: '',
+    phosphorus: '',
+    potassium: '',
+    ph: '',
+    temperature: '',
+    moisture: '',
+    conductivity: ''
+  })
 
   // Sensor status and ranking states
   const [sensorStatus, setSensorStatus] = useState(null)
@@ -187,6 +236,18 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     )
   }
 
+
+  // New function to handle input changes for manual soil data
+const handleManualSoilDataChange = (e) => {
+  const { name, value } = e.target
+  // Only allow numbers and decimal points
+  if (value === '' || /^\d*\.?\d*$/.test(value)) {
+    setManualSoilData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+}
 const parsePlotSizeToM2 = (plotSizeStr) => {
   if (!plotSizeStr) {
     console.warn("parsePlotSizeToM2: No plot size string provided");
@@ -1363,6 +1424,90 @@ const fetchPlantEvents = async (plantId) => {
     return stages[stages.length - 1].stage
   }
 
+  // NEW FUNCTION: handleAddPlotNextStep
+const handleAddPlotNextStep = async () => {
+    
+  if (plotStep === 'selectSensor') {
+    
+    // 1. Determine the current soil data source
+    let currentSoilData = null
+    
+    if (selectedSoilSensor) {
+      // A sensor is selected, use the data fetched in sensorData state
+      currentSoilData = sensorData 
+    } else {
+      // No sensor selected, check for manual input
+      const { nitrogen, phosphorus, potassium, ph, temperature, moisture, conductivity } = manualSoilData
+      
+      // Check if all manual fields are non-empty
+      if (!nitrogen || !phosphorus || !potassium || !ph || !temperature || !moisture || !conductivity) {
+        showAlert({
+          type: 'warning',
+          title: 'Missing Soil Data',
+          message: 'Please fill in all manual soil test results (NPK, pH, Temperature, Moisture, Conductivity) or select a sensor.',
+          confirmText: 'OK'
+        })
+        return
+      }
+
+      // Convert string inputs to numbers and use them
+      currentSoilData = {
+        nitrogen: parseFloat(nitrogen),
+        phosphorus: parseFloat(phosphorus),
+        potassium: parseFloat(potassium),
+        ph: parseFloat(ph),
+        temperature: parseFloat(temperature),
+        moisture: parseFloat(moisture),
+        conductivity: parseFloat(conductivity)
+      }
+    }
+    
+    // 2. Validate and proceed with the determined data
+    if (!currentSoilData) {
+      showAlert({
+        type: 'error',
+        title: 'Soil Data Error',
+        message: 'Could not retrieve or process soil data. Please check sensor status or manual inputs.',
+        confirmText: 'OK'
+      })
+      return
+    }
+
+    const plantInfo = plantsList[selectedPlantType]
+    
+    if (!plantInfo) {
+      showAlert({
+        type: 'error',
+        title: 'Invalid Plant Type',
+        message: 'Could not find compatibility information for the selected plant type.',
+        confirmText: 'OK'
+      })
+      return
+    }
+
+    // Proceed with ranking and recommendation using currentSoilData
+    const ranked = rankPlantsBySensorData(currentSoilData, plantsList)
+    setRankedPlants(ranked)
+    
+    setRecommendedSeedlings(calculateRecommendedSeedlings(selectedPlantType, calculatePlotSize(customPlotSize.length, customPlotSize.width)))
+    
+    // Store the data that was used (either sensor or manual) in sensorData state for consistent use in later steps
+    setSensorData(currentSoilData) 
+    setPlotStep('recommendation')
+    return
+  }
+  
+  if (plotStep === 'recommendation') {
+    // Logic to move from recommendation to confirm
+    setPlotStep('confirm')
+  }
+
+  if (plotStep === 'confirm') {
+    // Logic to submit the new plot data
+    await handleSavePlant()
+  }
+}
+
   const handleOpenAddPlotModal = () => {
     const availablePlots = getAvailablePlots()
     
@@ -1393,6 +1538,16 @@ const fetchPlantEvents = async (plantId) => {
     setSensorStatus(null)
     setRankedPlants([])
     setIsSubmitting(false)
+
+    setManualSoilData({ 
+    nitrogen: '', 
+    phosphorus: '', 
+    potassium: '', 
+    ph: '', 
+    temperature: '', 
+    moisture: '', 
+    conductivity: '' 
+  })
   }
 
   const handleCloseAddPlotModal = () => {
@@ -1407,6 +1562,8 @@ const fetchPlantEvents = async (plantId) => {
     setRankedPlants([])
     setIsSubmitting(false)
   }
+
+  
 
   const handlePlotSelect = (plotNum) => {
     if (isPlotOccupied(plotNum)) {
@@ -3421,7 +3578,55 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                     <span>🕐 {plant.daysToHarvest} days</span>
                                     <span>💰 ₱{plant.pricing} {plant.pricingUnit}</span>
                                   </div>
+
+                                  <div className="plant-health-parameters">
+                                    <ParameterBar 
+                                        label="Nitrogen (N)" 
+                                        currentValue={plant.latestData?.N} 
+                                        idealRange={plant.idealRanges?.N || defaultIdealRanges.N} 
+                                        unit="ppm" 
+                                    />
+                                    <ParameterBar 
+                                        label="Phosphorus (P)" 
+                                        currentValue={plant.latestData?.P} 
+                                        idealRange={plant.idealRanges?.P || defaultIdealRanges.P} 
+                                        unit="ppm" 
+                                    />
+                                    <ParameterBar 
+                                        label="Potassium (K)" 
+                                        currentValue={plant.latestData?.K} 
+                                        idealRange={plant.idealRanges?.K || defaultIdealRanges.K} 
+                                        unit="ppm" 
+                                    />
+                                    <ParameterBar 
+                                        label="pH" 
+                                        currentValue={plant.latestData?.pH} 
+                                        idealRange={plant.idealRanges?.pH || defaultIdealRanges.pH} 
+                                        unit="" 
+                                    />
+                                    <ParameterBar 
+                                        label="EC" 
+                                        currentValue={plant.latestData?.eC} 
+                                        idealRange={plant.idealRanges?.eC || defaultIdealRanges.eC} 
+                                        unit="mS/cm"
+                                    />
+                                    <ParameterBar 
+                                        label="Moisture" 
+                                        currentValue={plant.latestData?.moisture} 
+                                        idealRange={plant.idealRanges?.moisture || defaultIdealRanges.moisture} 
+                                        unit="%"
+                                    />
+                                    <ParameterBar 
+                                        label="Temp" 
+                                        currentValue={plant.latestData?.temp} 
+                                        idealRange={plant.idealRanges?.temp || defaultIdealRanges.temp} 
+                                        unit="°C"
+                                    />
+                                    {/* NPK Parameters - assuming individual values are available */}
+                                    
                                 </div>
+                                </div>
+                                
                               ))}
                             </div>
                           ) : (
