@@ -20,6 +20,11 @@
   border-bottom: 1px solid #e5e7eb; /* Match dashboard border */
 }
 
+.costing-legend-dot.green {
+  background-color: #4CAF50;
+}
+
+
 .costing-title {
   font-size: 26px;
   font-weight: 600;

@@ -22,6 +22,7 @@ const Costing = ({ userType = 'admin' }) => {
   const [plantExpenses, setPlantExpenses] = useState([])
   const [inventoryLogs, setInventoryLogs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [harvests, setHarvests] = useState([])
   const [financialData, setFinancialData] = useState({
     revenue: 0,
     expenses: 0,
@@ -92,14 +93,20 @@ const Costing = ({ userType = 'admin' }) => {
     }
   }
 
+  
+
   // Calculate financial metrics from production costs, inventory logs, and plant expenses
-  const calculateFinancialData = (costs, logs, expenses) => {
-    let totalRevenue = 0
-    let totalExpenses = 0
-    let totalProductionCost = 0
-    let totalLaborCost = 0
-    let totalSeedCost = 0
-    let totalFertilizer = 0
+  const calculateFinancialData = (costs, logs, expenses, harvests) => {
+  let totalRevenue = 0
+  let totalExpenses = 0
+  let totalProductionCost = 0
+  let totalLaborCost = 0
+  let totalSeedCost = 0
+  let totalFertilizer = 0
+  let totalHarvestRevenue = 0
+  let totalHarvestProfit = 0
+  let totalROI = 0
+  let harvestCount = 0
 
     // Calculate production costs
     costs.forEach(cost => {
@@ -149,19 +156,43 @@ const Costing = ({ userType = 'admin' }) => {
 
     })
 
+    harvests.forEach(harvest => {
+    // Add harvest revenue to total revenue
+    const harvestRevenue = harvest.totalRevenue || 0
+    const productionCost = harvest.productionCost || 0
+    const profit = harvest.profit || 0
+    const roi = harvest.roi || 0
+    
+    totalHarvestRevenue += harvestRevenue
+    totalHarvestProfit += profit
+    totalROI += roi
+    harvestCount++
+    
+    totalRevenue += harvestRevenue
+    
+    // Note: productionCost from harvests might already be counted in production costs
+    // If you want to avoid double counting, you may need additional logic
+  })
+
+  const averageROI = harvestCount > 0 ? (totalROI / harvestCount) : 0
+
+
     const netProfit = totalRevenue - totalExpenses
     const roi = totalExpenses > 0 ? ((netProfit / totalExpenses) * 100) : 0
 
     setFinancialData({
-      revenue: totalRevenue,
-      expenses: totalExpenses,
-      netProfit: netProfit,
-      roi: roi,
-      totalProductionCost: totalProductionCost,
-      totalLaborCost: totalLaborCost,
-      totalSeedCost: totalSeedCost,
-      totalFertilizer: totalFertilizer
-    })
+    revenue: totalRevenue,
+    expenses: totalExpenses,
+    netProfit: netProfit,
+    roi: roi,
+    totalProductionCost: totalProductionCost,
+    totalLaborCost: totalLaborCost,
+    totalSeedCost: totalSeedCost,
+    totalFertilizer: totalFertilizer,
+    totalHarvestRevenue: totalHarvestRevenue,
+    totalHarvestProfit: totalHarvestProfit,
+    averageROI: averageROI
+  })
   }
 
   // Generate chart data based on view mode
@@ -173,7 +204,8 @@ const Costing = ({ userType = 'admin' }) => {
         month: month.toLocaleDateString('en-US', { month: 'short' }),
         revenue: 0,
         expenses: 0,
-        productionCosts: 0
+        productionCosts: 0,
+        harvestRevenue: 0
       }
     })
 
@@ -211,6 +243,15 @@ const Costing = ({ userType = 'admin' }) => {
       }
     })
 
+    harvests.forEach(harvest => {
+    const harvestDate = harvest.harvestDate
+    if (harvestDate.getFullYear() === now.getFullYear()) {
+      const monthIndex = harvestDate.getMonth()
+      monthlyData[monthIndex].revenue += harvest.totalRevenue || 0
+      monthlyData[monthIndex].harvestRevenue += harvest.totalRevenue || 0
+    }
+  })
+
     setChartData(monthlyData)
   }
 
@@ -242,42 +283,58 @@ const Costing = ({ userType = 'admin' }) => {
       'DAMAGE': 'expense'
     }
 
+    const harvestToType = 'Harvest Sale'
+
     // Combine production costs, plant expenses, and inventory logs
     const allTransactions = [
-      ...productionCosts.map(cost => ({
-        id: cost.id,
-        date: cost.createdAt,
-        itemName: cost.plantName || 'Production',
-        type: 'Production Cost',
-        quantity: cost.areaOccupied || 0,
-        unit: 'm²',
-        amount: cost.totalCost,
-        status: 'expense',
-        details: cost
-      })),
+    ...productionCosts.map(cost => ({
+      id: cost.id,
+      date: cost.createdAt,
+      itemName: cost.plantName || 'Production',
+      type: 'Production Cost',
+      quantity: cost.areaOccupied || 0,
+      unit: 'm²',
+      amount: cost.totalCost,
+      status: 'expense',
+      details: cost
+    })),
       ...plantExpenses.map(expense => ({
-        id: expense.id,
-        date: expense.date,
-        itemName: expense.plantName || 'Plant Expense',
-        type: expense.category || 'Expense',
-        quantity: 1,
-        unit: 'item',
-        amount: expense.amount,
-        status: 'expense',
-        details: expense
-      })),
-      ...inventoryLogs.map(log => ({
-        id: log.id,
-        date: log.timestamp,
-        itemName: log.itemName || 'Unknown Item',
-        type: actionToType[log.action] || log.action || 'Unknown',
-        quantity: Math.abs(log.quantityChange || 0),
-        unit: log.unit || 'units',
-        amount: log.cost || 0,
-        status: actionToStatus[log.action] || 'neutral',
-        details: log
-      }))
-    ]
+      id: expense.id,
+      date: expense.date,
+      itemName: expense.plantName || 'Plant Expense',
+      type: expense.category || 'Expense',
+      quantity: 1,
+      unit: 'item',
+      amount: expense.amount,
+      status: 'expense',
+      details: expense
+    })),
+    ...inventoryLogs.map(log => ({
+      id: log.id,
+      date: log.timestamp,
+      itemName: log.itemName || 'Unknown Item',
+      type: actionToType[log.action] || log.action || 'Unknown',
+      quantity: Math.abs(log.quantityChange || 0),
+      unit: log.unit || 'units',
+      amount: log.cost || 0,
+      status: actionToStatus[log.action] || 'neutral',
+      details: log
+    })),
+    // Add harvests transactions
+    ...harvests.map(harvest => ({
+      id: harvest.id,
+      date: harvest.harvestDate,
+      itemName: harvest.plantName || 'Harvest',
+      type: 'Harvest Sale',
+      quantity: harvest.actualYield || 0,
+      unit: harvest.yieldUnit || 'kg',
+      amount: harvest.totalRevenue || 0,
+      status: 'revenue', // Harvest is revenue
+      profit: harvest.profit || 0,
+      roi: harvest.roi || 0,
+      details: harvest
+    }))
+  ]
 
     // Sort by date and filter by search term
     return allTransactions
@@ -357,7 +414,24 @@ const Costing = ({ userType = 'admin' }) => {
       change: formatPercentage(1.5),
       changeType: 'positive',
       changeIcon: <FaArrowUp />
-    }
+    },
+    {
+    icon: <FaSeedling />, // Add import for FaSeedling at top
+    title: 'Harvest Revenue',
+    amount: formatCurrency(financialData.totalHarvestRevenue),
+    since: 'From harvest sales',
+    change: formatPercentage(12.3), // You can calculate real change
+    changeType: 'positive',
+    changeIcon: <FaArrowUp />
+  },{
+    icon: <FaMoneyBillWave />, // Add import for FaMoneyBillWave at top
+    title: 'Harvest Profit',
+    amount: formatCurrency(financialData.totalHarvestProfit),
+    since: 'Harvest revenue - cost',
+    change: formatPercentage(financialData.averageROI),
+    changeType: financialData.totalHarvestProfit >= 0 ? 'positive' : 'negative',
+    changeIcon: financialData.totalHarvestProfit >= 0 ? <FaArrowUp /> : <FaArrowDown />
+  } 
   ]
 
   const recentTransactions = getRecentTransactions()
@@ -497,6 +571,10 @@ const Costing = ({ userType = 'admin' }) => {
                           <span className="costing-legend-dot red"></span>
                           <span>Expenses</span>
                         </div>
+                        <div className="costing-legend-item">
+                          <span className="costing-legend-dot green"></span>
+                          <span>Harvest Revenue</span>
+                        </div>
                       </div>
                       <select 
                         className="costing-view-select"
@@ -550,6 +628,13 @@ const Costing = ({ userType = 'admin' }) => {
                               stroke="#E94B3C"
                               strokeWidth="3"
                             />
+                            <path
+                                d={generatePath(chartData, 'harvestRevenue', maxChartValue)}
+                                fill="none"
+                                stroke="#4CAF50"
+                                strokeWidth="3"
+                                strokeDasharray="5,5"
+                              />
                             
                             {/* Data points for current values */}
                             {chartData.map((data, index) => (

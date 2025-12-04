@@ -4412,14 +4412,6 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                     ))}
                   </div>
                 </div>
-
-                <div className="price-note">
-                  <p>
-                    <MdInfo style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                    <strong>Pricing Tip:</strong> This recommendation is based on current market trends 
-                    and your crop information. Adjust based on local demand and seasonality.
-                  </p>
-                </div>
               </div>
 
               <div className="planting-modal-footer">

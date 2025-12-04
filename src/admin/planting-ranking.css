@@ -374,10 +374,6 @@
     font-weight: bold;
 }
 
-.param-value {
-    /* Current value display */
-}
-
 .progress-bar-wrapper {
     position: relative;
     height: 6px;
