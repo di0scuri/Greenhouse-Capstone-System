@@ -46,116 +46,153 @@ const Sensors = ({ userType = 'admin' }) => {
   }
 
   // Fetch all sensors from Firebase Realtime Database
-  const fetchSensors = async () => {
-    setLoading(true)
-    try {
-      const rtdb = getDatabase()
-      const sensorsRef = ref(rtdb)
-      const snapshot = await get(sensorsRef)
+  // Updated fetchSensors function
+const fetchSensors = async () => {
+  setLoading(true)
+  try {
+    const rtdb = getDatabase()
+    const sensorsRef = ref(rtdb)
+    const snapshot = await get(sensorsRef)
+    
+    if (snapshot.exists()) {
+      const data = snapshot.val()
+      const sensorsArray = []
       
-      if (snapshot.exists()) {
-        const data = snapshot.val()
-        const sensorsArray = []
-        
-        // Look for SoilSensor, SoilSensor2, SoilSensor3, etc.
-        Object.keys(data).forEach(key => {
-          if (key.startsWith('SoilSensor') || key === 'SoilSensor') {
-            const sensorData = data[key]
+      // Look for SoilSensor, SoilSensor2, SoilSensor3, etc.
+      Object.keys(data).forEach(key => {
+        if (key.startsWith('SoilSensor') || key === 'SoilSensor') {
+          const sensorData = data[key]
+          
+          // Determine sensor number for moisture mapping
+          const sensorNumber = key === 'SoilSensor' ? '1' : key.replace('SoilSensor', '')
+          const moistureKey = `Moisture${sensorNumber}`
+          const moistureData = data.Moisture?.[moistureKey] || {}
+          
+          let latestReading = null
+          let latestTimestamp = new Date(0)
+          let readingCount = 0
+          const history = []
+          
+          // Process all readings from SoilSensor
+          Object.keys(sensorData).forEach(readingKey => {
+            if (readingKey === 'metadata' || readingKey === 'config' || readingKey === 'location') {
+              return
+            }
             
-            let latestReading = null
-            let latestTimestamp = new Date(0) // Start with epoch
-            let readingCount = 0
-            const history = []
+            const reading = sensorData[readingKey]
+            if (typeof reading !== 'object' || reading === null) {
+              return
+            }
             
-            // Process all readings
-            Object.keys(sensorData).forEach(readingKey => {
-              // Skip metadata and configuration fields
-              if (readingKey === 'metadata' || readingKey === 'config' || readingKey === 'location') {
+            readingCount++
+            const timestamp = parseTimestamp(readingKey, reading)
+            
+            // Try to find corresponding moisture reading by timestamp
+            let moistureValue = reading.Moisture || reading.moisture || 0
+            
+            // If no moisture in sensor reading, check Moisture node
+            if (!moistureValue && moistureData) {
+              // Look for matching timestamp in moisture data
+              const moistureReading = moistureData[readingKey]
+              if (moistureReading && typeof moistureReading === 'object') {
+                moistureValue = moistureReading.Moisture || moistureReading.moisture || moistureReading.value || 0
+              }
+            }
+            
+            const historyEntry = {
+              id: readingKey,
+              timestamp,
+              nitrogen: reading.Nitrogen || reading.nitrogen || reading.N || 0,
+              phosphorus: reading.Phosphorus || reading.phosphorus || reading.P || 0,
+              potassium: reading.Potassium || reading.potassium || reading.K || 0,
+              ph: reading.pH || reading.ph || 0,
+              temperature: reading.Temperature || reading.temperature || reading.temp || 0,
+              conductivity: reading.Conductivity || reading.conductivity || 0,
+              moisture: moistureValue
+            }
+            
+            history.push(historyEntry)
+            
+            if (timestamp > latestTimestamp) {
+              latestTimestamp = timestamp
+              latestReading = { ...historyEntry }
+            }
+          })
+          
+          // Also process standalone moisture readings that might not have corresponding NPK data
+          if (moistureData) {
+            Object.keys(moistureData).forEach(moistureKey => {
+              const moistureReading = moistureData[moistureKey]
+              if (typeof moistureReading !== 'object' || moistureReading === null) {
                 return
               }
               
-              const reading = sensorData[readingKey]
-              
-              // Skip if not a valid reading object
-              if (typeof reading !== 'object' || reading === null) {
-                return
-              }
-              
-              readingCount++
-              
-              // Parse timestamp
-              const timestamp = parseTimestamp(readingKey, reading)
-              
-              // Build history entry
-              const historyEntry = {
-                id: readingKey,
-                timestamp,
-                nitrogen: reading.Nitrogen || reading.nitrogen || reading.N || 0,
-                phosphorus: reading.Phosphorus || reading.phosphorus || reading.P || 0,
-                potassium: reading.Potassium || reading.potassium || reading.K || 0,
-                ph: reading.pH || reading.ph || 0,
-                temperature: reading.Temperature || reading.temperature || reading.temp || 0,
-                conductivity: reading.Conductivity || reading.conductivity || 0,
-                moisture: reading.Moisture || reading.moisture || 0
-              }
-              
-              history.push(historyEntry)
-              
-              // Check if this is the latest reading
-              if (timestamp > latestTimestamp) {
-                latestTimestamp = timestamp
-                latestReading = {
+              // Check if this timestamp already exists in history
+              const existingReading = history.find(h => h.id === moistureKey)
+              if (!existingReading) {
+                const timestamp = parseTimestamp(moistureKey, moistureReading)
+                const moistureValue = moistureReading.Moisture || moistureReading.moisture || moistureReading.value || 0
+                
+                const historyEntry = {
+                  id: moistureKey,
                   timestamp,
-                  nitrogen: historyEntry.nitrogen,
-                  phosphorus: historyEntry.phosphorus,
-                  potassium: historyEntry.potassium,
-                  ph: historyEntry.ph,
-                  temperature: historyEntry.temperature,
-                  conductivity: historyEntry.conductivity,
-                  moisture: historyEntry.moisture
+                  nitrogen: 0,
+                  phosphorus: 0,
+                  potassium: 0,
+                  ph: 0,
+                  temperature: 0,
+                  conductivity: 0,
+                  moisture: moistureValue
+                }
+                
+                history.push(historyEntry)
+                readingCount++
+                
+                if (timestamp > latestTimestamp) {
+                  latestTimestamp = timestamp
+                  latestReading = { ...historyEntry }
                 }
               }
             })
-            
-            if (latestReading && readingCount > 0) {
-              sensorsArray.push({
-                id: key,
-                name: `NPK Sensor - ${key}`,
-                location: sensorData.location || `Greenhouse ${key.replace('SoilSensor', '') || '1'}`,
-                status: 'active',
-                lastReading: latestReading.timestamp,
-                latestValues: {
-                  nitrogen: latestReading.nitrogen,
-                  phosphorus: latestReading.phosphorus,
-                  potassium: latestReading.potassium,
-                  ph: latestReading.ph,
-                  temperature: latestReading.temperature,
-                  conductivity: latestReading.conductivity,
-                  moisture: latestReading.moisture
-                },
-                readingCount,
-                history: history.sort((a, b) => b.timestamp - a.timestamp)
-              })
-            }
           }
-        })
-        
-        // Sort sensors by name/id
-        sensorsArray.sort((a, b) => a.id.localeCompare(b.id))
-        
-        setSensors(sensorsArray)
-        console.log(`Loaded ${sensorsArray.length} sensors with ${sensorsArray.reduce((sum, s) => sum + s.readingCount, 0)} total readings`)
-      } else {
-        setSensors([])
-        console.log('No sensor data found in Firebase')
-      }
-    } catch (error) {
-      console.error('Error fetching sensors from RTDB:', error)
+          
+          if (latestReading && readingCount > 0) {
+            sensorsArray.push({
+              id: key,
+              name: `NPK Sensor - ${key}`,
+              location: sensorData.location || `Greenhouse ${sensorNumber}`,
+              status: 'active',
+              lastReading: latestReading.timestamp,
+              latestValues: {
+                nitrogen: latestReading.nitrogen,
+                phosphorus: latestReading.phosphorus,
+                potassium: latestReading.potassium,
+                ph: latestReading.ph,
+                temperature: latestReading.temperature,
+                conductivity: latestReading.conductivity,
+                moisture: latestReading.moisture
+              },
+              readingCount,
+              history: history.sort((a, b) => b.timestamp - a.timestamp)
+            })
+          }
+        }
+      })
+      
+      sensorsArray.sort((a, b) => a.id.localeCompare(b.id))
+      setSensors(sensorsArray)
+      console.log(`Loaded ${sensorsArray.length} sensors with ${sensorsArray.reduce((sum, s) => sum + s.readingCount, 0)} total readings`)
+    } else {
       setSensors([])
-    } finally {
-      setLoading(false)
+      console.log('No sensor data found in Firebase')
     }
+  } catch (error) {
+    console.error('Error fetching sensors from RTDB:', error)
+    setSensors([])
+  } finally {
+    setLoading(false)
   }
+}
 
   // Fetch sensor history for selected sensor
   const fetchSensorHistory = async (sensorId) => {
@@ -408,8 +445,14 @@ const Sensors = ({ userType = 'admin' }) => {
                       </span>
                       <span className="reading-value">{formatValue(sensor.latestValues.conductivity, ' µS/cm')}</span>
                     </div>
+                    <div className="reading-item">
+                      <span className="reading-label">
+                        <MdWaterDrop style={{ fontSize: '14px', marginRight: '4px' }} />
+                        Moisture
+                      </span>
+                      <span className="reading-value">{formatValue(sensor.latestValues.moisture, '%')}</span>
+                    </div>
                   </div>
-
                   <div className="sensor-footer">
                     <span className="last-reading">
                       Last: {sensor.lastReading.toLocaleString()}
@@ -516,6 +559,12 @@ const Sensors = ({ userType = 'admin' }) => {
                           <span className="value-number">{formatValue(selectedSensor.latestValues.temperature)}</span>
                           <span className="value-unit">°C</span>
                         </div>
+                        
+                        <div className="value-card moisture">
+                          <span className="value-label">Moisture</span>
+                          <span className="value-number">{formatValue(selectedSensor.latestValues.moisture)}</span>
+                          <span className="value-unit">%</span>
+                        </div>
                         <div className="value-card conductivity">
                           <span className="value-label">Conductivity</span>
                           <span className="value-number">{formatValue(selectedSensor.latestValues.conductivity)}</span>
@@ -534,6 +583,7 @@ const Sensors = ({ userType = 'admin' }) => {
                           <div>Potassium</div>
                           <div>pH</div>
                           <div>Temp</div>
+                          <div>Moisture</div>
                           <div>Conductivity</div>
                         </div>
                         <div className="table-body">
@@ -547,6 +597,7 @@ const Sensors = ({ userType = 'admin' }) => {
                               <div className="value-cell">{formatValue(reading.potassium)} ppm</div>
                               <div className="value-cell">{formatValue(reading.ph)}</div>
                               <div className="value-cell">{formatValue(reading.temperature)}°C</div>
+                              <div className="value-cell">{formatValue(reading.moisture)} %</div>
                               <div className="value-cell">{formatValue(reading.conductivity)} µS/cm</div>
                             </div>
                           ))}

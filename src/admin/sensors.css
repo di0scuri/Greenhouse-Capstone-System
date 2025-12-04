@@ -582,6 +582,10 @@
   border-left: 3px solid #06b6d4;
 }
 
+.value-card.moisture {
+  border-left: 3px solid #14b8a6;
+}
+
 /* ============ HISTORY TABLE ============ */
 .history-table-container {
   background: #ffffff;
@@ -605,7 +609,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 180px repeat(6, 1fr);
+  grid-template-columns: 180px repeat(7, 1fr);
   gap: 12px;
   padding: 12px 16px;
   background: #f8fafc;
@@ -626,7 +630,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 180px repeat(6, 1fr);
+  grid-template-columns: 180px repeat(7, 1fr);
   gap: 12px;
   padding: 12px 16px;
   border-bottom: 1px solid #f1f5f9;
