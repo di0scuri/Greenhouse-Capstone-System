@@ -314,6 +314,73 @@ const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2, returnWeight = false
     weightGrams: weightGrams
   };
 };
+
+
+// Add this function near your other helper functions (around line 400)
+const calculateNutrientPercentages = (sensorData, plantInfo) => {
+  if (!sensorData || !plantInfo || !plantInfo.stages || plantInfo.stages.length === 0) {
+    return null
+  }
+  
+  const firstStage = plantInfo.stages[0]
+  const percentages = {}
+  
+  // pH
+  if (firstStage.lowpH && firstStage.highpH && sensorData.ph) {
+    percentages.ph = calculateSensorPercentage(
+      sensorData.ph,
+      firstStage.lowpH,
+      firstStage.highpH
+    )
+  }
+  
+  // Nitrogen
+  if (firstStage.lowN && firstStage.highN && sensorData.nitrogen !== undefined) {
+    percentages.nitrogen = calculateSensorPercentage(
+      sensorData.nitrogen,
+      firstStage.lowN,
+      firstStage.highN
+    )
+  }
+  
+  // Phosphorus
+  if (firstStage.lowP && firstStage.highP && sensorData.phosphorus !== undefined) {
+    percentages.phosphorus = calculateSensorPercentage(
+      sensorData.phosphorus,
+      firstStage.lowP,
+      firstStage.highP
+    )
+  }
+  
+  // Potassium
+  if (firstStage.lowK && firstStage.highK && sensorData.potassium !== undefined) {
+    percentages.potassium = calculateSensorPercentage(
+      sensorData.potassium,
+      firstStage.lowK,
+      firstStage.highK
+    )
+  }
+  
+  // Temperature
+  if (firstStage.lowTemp && firstStage.highTemp && sensorData.temperature !== undefined) {
+    percentages.temperature = calculateSensorPercentage(
+      sensorData.temperature,
+      firstStage.lowTemp,
+      firstStage.highTemp
+    )
+  }
+  
+  // Moisture
+  if (firstStage.lowHum && firstStage.highHum && sensorData.moisture !== undefined) {
+    percentages.moisture = calculateSensorPercentage(
+      sensorData.moisture,
+      firstStage.lowHum,
+      firstStage.highHum
+    )
+  }
+  
+  return percentages
+}
   const closeAlert = () => {
     setAlertConfig(prev => ({ ...prev, show: false }))
   }
@@ -524,23 +591,25 @@ const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2, returnWeight = false
     return { text: 'Not Recommended', color: '#ef4444', stars: 1 }
   }
 
-  const rankPlantsBySensorData = (sensorData, plantsList) => {
-    if (!sensorData || !plantsList) return []
+const rankPlantsBySensorData = (sensorData, plantsList) => {
+  if (!sensorData || !plantsList) return []
+  
+  const rankedPlants = Object.entries(plantsList).map(([key, plant]) => {
+    const score = calculatePlantCompatibility(sensorData, plant)
+    const rating = getCompatibilityRating(score)
+    const nutrientPercentages = calculateNutrientPercentages(sensorData, plant) // NEW
     
-    const rankedPlants = Object.entries(plantsList).map(([key, plant]) => {
-      const score = calculatePlantCompatibility(sensorData, plant)
-      const rating = getCompatibilityRating(score)
-      
-      return {
-        key,
-        plant,
-        score,
-        rating
-      }
-    })
-    
-    return rankedPlants.sort((a, b) => b.score - a.score)
-  }
+    return {
+      key,
+      plant,
+      score,
+      rating,
+      nutrientPercentages // NEW
+    }
+  })
+  
+  return rankedPlants.sort((a, b) => b.score - a.score)
+}
 
 
   
@@ -3391,7 +3460,7 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                           
                           {rankedPlants.length > 0 ? (
                             <div className="ranked-plants-list">
-                              {rankedPlants.map(({ key, plant, score, rating }) => (
+                              {rankedPlants.map(({ key, plant, score, rating, nutrientPercentages }) => (
                                 <div
                                   key={key}
                                   className={`ranked-plant-item ${selectedPlantType === key ? 'selected' : ''}`}
@@ -3418,6 +3487,98 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                       {rating.text}
                                     </div>
                                   </div>
+                                  
+                                  {/* NEW: Nutrient Percentages Breakdown */}
+                                  {nutrientPercentages && (
+                                    <div className="nutrient-percentages" style={{
+                                      marginTop: '12px',
+                                      padding: '8px',
+                                      background: '#f8fafc',
+                                      borderRadius: '6px',
+                                      fontSize: '0.85em'
+                                    }}>
+                                      <div style={{ 
+                                        fontWeight: '600', 
+                                        marginBottom: '6px',
+                                        color: '#475569',
+                                        fontSize: '0.9em'
+                                      }}>
+                                        Soil Match Breakdown:
+                                      </div>
+                                      <div style={{ 
+                                        display: 'grid', 
+                                        gridTemplateColumns: 'repeat(2, 1fr)',
+                                        gap: '6px'
+                                      }}>
+                                        {nutrientPercentages.nitrogen !== undefined && (
+                                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ color: '#64748b' }}>Nitrogen:</span>
+                                            <span style={{ 
+                                              fontWeight: '600',
+                                              color: getPercentageColor(nutrientPercentages.nitrogen)
+                                            }}>
+                                              {nutrientPercentages.nitrogen.toFixed(0)}%
+                                            </span>
+                                          </div>
+                                        )}
+                                        {nutrientPercentages.phosphorus !== undefined && (
+                                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ color: '#64748b' }}>Phosphorus:</span>
+                                            <span style={{ 
+                                              fontWeight: '600',
+                                              color: getPercentageColor(nutrientPercentages.phosphorus)
+                                            }}>
+                                              {nutrientPercentages.phosphorus.toFixed(0)}%
+                                            </span>
+                                          </div>
+                                        )}
+                                        {nutrientPercentages.potassium !== undefined && (
+                                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ color: '#64748b' }}>Potassium:</span>
+                                            <span style={{ 
+                                              fontWeight: '600',
+                                              color: getPercentageColor(nutrientPercentages.potassium)
+                                            }}>
+                                              {nutrientPercentages.potassium.toFixed(0)}%
+                                            </span>
+                                          </div>
+                                        )}
+                                        {nutrientPercentages.ph !== undefined && (
+                                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ color: '#64748b' }}>pH:</span>
+                                            <span style={{ 
+                                              fontWeight: '600',
+                                              color: getPercentageColor(nutrientPercentages.ph)
+                                            }}>
+                                              {nutrientPercentages.ph.toFixed(0)}%
+                                            </span>
+                                          </div>
+                                        )}
+                                        {nutrientPercentages.temperature !== undefined && (
+                                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ color: '#64748b' }}>Temp:</span>
+                                            <span style={{ 
+                                              fontWeight: '600',
+                                              color: getPercentageColor(nutrientPercentages.temperature)
+                                            }}>
+                                              {nutrientPercentages.temperature.toFixed(0)}%
+                                            </span>
+                                          </div>
+                                        )}
+                                        {nutrientPercentages.moisture !== undefined && (
+                                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ color: '#64748b' }}>Moisture:</span>
+                                            <span style={{ 
+                                              fontWeight: '600',
+                                              color: getPercentageColor(nutrientPercentages.moisture)
+                                            }}>
+                                              {nutrientPercentages.moisture.toFixed(0)}%
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                   
                                   <div className="plant-quick-info">
                                     <span>🕐 {plant.daysToHarvest} days</span>
