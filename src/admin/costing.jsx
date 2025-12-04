@@ -16,6 +16,8 @@ import {
   FaSeedling
 } from 'react-icons/fa'
 
+
+// Costing Component
 const Costing = ({ userType = 'admin' }) => {
   const [activeMenu, setActiveMenu] = useState('Costing & Pricing')
   const [searchTerm, setSearchTerm] = useState('')
