@@ -73,106 +73,74 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
   const selectedPlantInfo = selectedPlant ? plantsList[selectedPlant.plantType] : null;
   const idealRanges = extractIdealRanges(selectedPlantInfo);
 
-  const ParameterBar = ({ label, currentValue, idealRange, unit = '' }) => {
-    const min = idealRange?.min;
-    const max = idealRange?.max;
-
-    const { status, className } = getStatusAndClass(currentValue, min, max);
-    
-    // Calculate the position of the dot on the bar based on the current value
-    const dotPosition = calculateRelativePercentage(currentValue, min, max);
-
-    // Format ideal range display
-    const idealRangeDisplay = (min !== undefined && max !== undefined) 
-        ? `${min} - ${max} ${unit}`
-        : 'N/A';
-
-    return (
-        <div className="param-bar-item">
-            <div className="param-label">
-                <span className="param-name">{label}</span>
-                <span className="param-value">{currentValue !== undefined ? `${currentValue} ${unit}` : 'N/A'}</span>
-            </div>
-            <div className="progress-bar-wrapper">
-                {/* The dot's position and color reflect the current reading relative to the ideal range */}
-                <div 
-                    className={`current-value-dot ${className}`} 
-                    style={{ left: `${dotPosition}%` }}
-                />
-            </div>
-            <div className={`param-status ${className}`}>
-                Status: {status} (Ideal: {idealRangeDisplay})
-            </div>
-        </div>
-    );
-};
-
-const extractIdealRanges = (plantInfo) => {
-    if (!plantInfo || !plantInfo.stages || plantInfo.stages.length === 0) {
-        return {};
-    }
-
-    // Use the first stage (stage[0]) for initial health parameter comparison 
-    // to align with the existing calculatePlantCompatibility logic.
-    const firstStage = plantInfo.stages[0];
-
-    const ranges = {};
-
-    // Map all relevant ranges from the stage data using the existing field names
-    if (firstStage.lowpH !== undefined && firstStage.highpH !== undefined) {
-        ranges.pH = { min: firstStage.lowpH, max: firstStage.highpH };
-    }
-    // Assuming lowEC/highEC exists in plantsList stages for EC data
-    if (firstStage.lowEC !== undefined && firstStage.highEC !== undefined) {
-        ranges.eC = { min: firstStage.lowEC, max: firstStage.highEC };
-    }
-    if (firstStage.lowHum !== undefined && firstStage.highHum !== undefined) {
-        // Moisture uses 'Hum' (Humidity) in the existing logic
-        ranges.moisture = { min: firstStage.lowHum, max: firstStage.highHum };
-    }
-    if (firstStage.lowTemp !== undefined && firstStage.highTemp !== undefined) {
-        ranges.temp = { min: firstStage.lowTemp, max: firstStage.highTemp };
-    }
-    if (firstStage.lowN !== undefined && firstStage.highN !== undefined) {
-        ranges.N = { min: firstStage.lowN, max: firstStage.highN };
-    }
-    if (firstStage.lowP !== undefined && firstStage.highP !== undefined) {
-        ranges.P = { min: firstStage.lowP, max: firstStage.highP };
-    }
-    if (firstStage.lowK !== undefined && firstStage.highK !== undefined) {
-        ranges.K = { min: firstStage.lowK, max: firstStage.highK };
-    }
-    
-    return ranges;
-};
 
   const getStatusAndClass = (currentValue, min, max) => {
-    if (currentValue === undefined || min === undefined || max === undefined) {
-        return { status: 'No Range Data', className: 'status-default' };
-    }
-    
-    if (currentValue < min) {
-        return { status: 'Too Low', className: 'status-low' };
-    } else if (currentValue > max) {
-        return { status: 'Too High', className: 'status-high' };
-    } else {
-        return { status: 'Optimal', className: 'status-optimal' };
-    }
+  if (currentValue === undefined || min === undefined || max === undefined) {
+      return { status: 'No Range Data', className: 'status-default' };
+  }
+  
+  if (currentValue < min) {
+      return { status: 'Too Low', className: 'status-low' };
+  } else if (currentValue > max) {
+      return { status: 'Too High', className: 'status-high' };
+  } else {
+      return { status: 'Optimal', className: 'status-optimal' };
+  }
 };
 
   const calculateRelativePercentage = (currentValue, min, max) => {
-    // Return 50% if range data is missing or invalid
-    if (min === max || min === undefined || max === undefined || currentValue === undefined) {
-        return 50; 
-    }
-    
-    // Normalize value between min and max
-    const normalizedValue = Math.max(min, Math.min(max, currentValue));
-    const range = max - min;
-    
-    // Calculate position (0% at min, 100% at max)
-    return ((normalizedValue - min) / range) * 100;
+  // Return 50% if range data is missing or invalid
+  if (min === max || min === undefined || max === undefined || currentValue === undefined) {
+      return 50; 
+  }
+  
+  // Normalize value between min and max
+  const normalizedValue = Math.max(min, Math.min(max, currentValue));
+  const range = max - min;
+  
+  // Calculate position (0% at min, 100% at max)
+  return ((normalizedValue - min) / range) * 100;
 };
+
+const extractIdealRanges = (plantInfo) => {
+  if (!plantInfo || !plantInfo.stages || plantInfo.stages.length === 0) {
+      return {};
+  }
+
+  // Use the first stage (stage[0]) for initial health parameter comparison 
+  // to align with the existing calculatePlantCompatibility logic.
+  const firstStage = plantInfo.stages[0];
+
+  const ranges = {};
+
+  // Map all relevant ranges from the stage data using the existing field names
+  if (firstStage.lowpH !== undefined && firstStage.highpH !== undefined) {
+      ranges.pH = { min: firstStage.lowpH, max: firstStage.highpH };
+  }
+  // Assuming lowEC/highEC exists in plantsList stages for EC data
+  if (firstStage.lowEC !== undefined && firstStage.highEC !== undefined) {
+      ranges.eC = { min: firstStage.lowEC, max: firstStage.highEC };
+  }
+  if (firstStage.lowHum !== undefined && firstStage.highHum !== undefined) {
+      // Moisture uses 'Hum' (Humidity) in the existing logic
+      ranges.moisture = { min: firstStage.lowHum, max: firstStage.highHum };
+  }
+  if (firstStage.lowTemp !== undefined && firstStage.highTemp !== undefined) {
+      ranges.temp = { min: firstStage.lowTemp, max: firstStage.highTemp };
+  }
+  if (firstStage.lowN !== undefined && firstStage.highN !== undefined) {
+      ranges.N = { min: firstStage.lowN, max: firstStage.highN };
+  }
+  if (firstStage.lowP !== undefined && firstStage.highP !== undefined) {
+      ranges.P = { min: firstStage.lowP, max: firstStage.highP };
+  }
+  if (firstStage.lowK !== undefined && firstStage.highK !== undefined) {
+      ranges.K = { min: firstStage.lowK, max: firstStage.highK };
+  }
+  
+  return ranges;
+};
+
 
   // Custom Alert State
   const [alertConfig, setAlertConfig] = useState({
@@ -204,6 +172,40 @@ const extractIdealRanges = (plantInfo) => {
   // 2. Navigate to the desired route
   navigate('/calendar/admin'); 
 };
+
+
+const ParameterBar = ({ label, currentValue, idealRange, unit = '' }) => {
+  const min = idealRange?.min;
+  const max = idealRange?.max;
+
+  const { status, className } = getStatusAndClass(currentValue, min, max);
+  
+  // Calculate the position of the dot on the bar based on the current value
+  const dotPosition = calculateRelativePercentage(currentValue, min, max);
+
+  // Format ideal range display
+  const idealRangeDisplay = (min !== undefined && max !== undefined) 
+      ? `${min} - ${max} ${unit}`
+      : 'N/A';
+
+  return (
+      <div className="param-bar-item">
+          <div className="param-label">
+              <span className="param-name">{label}</span>
+              <span className="param-value">{currentValue !== undefined ? `${currentValue} ${unit}` : 'N/A'}</span>
+          </div>
+          <div className="progress-bar-wrapper">
+              {/* The dot's position and color reflect the current reading relative to the ideal range */}
+              <div 
+                  className={`current-value-dot ${className}`} 
+                  style={{ left: `${dotPosition}%` }}
+              />
+          </div>
+          <div className={`param-status ${className}`}>
+              Status: {status} (Ideal: {idealRangeDisplay})
+          </div>
+      </div>
+  );};
   
   // Add Plot States
   const [plotStep, setPlotStep] = useState('input')
