@@ -70,75 +70,6 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     survivingPlants: ''
   })
 
-
-  const getStatusAndClass = (currentValue, min, max) => {
-  if (currentValue === undefined || min === undefined || max === undefined) {
-      return { status: 'No Range Data', className: 'status-default' };
-  }
-  
-  if (currentValue < min) {
-      return { status: 'Too Low', className: 'status-low' };
-  } else if (currentValue > max) {
-      return { status: 'Too High', className: 'status-high' };
-  } else {
-      return { status: 'Optimal', className: 'status-optimal' };
-  }
-};
-
-  const calculateRelativePercentage = (currentValue, min, max) => {
-  // Return 50% if range data is missing or invalid
-  if (min === max || min === undefined || max === undefined || currentValue === undefined) {
-      return 50; 
-  }
-  
-  // Normalize value between min and max
-  const normalizedValue = Math.max(min, Math.min(max, currentValue));
-  const range = max - min;
-  
-  // Calculate position (0% at min, 100% at max)
-  return ((normalizedValue - min) / range) * 100;
-};
-
-const extractIdealRanges = (plantInfo) => {
-  if (!plantInfo || !plantInfo.stages || plantInfo.stages.length === 0) {
-      return {};
-  }
-
-  // Use the first stage (stage[0]) for initial health parameter comparison 
-  // to align with the existing calculatePlantCompatibility logic.
-  const firstStage = plantInfo.stages[0];
-
-  const ranges = {};
-
-  // Map all relevant ranges from the stage data using the existing field names
-  if (firstStage.lowpH !== undefined && firstStage.highpH !== undefined) {
-      ranges.pH = { min: firstStage.lowpH, max: firstStage.highpH };
-  }
-  // Assuming lowEC/highEC exists in plantsList stages for EC data
-  if (firstStage.lowEC !== undefined && firstStage.highEC !== undefined) {
-      ranges.eC = { min: firstStage.lowEC, max: firstStage.highEC };
-  }
-  if (firstStage.lowHum !== undefined && firstStage.highHum !== undefined) {
-      // Moisture uses 'Hum' (Humidity) in the existing logic
-      ranges.moisture = { min: firstStage.lowHum, max: firstStage.highHum };
-  }
-  if (firstStage.lowTemp !== undefined && firstStage.highTemp !== undefined) {
-      ranges.temp = { min: firstStage.lowTemp, max: firstStage.highTemp };
-  }
-  if (firstStage.lowN !== undefined && firstStage.highN !== undefined) {
-      ranges.N = { min: firstStage.lowN, max: firstStage.highN };
-  }
-  if (firstStage.lowP !== undefined && firstStage.highP !== undefined) {
-      ranges.P = { min: firstStage.lowP, max: firstStage.highP };
-  }
-  if (firstStage.lowK !== undefined && firstStage.highK !== undefined) {
-      ranges.K = { min: firstStage.lowK, max: firstStage.highK };
-  }
-  
-  return ranges;
-};
-
-
   // Custom Alert State
   const [alertConfig, setAlertConfig] = useState({
     show: false,
@@ -169,40 +100,6 @@ const extractIdealRanges = (plantInfo) => {
   // 2. Navigate to the desired route
   navigate('/calendar/admin'); 
 };
-
-
-const ParameterBar = ({ label, currentValue, idealRange, unit = '' }) => {
-  const min = idealRange?.min;
-  const max = idealRange?.max;
-
-  const { status, className } = getStatusAndClass(currentValue, min, max);
-  
-  // Calculate the position of the dot on the bar based on the current value
-  const dotPosition = calculateRelativePercentage(currentValue, min, max);
-
-  // Format ideal range display
-  const idealRangeDisplay = (min !== undefined && max !== undefined) 
-      ? `${min} - ${max} ${unit}`
-      : 'N/A';
-
-  return (
-      <div className="param-bar-item">
-          <div className="param-label">
-              <span className="param-name">{label}</span>
-              <span className="param-value">{currentValue !== undefined ? `${currentValue} ${unit}` : 'N/A'}</span>
-          </div>
-          <div className="progress-bar-wrapper">
-              {/* The dot's position and color reflect the current reading relative to the ideal range */}
-              <div 
-                  className={`current-value-dot ${className}`} 
-                  style={{ left: `${dotPosition}%` }}
-              />
-          </div>
-          <div className={`param-status ${className}`}>
-              Status: {status} (Ideal: {idealRangeDisplay})
-          </div>
-      </div>
-  );};
   
   // Add Plot States
   const [plotStep, setPlotStep] = useState('input')
@@ -219,28 +116,12 @@ const ParameterBar = ({ label, currentValue, idealRange, unit = '' }) => {
   const [customPlotSize, setCustomPlotSize] = useState({ length: 30, width: 20 })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const [manualSoilData, setManualSoilData] = useState({
-    nitrogen: '',
-    phosphorus: '',
-    potassium: '',
-    ph: '',
-    temperature: '',
-    moisture: '',
-    conductivity: ''
-  })
+  
 
   // Sensor status and ranking states
   const [sensorStatus, setSensorStatus] = useState(null)
   const [rankedPlants, setRankedPlants] = useState([])
   const [loadingSensorStatus, setLoadingSensorStatus] = useState(false)
-
-  const selectedPlantInfo = React.useMemo(() => {
-    return selectedPlant ? plantsList[selectedPlant.plantType] : null;
-  }, [selectedPlant, plantsList]);
-
-  const idealRanges = React.useMemo(() => {
-    return extractIdealRanges(selectedPlantInfo)
-  }, [selectedPlantInfo]);
 
   const locationZoneOptions = ['Closed Greenhouse', 'Nursery 1', 'Nursery 2']
   
@@ -308,18 +189,6 @@ const ParameterBar = ({ label, currentValue, idealRange, unit = '' }) => {
     )
   }
 
-
-  // New function to handle input changes for manual soil data
-const handleManualSoilDataChange = (e) => {
-  const { name, value } = e.target
-  // Only allow numbers and decimal points
-  if (value === '' || /^\d*\.?\d*$/.test(value)) {
-    setManualSoilData(prev => ({
-      ...prev,
-      [name]: value
-    }))
-  }
-}
 const parsePlotSizeToM2 = (plotSizeStr) => {
   if (!plotSizeStr) {
     console.warn("parsePlotSizeToM2: No plot size string provided");
@@ -1496,90 +1365,6 @@ const fetchPlantEvents = async (plantId) => {
     return stages[stages.length - 1].stage
   }
 
-  // NEW FUNCTION: handleAddPlotNextStep
-const handleAddPlotNextStep = async () => {
-    
-  if (plotStep === 'selectSensor') {
-    
-    // 1. Determine the current soil data source
-    let currentSoilData = null
-    
-    if (selectedSoilSensor) {
-      // A sensor is selected, use the data fetched in sensorData state
-      currentSoilData = sensorData 
-    } else {
-      // No sensor selected, check for manual input
-      const { nitrogen, phosphorus, potassium, ph, temperature, moisture, conductivity } = manualSoilData
-      
-      // Check if all manual fields are non-empty
-      if (!nitrogen || !phosphorus || !potassium || !ph || !temperature || !moisture || !conductivity) {
-        showAlert({
-          type: 'warning',
-          title: 'Missing Soil Data',
-          message: 'Please fill in all manual soil test results (NPK, pH, Temperature, Moisture, Conductivity) or select a sensor.',
-          confirmText: 'OK'
-        })
-        return
-      }
-
-      // Convert string inputs to numbers and use them
-      currentSoilData = {
-        nitrogen: parseFloat(nitrogen),
-        phosphorus: parseFloat(phosphorus),
-        potassium: parseFloat(potassium),
-        ph: parseFloat(ph),
-        temperature: parseFloat(temperature),
-        moisture: parseFloat(moisture),
-        conductivity: parseFloat(conductivity)
-      }
-    }
-    
-    // 2. Validate and proceed with the determined data
-    if (!currentSoilData) {
-      showAlert({
-        type: 'error',
-        title: 'Soil Data Error',
-        message: 'Could not retrieve or process soil data. Please check sensor status or manual inputs.',
-        confirmText: 'OK'
-      })
-      return
-    }
-
-    const plantInfo = plantsList[selectedPlantType]
-    
-    if (!plantInfo) {
-      showAlert({
-        type: 'error',
-        title: 'Invalid Plant Type',
-        message: 'Could not find compatibility information for the selected plant type.',
-        confirmText: 'OK'
-      })
-      return
-    }
-
-    // Proceed with ranking and recommendation using currentSoilData
-    const ranked = rankPlantsBySensorData(currentSoilData, plantsList)
-    setRankedPlants(ranked)
-    
-    setRecommendedSeedlings(calculateRecommendedSeedlings(selectedPlantType, calculatePlotSize(customPlotSize.length, customPlotSize.width)))
-    
-    // Store the data that was used (either sensor or manual) in sensorData state for consistent use in later steps
-    setSensorData(currentSoilData) 
-    setPlotStep('recommendation')
-    return
-  }
-  
-  if (plotStep === 'recommendation') {
-    // Logic to move from recommendation to confirm
-    setPlotStep('confirm')
-  }
-
-  if (plotStep === 'confirm') {
-    // Logic to submit the new plot data
-    await handleConfirmPlanting()
-  }
-}
-
   const handleOpenAddPlotModal = () => {
     const availablePlots = getAvailablePlots()
     
@@ -1610,16 +1395,6 @@ const handleAddPlotNextStep = async () => {
     setSensorStatus(null)
     setRankedPlants([])
     setIsSubmitting(false)
-
-    setManualSoilData({ 
-    nitrogen: '', 
-    phosphorus: '', 
-    potassium: '', 
-    ph: '', 
-    temperature: '', 
-    moisture: '', 
-    conductivity: '' 
-  })
   }
 
   const handleCloseAddPlotModal = () => {
@@ -1634,8 +1409,6 @@ const handleAddPlotNextStep = async () => {
     setRankedPlants([])
     setIsSubmitting(false)
   }
-
-  
 
   const handlePlotSelect = (plotNum) => {
     if (isPlotOccupied(plotNum)) {
@@ -1970,7 +1743,7 @@ const handleConfirmPlanting = async () => {
         plotNumber: selectedPlotNumber
       },
       userId,
-      userName = "Admin User"
+      userName || 'Unknown User' // Pass user name if available
     )
 
     // Create initial stage event
@@ -3650,54 +3423,7 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                     <span>🕐 {plant.daysToHarvest} days</span>
                                     <span>💰 ₱{plant.pricing} {plant.pricingUnit}</span>
                                   </div>
-
-                                  <div className="plant-health-parameters">
-                                    <ParameterBar 
-                                        label="Nitrogen (N)" 
-                                        currentValue={selectedPlant.latestSensorData?.nitrogen} 
-                                        idealRange={idealRanges.N} // Fetched from plantsList
-                                        unit="ppm" 
-                                    />
-                                    <ParameterBar 
-                                        label="Phosphorus (P)" 
-                                        currentValue={selectedPlant.latestSensorData?.phosphorus} 
-                                        idealRange={idealRanges.P} // Fetched from plantsList
-                                        unit="ppm" 
-                                    />
-                                    <ParameterBar 
-                                        label="Potassium (K)" 
-                                        currentValue={selectedPlant.latestSensorData?.potassium} 
-                                        idealRange={idealRanges.K} // Fetched from plantsList
-                                        unit="ppm" 
-                                    />
-                                    <ParameterBar 
-                                        label="pH" 
-                                        currentValue={selectedPlant.latestSensorData?.ph} 
-                                        idealRange={idealRanges.pH} // Fetched from plantsList
-                                        unit="" 
-                                    />
-                                    <ParameterBar 
-                                        label="EC" 
-                                        currentValue={selectedPlant.latestSensorData?.conductivity} 
-                                        idealRange={idealRanges.eC} // Fetched from plantsList
-                                        unit="mS/cm"
-                                    />
-                                    <ParameterBar 
-                                        label="Moisture" 
-                                        currentValue={selectedPlant.latestSensorData?.moisture} 
-                                        idealRange={idealRanges.moisture} // Fetched from plantsList
-                                        unit="%"
-                                    />
-                                    <ParameterBar 
-                                        label="Temp" 
-                                        currentValue={selectedPlant.latestSensorData?.temperature} 
-                                        idealRange={idealRanges.temp} // Fetched from plantsList
-                                        unit="°C"
-                                    />
-                                    
                                 </div>
-                                </div>
-                                
                               ))}
                             </div>
                           ) : (
