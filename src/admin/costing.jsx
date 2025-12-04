@@ -86,16 +86,30 @@ const Costing = ({ userType = 'admin' }) => {
       }))
       
       setInventoryLogs(logs)
-      
-      // Calculate financial data with all sources
-      calculateFinancialData(costs, logs, expenses)
-      generateChartData(costs, logs, expenses)
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
-    }
+      const harvestsQuery = query(
+      collection(db, 'harvests'),
+      orderBy('harvestDate', 'desc')
+    )
+
+    const harvestsSnapshot = await getDocs(harvestsQuery)
+    const harvestsData = harvestsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      harvestDate: doc.data().harvestDate?.toDate ? doc.data().harvestDate.toDate() : new Date()
+    }))
+    
+    setHarvests(harvestsData)
+
+    calculateFinancialData(costs, logs, expenses, harvestsData)
+    generateChartData(costs, logs, expenses, harvestsData)
+  } catch (error) {
+    console.error('Error fetching data:', error)
+  } finally {
+    setLoading(false)
   }
+  }
+
+  
 
   
 
@@ -200,64 +214,64 @@ const Costing = ({ userType = 'admin' }) => {
   }
 
   // Generate chart data based on view mode
-  const generateChartData = (costs, logs, expenses) => {
-    const now = new Date()
-    const monthlyData = Array.from({ length: 12 }, (_, i) => {
-      const month = new Date(now.getFullYear(), i, 1)
-      return {
-        month: month.toLocaleDateString('en-US', { month: 'short' }),
-        revenue: 0,
-        expenses: 0,
-        productionCosts: 0,
-        harvestRevenue: 0
+  const generateChartData = (costs, logs, expenses, harvests = []) => {
+  const now = new Date()
+  const monthlyData = Array.from({ length: 12 }, (_, i) => {
+    const month = new Date(now.getFullYear(), i, 1)
+    return {
+      month: month.toLocaleDateString('en-US', { month: 'short' }),
+      revenue: 0,
+      expenses: 0,
+      productionCosts: 0,
+      harvestRevenue: 0
+    }
+  })
+
+  // Add production costs to chart
+  costs.forEach(cost => {
+    const costDate = cost.createdAt
+    if (costDate.getFullYear() === now.getFullYear()) {
+      const monthIndex = costDate.getMonth()
+      monthlyData[monthIndex].expenses += cost.totalCost || 0
+      monthlyData[monthIndex].productionCosts += cost.totalCost || 0
+    }
+  })
+
+  // Add plant expenses to chart
+  expenses.forEach(expense => {
+    const expenseDate = expense.date
+    const monthIndex = expenseDate.getMonth()
+
+    if (expenseDate.getFullYear() === now.getFullYear()) {
+      monthlyData[monthIndex].expenses += expense.amount || 0
+    }
+  })
+
+  // Add inventory logs to chart
+  logs.forEach(log => {
+    const logDate = log.timestamp
+    const monthIndex = logDate.getMonth()
+    const cost = log.cost || 0
+
+    if (logDate.getFullYear() === now.getFullYear()) {
+      if (['ADD', 'RESTOCK', 'USE', 'REMOVE'].includes(log.action) && cost > 0) {
+        monthlyData[monthIndex].expenses += cost
       }
-    })
+    }
+  })
 
-    // Add production costs to chart
-    costs.forEach(cost => {
-      const costDate = cost.createdAt
-      if (costDate.getFullYear() === now.getFullYear()) {
-        const monthIndex = costDate.getMonth()
-        monthlyData[monthIndex].expenses += cost.totalCost || 0
-        monthlyData[monthIndex].productionCosts += cost.totalCost || 0
-      }
-    })
-
-    // Add plant expenses to chart
-    expenses.forEach(expense => {
-      const expenseDate = expense.date
-      const monthIndex = expenseDate.getMonth()
-
-      if (expenseDate.getFullYear() === now.getFullYear()) {
-        monthlyData[monthIndex].expenses += expense.amount || 0
-      }
-    })
-
-    // Add inventory logs to chart
-    logs.forEach(log => {
-      const logDate = log.timestamp
-      const monthIndex = logDate.getMonth()
-      const cost = log.cost || 0
-
-      if (logDate.getFullYear() === now.getFullYear()) {
-        // Inventory expenses
-        if (['ADD', 'RESTOCK', 'USE', 'REMOVE'].includes(log.action) && cost > 0) {
-          monthlyData[monthIndex].expenses += cost
-        }
-      }
-    })
-
-    harvests.forEach(harvest => {
+  // **ADD THIS: Add harvests to chart**
+  harvests.forEach(harvest => {
     const harvestDate = harvest.harvestDate
-    if (harvestDate.getFullYear() === now.getFullYear()) {
+    if (harvestDate && harvestDate.getFullYear() === now.getFullYear()) {
       const monthIndex = harvestDate.getMonth()
       monthlyData[monthIndex].revenue += harvest.totalRevenue || 0
       monthlyData[monthIndex].harvestRevenue += harvest.totalRevenue || 0
     }
   })
 
-    setChartData(monthlyData)
-  }
+  setChartData(monthlyData)
+}
 
   // Get combined recent transactions (production costs + plant expenses + inventory)
   const getRecentTransactions = () => {
