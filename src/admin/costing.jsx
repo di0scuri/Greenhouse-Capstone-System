@@ -372,10 +372,18 @@ const Costing = ({ userType = 'admin' }) => {
     }).format(amount || 0)
   }
 
-  // Format percentage
-  const formatPercentage = (value) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
-  }
+const formatPercentage = (value) => {
+  // Try to parse the value as a float. If 'value' is undefined, this returns NaN.
+  const numValue = parseFloat(value);
+  
+  // If parsing resulted in NaN (Not a Number), use 0, otherwise use the parsed value.
+  // This handles undefined, null, and non-numeric strings safely.
+  const finalValue = isNaN(numValue) ? 0 : numValue;
+
+  // Apply formatting to the guaranteed-numeric value
+  return `${finalValue >= 0 ? '+' : ''}${finalValue.toFixed(1)}%`;
+}
+
 
   // Generate SVG path for chart line
   const generatePath = (data, key, maxValue) => {
