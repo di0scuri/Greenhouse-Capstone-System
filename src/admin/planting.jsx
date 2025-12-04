@@ -1571,7 +1571,7 @@ const handleAddPlotNextStep = async () => {
 
   if (plotStep === 'confirm') {
     // Logic to submit the new plot data
-    await handleSavePlant()
+    await handleConfirmPlanting()
   }
 }
 
@@ -1965,7 +1965,7 @@ const handleConfirmPlanting = async () => {
         plotNumber: selectedPlotNumber
       },
       userId,
-      userName || 'Unknown User' // Pass user name if available
+      userName = "Admin User"
     )
 
     // Create initial stage event
