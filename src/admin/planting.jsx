@@ -70,43 +70,108 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     survivingPlants: ''
   })
 
-  const ParameterBar = ({ label, currentValue, idealRange, unit, type }) => {
-  const { min, max } = idealRange;
-  const percentage = calculateRelativePercentage(currentValue, min, max);
-  const { className } = getStatusAndClass(percentage);
+  const selectedPlantInfo = selectedPlant ? plantsList[selectedPlant.plantType] : null;
+  const idealRanges = extractIdealRanges(selectedPlantInfo);
 
-  // Clamps the visible bar to 0-100 for visual fit, but the class indicates true status
-  const barWidth = Math.max(0, Math.min(100, percentage)); 
+  const ParameterBar = ({ label, currentValue, idealRange, unit = '' }) => {
+    const min = idealRange?.min;
+    const max = idealRange?.max;
 
-  return (
-    <div className="param-bar-item">
-      <div className="param-label">
-        <span className="param-name">{label}</span>
-        <span className="param-value">{currentValue} {unit}</span>
-      </div>
-      <div className="progress-bar-wrapper">
-        <div className={`progress-bar-fill ${className}`} style={{ width: `${barWidth}%` }}></div>
-        {/* Optional: Add a visual indicator for the exact center of the ideal range */}
-        <div className="ideal-range-marker" style={{ left: '50%' }}></div>
-      </div>
-      <p className={`param-status ${className}`}>{min} - {max} {unit}</p>
-    </div>
-  );
+    const { status, className } = getStatusAndClass(currentValue, min, max);
+    
+    // Calculate the position of the dot on the bar based on the current value
+    const dotPosition = calculateRelativePercentage(currentValue, min, max);
+
+    // Format ideal range display
+    const idealRangeDisplay = (min !== undefined && max !== undefined) 
+        ? `${min} - ${max} ${unit}`
+        : 'N/A';
+
+    return (
+        <div className="param-bar-item">
+            <div className="param-label">
+                <span className="param-name">{label}</span>
+                <span className="param-value">{currentValue !== undefined ? `${currentValue} ${unit}` : 'N/A'}</span>
+            </div>
+            <div className="progress-bar-wrapper">
+                {/* The dot's position and color reflect the current reading relative to the ideal range */}
+                <div 
+                    className={`current-value-dot ${className}`} 
+                    style={{ left: `${dotPosition}%` }}
+                />
+            </div>
+            <div className={`param-status ${className}`}>
+                Status: {status} (Ideal: {idealRangeDisplay})
+            </div>
+        </div>
+    );
 };
 
-  const getStatusAndClass = (percentage) => {
-  if (percentage < 0) {
-    return { status: 'Low', className: 'status-low' };
-  } else if (percentage > 100) {
-    return { status: 'High', className: 'status-high' };
-  } else {
-    return { status: 'Optimal', className: 'status-optimal' };
-  }
+const extractIdealRanges = (plantInfo) => {
+    if (!plantInfo || !plantInfo.stages || plantInfo.stages.length === 0) {
+        return {};
+    }
+
+    // Use the first stage (stage[0]) for initial health parameter comparison 
+    // to align with the existing calculatePlantCompatibility logic.
+    const firstStage = plantInfo.stages[0];
+
+    const ranges = {};
+
+    // Map all relevant ranges from the stage data using the existing field names
+    if (firstStage.lowpH !== undefined && firstStage.highpH !== undefined) {
+        ranges.pH = { min: firstStage.lowpH, max: firstStage.highpH };
+    }
+    // Assuming lowEC/highEC exists in plantsList stages for EC data
+    if (firstStage.lowEC !== undefined && firstStage.highEC !== undefined) {
+        ranges.eC = { min: firstStage.lowEC, max: firstStage.highEC };
+    }
+    if (firstStage.lowHum !== undefined && firstStage.highHum !== undefined) {
+        // Moisture uses 'Hum' (Humidity) in the existing logic
+        ranges.moisture = { min: firstStage.lowHum, max: firstStage.highHum };
+    }
+    if (firstStage.lowTemp !== undefined && firstStage.highTemp !== undefined) {
+        ranges.temp = { min: firstStage.lowTemp, max: firstStage.highTemp };
+    }
+    if (firstStage.lowN !== undefined && firstStage.highN !== undefined) {
+        ranges.N = { min: firstStage.lowN, max: firstStage.highN };
+    }
+    if (firstStage.lowP !== undefined && firstStage.highP !== undefined) {
+        ranges.P = { min: firstStage.lowP, max: firstStage.highP };
+    }
+    if (firstStage.lowK !== undefined && firstStage.highK !== undefined) {
+        ranges.K = { min: firstStage.lowK, max: firstStage.highK };
+    }
+    
+    return ranges;
+};
+
+  const getStatusAndClass = (currentValue, min, max) => {
+    if (currentValue === undefined || min === undefined || max === undefined) {
+        return { status: 'No Range Data', className: 'status-default' };
+    }
+    
+    if (currentValue < min) {
+        return { status: 'Too Low', className: 'status-low' };
+    } else if (currentValue > max) {
+        return { status: 'Too High', className: 'status-high' };
+    } else {
+        return { status: 'Optimal', className: 'status-optimal' };
+    }
 };
 
   const calculateRelativePercentage = (currentValue, min, max) => {
-  if (min === max) return 50; // Avoid division by zero
-  return ((currentValue - min) / (max - min)) * 100;
+    // Return 50% if range data is missing or invalid
+    if (min === max || min === undefined || max === undefined || currentValue === undefined) {
+        return 50; 
+    }
+    
+    // Normalize value between min and max
+    const normalizedValue = Math.max(min, Math.min(max, currentValue));
+    const range = max - min;
+    
+    // Calculate position (0% at min, 100% at max)
+    return ((normalizedValue - min) / range) * 100;
 };
 
   // Custom Alert State
@@ -3582,47 +3647,46 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                   <div className="plant-health-parameters">
                                     <ParameterBar 
                                         label="Nitrogen (N)" 
-                                        currentValue={plant.latestData?.N} 
-                                        idealRange={plant.idealRanges?.N || defaultIdealRanges.N} 
+                                        currentValue={selectedPlant.latestSensorData?.nitrogen} 
+                                        idealRange={idealRanges.N} // Fetched from plantsList
                                         unit="ppm" 
                                     />
                                     <ParameterBar 
                                         label="Phosphorus (P)" 
-                                        currentValue={plant.latestData?.P} 
-                                        idealRange={plant.idealRanges?.P || defaultIdealRanges.P} 
+                                        currentValue={selectedPlant.latestSensorData?.phosphorus} 
+                                        idealRange={idealRanges.P} // Fetched from plantsList
                                         unit="ppm" 
                                     />
                                     <ParameterBar 
                                         label="Potassium (K)" 
-                                        currentValue={plant.latestData?.K} 
-                                        idealRange={plant.idealRanges?.K || defaultIdealRanges.K} 
+                                        currentValue={selectedPlant.latestSensorData?.potassium} 
+                                        idealRange={idealRanges.K} // Fetched from plantsList
                                         unit="ppm" 
                                     />
                                     <ParameterBar 
                                         label="pH" 
-                                        currentValue={plant.latestData?.pH} 
-                                        idealRange={plant.idealRanges?.pH || defaultIdealRanges.pH} 
+                                        currentValue={selectedPlant.latestSensorData?.ph} 
+                                        idealRange={idealRanges.pH} // Fetched from plantsList
                                         unit="" 
                                     />
                                     <ParameterBar 
                                         label="EC" 
-                                        currentValue={plant.latestData?.eC} 
-                                        idealRange={plant.idealRanges?.eC || defaultIdealRanges.eC} 
+                                        currentValue={selectedPlant.latestSensorData?.conductivity} 
+                                        idealRange={idealRanges.eC} // Fetched from plantsList
                                         unit="mS/cm"
                                     />
                                     <ParameterBar 
                                         label="Moisture" 
-                                        currentValue={plant.latestData?.moisture} 
-                                        idealRange={plant.idealRanges?.moisture || defaultIdealRanges.moisture} 
+                                        currentValue={selectedPlant.latestSensorData?.moisture} 
+                                        idealRange={idealRanges.moisture} // Fetched from plantsList
                                         unit="%"
                                     />
                                     <ParameterBar 
                                         label="Temp" 
-                                        currentValue={plant.latestData?.temp} 
-                                        idealRange={plant.idealRanges?.temp || defaultIdealRanges.temp} 
+                                        currentValue={selectedPlant.latestSensorData?.temperature} 
+                                        idealRange={idealRanges.temp} // Fetched from plantsList
                                         unit="°C"
                                     />
-                                    {/* NPK Parameters - assuming individual values are available */}
                                     
                                 </div>
                                 </div>

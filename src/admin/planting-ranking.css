@@ -315,6 +315,95 @@
   line-height: 1.5;
 }
 
+.plant-health-parameters {
+    padding: 10px 0 0 0;
+    margin-top: 10px;
+    border-top: 1px solid #f0f0f0;
+}
+
+/* Styling for a single parameter bar item */
+.param-bar-item {
+    margin-bottom: 12px;
+}
+
+.param-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85em;
+    color: #555;
+    margin-bottom: 3px;
+}
+
+.param-name {
+    font-weight: bold;
+}
+
+.param-value {
+    /* Current value display */
+}
+
+.progress-bar-wrapper {
+    position: relative;
+    height: 6px;
+    background-color: #ddd; /* Base track color */
+    border-radius: 3px;
+    margin: 5px 0;
+}
+
+/* This simulates the optimal range band */
+.ideal-range-band {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    background-color: #e6ffe6; /* Light green background for the 100% ideal range */
+}
+
+.current-value-dot {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    border: 2px solid white;
+    z-index: 10;
+}
+
+/* Color Classes for the Dot */
+.status-optimal {
+    background-color: #4CAF50; /* Green */
+}
+
+.status-low {
+    background-color: #FF9800; /* Orange/Warning */
+}
+
+.status-high {
+    background-color: #F44336; /* Red/Alert */
+}
+
+.param-status {
+    font-size: 0.75em;
+    margin-top: 5px;
+    text-align: right;
+    color: #888;
+}
+
+.param-status.status-low {
+    color: #FF9800;
+    font-weight: 600;
+}
+
+.param-status.status-high {
+    color: #F44336;
+    font-weight: 600;
+}
+
+.param-status.status-optimal {
+    color: #4CAF50;
+}
+
 /* ============================================ */
 /* RESPONSIVE DESIGN */
 /* ============================================ */
