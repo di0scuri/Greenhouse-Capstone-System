@@ -68,48 +68,58 @@ const eventTypes = [
 
 
   // Add this function to farmercalendar.jsx
-const logFertilizerApplicationExpense = async (jobOrderData, totalBagsUsed, userId) => {
+const logFertilizerApplicationExpense = async (jobOrderData, totalBagsUsed, userId, inventoryItemId = null) => {
   try {
-    // Calculate the cost based on inventory item price
-    const inventorySnapshot = await getDocs(collection(db, 'inventory'));
-    const inventoryItems = inventorySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    
-    // Find the fertilizer used
-    const usedFertilizer = inventoryItems.find(item => 
-      item.category?.toLowerCase() === 'fertilizer' && 
-      (item.name.toLowerCase().includes(jobOrderData.npkRatio.toLowerCase()) ||
-       item.name.toLowerCase().includes('npk'))
-    );
-    
-    if (!usedFertilizer) {
-      console.warn('Could not find fertilizer price for expense tracking');
-      return null;
+    let costPerBag = 0;
+    let inventoryItem = null;
+
+    if (inventoryItemId) {
+      costPerBag = await getFertilizerUnitCost(inventoryItemId);
+      try {
+        const invSnap = await getDoc(doc(db, 'inventory', inventoryItemId));
+        if (invSnap.exists()) inventoryItem = { id: invSnap.id, ...invSnap.data() };
+      } catch (e) {
+        // ignore
+      }
     }
-    
-    const costPerBag = usedFertilizer.pricePerUnit || 0;
-    const totalCost = totalBagsUsed * costPerBag;
-    
+
+    // Fallback: attempt to find used fertilizer by name/npk (best-effort)
+    if (!inventoryItem) {
+      const snapshot = await getDocs(collection(db, 'inventory'));
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const used = items.find(item =>
+        String(item.category || '').toLowerCase().includes('fertil') &&
+        (
+          (jobOrderData.npkRatio && String(item.npkRatio || item.npkKey || item.name || '').toLowerCase().includes(String(jobOrderData.npkRatio).toLowerCase())) ||
+          String(item.name || '').toLowerCase().includes('npk')
+        )
+      );
+      if (used) {
+        inventoryItem = used;
+        costPerBag = used.pricePerUnit || used.pricePerBag || used.price || 0;
+      }
+    }
+
+    // If still no cost, leave costPerBag 0 (expense will be 0)
+    const totalCost = totalBagsUsed * (costPerBag || 0);
+
     const expenseData = {
       plantId: jobOrderData.plantId,
       plantName: jobOrderData.plantName || 'Unknown Plant',
-      category: 'Fertilizer', // Matches production.jsx categories
-      description: `Applied ${totalBagsUsed.toFixed(2)} bags of ${jobOrderData.fertilizerName} - ${jobOrderData.title}`,
+      category: 'Fertilizer',
+      description: `Applied ${totalBagsUsed.toFixed(2)} bags of ${jobOrderData.fertilizerName || jobOrderData.title}`,
       amount: totalCost,
       date: serverTimestamp(),
       paymentMethod: 'Internal Application',
       receiptNumber: `JOB-${jobOrderData.id}`,
-      vendor: 'Internal Inventory',
+      vendor: inventoryItem ? (inventoryItem.vendor || 'Internal Inventory') : 'External',
       notes: `Fertilizer application. Application ${jobOrderData.applicationNumber} of ${jobOrderData.totalApplications}. ${jobOrderData.notes || ''}`,
       addedBy: userId,
       createdAt: serverTimestamp(),
       lastModifiedAt: serverTimestamp(),
-      // Link to job order and inventory
       jobOrderId: jobOrderData.id,
-      inventoryItemId: usedFertilizer.id,
-      inventoryItemName: usedFertilizer.name,
+      inventoryItemId: inventoryItem ? inventoryItem.id : null,
+      inventoryItemName: inventoryItem ? inventoryItem.name : null,
       applicationDetails: {
         bagsUsed: totalBagsUsed,
         costPerBag: costPerBag,
@@ -118,10 +128,9 @@ const logFertilizerApplicationExpense = async (jobOrderData, totalBagsUsed, user
         applicationMethod: jobOrderData.applicationMethod
       }
     };
-    
+
     const expenseRef = await addDoc(collection(db, 'plantExpenses'), expenseData);
     console.log(`💰 Fertilizer application expense logged: ₱${totalCost.toFixed(2)}`);
-    
     return expenseRef.id;
   } catch (error) {
     console.error('Error logging fertilizer application expense:', error);
@@ -485,7 +494,8 @@ const renderListView = () => {
           plantId: data.plantId,
           plantName: data.plantName,
           plotNumber: data.plotNumber,
-          inventoryLogged: data.inventoryLogged || false
+          inventoryLogged: data.inventoryLogged || false,
+          inventoryItemId: data.inventoryItemId || null // pass through if present
         };
       });
       
@@ -597,21 +607,21 @@ const renderListView = () => {
 
   const getFertilizerUnitCost = async (inventoryItemId) => {
   try {
-    // Directly fetch the specific inventory document using its ID
+    if (!inventoryItemId) return 0;
     const docRef = doc(db, 'inventory', inventoryItemId);
     const docSnap = await getDoc(docRef);
-
-    if (docSnap.exists() && docSnap.data().pricePerUnit !== undefined) {
-      return docSnap.data().pricePerUnit;
+    if (docSnap.exists()) {
+      const d = docSnap.data();
+      return d.pricePerUnit || d.pricePerBag || d.price || 0;
     }
-
-    console.warn(`Inventory item ID ${inventoryItemId} not found or price missing.`);
-    return 0; 
-  } catch (error) {
-    console.error('Error fetching fertilizer unit cost by ID:', error);
+    return 0;
+  } catch (e) {
+    console.error('getFertilizerUnitCost error:', e);
     return 0;
   }
 };
+
+
   // New function to log the financial expense to Firestore
 // Function to log the financial expense to the 'plantExpenses' collection
 const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, userId) => {
@@ -707,101 +717,73 @@ const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, 
   };
 
 
+  const findMatchingFertilizer = async (jobOrderData) => {
+  try {
+    // 1) Direct id match
+    if (jobOrderData.inventoryItemId) {
+      const invRef = doc(db, 'inventory', jobOrderData.inventoryItemId);
+      const invSnap = await getDoc(invRef);
+      if (invSnap.exists()) return { id: invSnap.id, ref: invRef, data: invSnap.data() };
+    }
+
+    // 2) Load inventory batch
+    const inventorySnapshot = await getDocs(collection(db, 'inventory'));
+    const inventoryItems = inventorySnapshot.docs.map(d => ({ id: d.id, ref: d.ref, data: d.data() }));
+
+    // 2a) Try matching by explicit npkRatio or npkKey field
+    if (jobOrderData.npkRatio) {
+      const wanted = String(jobOrderData.npkRatio).toLowerCase();
+      const byNpk = inventoryItems.find(item =>
+        item.data && (
+          (item.data.npkRatio && String(item.data.npkRatio).toLowerCase() === wanted) ||
+          (item.data.npkKey && String(item.data.npkKey).toLowerCase() === wanted)
+        )
+      );
+      if (byNpk) return byNpk;
+    }
+
+    // 3) Fallback: plural/singular category matching and name contains npk token
+    const npkToken = (jobOrderData.npkRatio || 'npk').toString().toLowerCase();
+    const fuzzy = inventoryItems.find(item => {
+      const cat = String(item.data?.category || '').toLowerCase();
+      const name = String(item.data?.name || '').toLowerCase();
+      const categoryMatches = cat.includes('fertil'); // accepts 'fertilizer', 'fertilizers' etc.
+      const nameMatches = name.includes(npkToken) || name.includes('npk');
+      return categoryMatches && (nameMatches || item.data?.npkRatio || item.data?.npkKey);
+    });
+
+    if (fuzzy) return fuzzy;
+    return null;
+  } catch (error) {
+    console.error('findMatchingFertilizer error:', error);
+    return null;
+  }
+};
+
+
+
   
   // Complete job order and log to inventory
   const completeJobOrder = async (jobOrderId, notes = '') => {
-    try {
-      const isJobOrderPrefix = jobOrderId.startsWith('joborder-');
-      let actualJobOrderId = jobOrderId;
-      if (isJobOrderPrefix) {
-        actualJobOrderId = jobOrderId.replace('joborder-', '');
-      }
+  try {
+    const isJobOrderPrefix = jobOrderId.startsWith('joborder-');
+    let actualJobOrderId = jobOrderId;
+    if (isJobOrderPrefix) {
+      actualJobOrderId = jobOrderId.replace('joborder-', '');
+    }
 
-      // Update in jobOrders collection
-      const jobOrderRef = doc(db, 'jobOrders', actualJobOrderId);
-      const jobOrderDoc = await getDoc(jobOrderRef);
-      
-      if (!jobOrderDoc.exists()) {
-        throw new Error('Job order not found');
-      }
-      
-      const jobOrderData = jobOrderDoc.data();
-      
-      // Log fertilizer usage to inventory
-      let inventoryLogId = null;
-      
-      if (jobOrderData.fertilizerBagsForPlot && !jobOrderData.inventoryLogged) {
-        try {
-          // Find matching fertilizer in inventory
-          const inventorySnapshot = await getDocs(collection(db, 'inventory'));
-          const inventoryItems = inventorySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          
-          // Try to match fertilizer by NPK ratio or name
-          const matchingFertilizer = inventoryItems.find(item => 
-            item.category?.toLowerCase() === 'fertilizer' && 
-            (item.name.toLowerCase().includes(jobOrderData.npkRatio.toLowerCase()) ||
-             item.name.toLowerCase().includes('npk'))
-          );
-          
-          if (matchingFertilizer) {
-            // Calculate total bags used
-            const totalBagsUsed = Object.values(jobOrderData.fertilizerBagsForPlot)
-            .reduce((sum, bags) => sum + parseFloat(bags), 0);
-            
-            const previousStock = matchingFertilizer.stock || matchingFertilizer.packs || 0;
-            const newStock = Math.max(0, previousStock - totalBagsUsed);
-            
-            // Update inventory
-            const inventoryRef = doc(db, 'inventory', matchingFertilizer.id);
-            await updateDoc(inventoryRef, {
-              stock: newStock,
-              packs: newStock,
-              updatedAt: serverTimestamp(),
-              lastUsed: serverTimestamp()
-            });
+    const jobOrderRef = doc(db, 'jobOrders', actualJobOrderId);
+    const jobOrderDoc = await getDoc(jobOrderRef);
 
-            const expenseId = await logFertilizerApplicationExpense(
-              jobOrderData,
-              totalBagsUsed,
-              userId
-            );
+    if (!jobOrderDoc.exists()) {
+      throw new Error('Job order not found');
+    }
 
-            
-            // Log the usage
-            inventoryLogId = await inventoryLogger.createLog(
-              matchingFertilizer.id,
-              'USE',
-              {
-                previousQuantity: previousStock,
-                newQuantity: newStock,
-                quantityChange: -totalBagsUsed,
-                previousPacks: previousStock,
-                newPacks: newStock,
-                reason: `Applied ${totalBagsUsed.toFixed(2)} bags of ${jobOrderData.fertilizerName} - ${jobOrderData.title}`,
-                itemName: matchingFertilizer.name,
-                category: matchingFertilizer.category || 'Fertilizer',
-                plantId: jobOrderData.plantId,
-                plantName: jobOrderData.plantName,
-                notes: `${jobOrderData.description}. Application ${jobOrderData.applicationNumber} of ${jobOrderData.totalApplications}. ${notes || ''}`
-              },
-              userId,
-              'Farmer'
-            );
-            
-            console.log(`✅ Logged fertilizer usage to inventory: ${totalBagsUsed.toFixed(2)} bags`);
-          } else {
-            console.warn(`⚠️ No matching fertilizer found in inventory for ${jobOrderData.fertilizerName}`);
-          }
-        } catch (error) {
-          console.error('Error logging fertilizer to inventory:', error);
-          // Continue even if inventory logging fails
-        }
-      }
-      
-      // Update job order
+    const jobOrderData = jobOrderDoc.data();
+
+    // Only attempt inventory deduction if there is fertilizer usage recorded and not already logged
+    if (!jobOrderData.fertilizerBagsForPlot || jobOrderData.inventoryLogged) {
+      // Still mark completed & create events if needed
       await updateDoc(jobOrderRef, {
         status: 'completed',
         completedAt: serverTimestamp(),
@@ -810,17 +792,14 @@ const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, 
         appliedBy: userId,
         notes: notes,
         updatedAt: serverTimestamp(),
-        inventoryLogged: inventoryLogId ? true : false,
-        inventoryLogId: inventoryLogId
       });
-      
-      // Update corresponding event if exists
+
+      // Update related events
       const eventsQuery = query(
         collection(db, 'events'),
         where('jobOrderId', '==', actualJobOrderId)
       );
       const eventsSnapshot = await getDocs(eventsQuery);
-      
       for (const eventDoc of eventsSnapshot.docs) {
         await updateDoc(eventDoc.ref, {
           status: 'completed',
@@ -830,7 +809,165 @@ const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, 
           updatedAt: serverTimestamp()
         });
       }
-      
+
+      await addDoc(collection(db, 'events'), {
+        plantId: jobOrderData.plantId,
+        type: 'FERTILIZER_APPLIED',
+        status: 'success',
+        message: `Fertilizer applied: ${jobOrderData.fertilizerName} - ${jobOrderData.title}`,
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        userId: userId,
+        details: {
+          jobOrderId: actualJobOrderId,
+          fertilizerName: jobOrderData.fertilizerName,
+          amount: jobOrderData.fertilizerAmountForPlot,
+          applicationNumber: jobOrderData.applicationNumber,
+          totalApplications: jobOrderData.totalApplications,
+          notes: notes,
+          inventoryLogged: jobOrderData.inventoryLogged || false
+        }
+      });
+
+      await fetchEvents();
+      console.log(`✅ Job order ${jobOrderId} marked as completed (no inventory log required)`);
+      return true;
+    }
+
+    // Find matching fertilizer (prefer inventoryItemId)
+    const matchingFertilizer = await findMatchingFertilizer(jobOrderData);
+
+    if (!matchingFertilizer) {
+      console.warn(`⚠️ No matching fertilizer found in inventory for ${jobOrderData.fertilizerName || jobOrderData.npkRatio}`);
+      // Proceed to mark job complete (without inventory deduction) and create event
+      await updateDoc(jobOrderRef, {
+        status: 'completed',
+        completedAt: serverTimestamp(),
+        completedBy: userId,
+        appliedAt: serverTimestamp(),
+        appliedBy: userId,
+        notes: notes,
+        updatedAt: serverTimestamp(),
+        inventoryLogged: false
+      });
+
+      await addDoc(collection(db, 'events'), {
+        plantId: jobOrderData.plantId,
+        type: 'FERTILIZER_APPLIED',
+        status: 'success',
+        message: `Fertilizer applied (inventory not logged): ${jobOrderData.fertilizerName} - ${jobOrderData.title}`,
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        userId: userId,
+        details: {
+          jobOrderId: actualJobOrderId,
+          fertilizerName: jobOrderData.fertilizerName,
+          amount: jobOrderData.fertilizerAmountForPlot,
+          notes: notes,
+          inventoryLogged: false
+        }
+      });
+
+      await fetchEvents();
+      return true;
+    }
+
+    // Compute total bags used (sum values in fertilizerBagsForPlot)
+    const totalBagsUsed = Object.values(jobOrderData.fertilizerBagsForPlot || {})
+      .reduce((sum, val) => sum + parseFloat(val || 0), 0);
+
+    // Convert to inventory native unit before subtracting
+    const invData = matchingFertilizer.data || {};
+    const invUnit = String(invData.unit || '').toLowerCase();
+    let usedAmountInInventoryUnits = 0;
+
+    if (invUnit.includes('kg') || invUnit === 'kg') {
+      // Need weightPerBag or packageSize to convert bags -> kg
+      const weightPerBagKg = Number(invData.weightPerBagKg || invData.packageSizeKg || invData.weightPerBag || 0);
+      if (!weightPerBagKg || weightPerBagKg <= 0) {
+        console.warn('Inventory item is in kg but weightPerBagKg/packageSizeKg not set; please add packageSizeKg or weightPerBagKg to inventory item.');
+        // Fallback: treat bags as 1 unit (dangerous but prevents crash) — developer should set weightPerBagKg
+        usedAmountInInventoryUnits = totalBagsUsed;
+      } else {
+        usedAmountInInventoryUnits = totalBagsUsed * weightPerBagKg;
+      }
+    } else {
+      // If inventory unit is bags/packs or unknown, subtract bags directly
+      usedAmountInInventoryUnits = totalBagsUsed;
+    }
+
+    // Run transaction to atomically decrement inventory stock and mark jobOrder inventoryLogged (and set inventoryLogId placeholder)
+    let inventoryLogId = null;
+    await runTransaction(db, async (tx) => {
+      const invRef = matchingFertilizer.ref || doc(db, 'inventory', matchingFertilizer.id);
+      const invSnap = await tx.get(invRef);
+      if (!invSnap.exists()) {
+        throw new Error('Inventory item disappeared during transaction');
+      }
+
+      const prevStock = Number(invSnap.data().stock || invSnap.data().packs || 0);
+      const newStock = Math.max(0, prevStock - usedAmountInInventoryUnits);
+
+      tx.update(invRef, {
+        stock: newStock,
+        packs: newStock, // keep packs in sync if you use packs
+        updatedAt: serverTimestamp(),
+        lastUsed: serverTimestamp()
+      });
+
+      // mark jobOrder inventoryLogged true so concurrent workers know it was processed
+      tx.update(jobOrderRef, {
+        status: 'completed',
+        completedAt: serverTimestamp(),
+        completedBy: userId,
+        appliedAt: serverTimestamp(),
+        appliedBy: userId,
+        notes: notes,
+        updatedAt: serverTimestamp(),
+        inventoryLogged: true
+      });
+
+      // Note: creating new documents with server-generated IDs inside transactions is awkward.
+      // We keep the transaction focused on atomic stock decrement + jobOrder flag. Logs/expenses will be created after.
+    });
+
+    // AFTER the transaction: create expense + inventory log (outside tx)
+    try {
+      // create expense entry (re-using existing helper)
+      const expenseId = await logFertilizerApplicationExpense(
+        jobOrderData,
+        totalBagsUsed,
+        userId
+      );
+
+      // create detailed inventory usage log (inventoryLogger.createLog)
+      inventoryLogId = await inventoryLogger.createLog(
+        matchingFertilizer.id,
+        'USE',
+        {
+          previousQuantity: (invData.stock || invData.packs || 0),
+          newQuantity: Math.max(0, (invData.stock || invData.packs || 0) - usedAmountInInventoryUnits),
+          quantityChange: -usedAmountInInventoryUnits,
+          previousPacks: (invData.packs || 0),
+          newPacks: Math.max(0, (invData.packs || 0) - usedAmountInInventoryUnits),
+          reason: `Applied ${totalBagsUsed.toFixed(2)} bags of ${jobOrderData.fertilizerName} - ${jobOrderData.title}`,
+          itemName: invData.name,
+          category: invData.category || 'Fertilizer',
+          plantId: jobOrderData.plantId,
+          plantName: jobOrderData.plantName,
+          notes: `${jobOrderData.description}. Application ${jobOrderData.applicationNumber} of ${jobOrderData.totalApplications}. ${notes || ''}`
+        },
+        userId,
+        'Farmer'
+      );
+
+      // Attach inventoryLogId and expense id to jobOrder for traceability
+      await updateDoc(jobOrderRef, {
+        inventoryLogId: inventoryLogId || null,
+        inventoryLogged: true,
+        lastInventoryUpdateAt: serverTimestamp()
+      });
+
       // Create completion event
       await addDoc(collection(db, 'events'), {
         plantId: jobOrderData.plantId,
@@ -847,20 +984,42 @@ const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, 
           applicationNumber: jobOrderData.applicationNumber,
           totalApplications: jobOrderData.totalApplications,
           notes: notes,
-          inventoryLogged: inventoryLogId ? true : false
+          inventoryLogged: true,
+          inventoryLogId: inventoryLogId || null
         }
       });
-      
+
+      const eventsQuery2 = query(
+        collection(db, 'events'),
+        where('jobOrderId', '==', actualJobOrderId)
+      );
+      const eventsSnapshot2 = await getDocs(eventsQuery2);
+      for (const eventDoc of eventsSnapshot2.docs) {
+        await updateDoc(eventDoc.ref, {
+          status: 'completed',
+          completedAt: serverTimestamp(),
+          completedBy: userId,
+          notes: notes,
+          updatedAt: serverTimestamp()
+        });
+      }
+
       // Refresh events
       await fetchEvents();
-      
+
       console.log(`✅ Job order ${jobOrderId} marked as completed and logged to inventory`);
       return true;
-    } catch (error) {
-      console.error('Error completing job order:', error);
-      throw error;
+    } catch (postError) {
+      console.error('Error creating post-transaction logs/expense:', postError);
+      // The transaction already updated inventory and jobOrder inventoryLogged = true.
+      // You may want to add compensating logic here (retry or create a flagged issue).
+      throw postError;
     }
-  };
+  } catch (error) {
+    console.error('Error completing job order:', error);
+    throw error;
+  }
+};
 
   // Generate farming activities based on plant data
   const generatePlantActivities = () => {
@@ -952,6 +1111,30 @@ const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, 
     return activities;
   };
 
+  const normalizeToDate = (value) => {
+  try {
+    if (!value) return new Date();
+    // Firestore Timestamp
+    if (typeof value === 'object' && typeof value.toDate === 'function') {
+      return value.toDate();
+    }
+    // Date already
+    if (value instanceof Date) return value;
+    // numeric epoch (ms)
+    if (typeof value === 'number') return new Date(value);
+    // string
+    if (typeof value === 'string') {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) return d;
+    }
+    // fallback
+    return new Date();
+  } catch (e) {
+    console.warn('normalizeToDate error:', e);
+    return new Date();
+  }
+};
+
   // Get color for event types (updated for job orders)
   const getEventColor = (eventType, status) => {
     // Job order status colors
@@ -988,7 +1171,7 @@ const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, 
   };
 
   // Load all data
-  useEffect(() => {
+ useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
@@ -1243,6 +1426,7 @@ if (jobOrderFilter !== 'all') {
     return event.status === jobOrderFilter;
   });
 }
+
 
 filteredEvents.forEach(event => {
   const eventDate = new Date(event.date);
