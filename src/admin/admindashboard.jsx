@@ -6,7 +6,7 @@ import { db, realtimeDb } from '../firebase'
 import {ref, get} from 'firebase/database'
 import { 
   FaDollarSign, FaFileInvoiceDollar, FaChartLine, FaPercentage,
-  FaSearch, FaBell, FaRegSquare
+  FaSearch, FaBell, FaRegSquare, FaSeedling
 } from 'react-icons/fa'
 import { MdCheckBoxOutlineBlank } from 'react-icons/md'
 
@@ -21,6 +21,7 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
   })
   const [sensorData, setSensorData] = useState([])
   const [events, setEvents] = useState([])
+  const [harvests, setHarvests] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -31,80 +32,88 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
     return () => clearInterval(timer)
   }, [])
 
-  // Fetch financial data from inventory_log
-  const fetchFinancialData = async () => {
-    try {
-      // 1. Fetch all three data sources concurrently
-      const [
-        logsSnapshot,
-        costsSnapshot,
-        expensesSnapshot
-      ] = await Promise.all([
-        getDocs(collection(db, 'inventory_log')),
-        getDocs(collection(db, 'productionCosts')), // NEW
-        getDocs(collection(db, 'plantExpenses')) // NEW
-      ])
+// Fetch financial data from inventory_log
+const fetchFinancialData = async () => {
+  try {
+    // 1. Fetch all four data sources concurrently
+    const [
+      logsSnapshot,
+      costsSnapshot,
+      expensesSnapshot,
+      harvestsSnapshot // ADD THIS
+    ] = await Promise.all([
+      getDocs(collection(db, 'inventory_log')),
+      getDocs(collection(db, 'productionCosts')),
+      getDocs(collection(db, 'plantExpenses')),
+      getDocs(collection(db, 'harvests')) // ADD THIS
+    ])
 
-      // 2. Process Inventory Logs (Revenue & Inventory Expenses)
-      const logs = logsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate ? doc.data().timestamp.toDate() : new Date()
-      }))
+    // 2. Process Inventory Logs (Revenue & Inventory Expenses)
+    const logs = logsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate ? doc.data().timestamp.toDate() : new Date()
+    }))
 
-      let totalRevenue = 0
-      let inventoryExpenses = 0
+    let totalRevenue = 0
+    let inventoryExpenses = 0
 
-      logs.forEach(log => {
-        // Assuming amount calculation logic remains the same for inventory
-        const amount = (log.quantityChange || 0) * (log.costOrValuePerUnit || 0)
-        
-        // Revenue: Sales, Stock Decrease (assuming sales)
-        if (log.type === 'Sale' || log.type === 'Stock Decrease') {
-          totalRevenue += amount
-        }
-        
-        // Expenses: Purchases, Stock Increase, Initial Stock
-        if (log.type === 'Purchase' || log.type === 'Stock Increase' || log.type === 'Initial Stock') {
-          inventoryExpenses += amount
-        }
-      })
-
-      // 3. Process Production Costs (New Expenses)
-      let productionCostsExpenses = 0
-      costsSnapshot.docs.forEach(doc => {
-        const data = doc.data()
-        // Summing up the cost from the productionCosts collection
-        productionCostsExpenses += data.cost || data.amount || 0
-      })
-
-      // 4. Process Plant Expenses (New Expenses)
-      let plantExpensesExpenses = 0
-      expensesSnapshot.docs.forEach(doc => {
-        const data = doc.data()
-        // Summing up the cost from the plantExpenses collection
-        plantExpensesExpenses += data.amount || 0
-      })
-
-      // 5. Aggregate all expenses
-      const totalExpenses = inventoryExpenses + productionCostsExpenses + plantExpensesExpenses
+    logs.forEach(log => {
+      const amount = (log.quantityChange || 0) * (log.costOrValuePerUnit || 0)
       
-      // 6. Calculate Net Profit and ROI
-      const netProfit = totalRevenue - totalExpenses
-      const simpleROI = totalExpenses > 0 ? ((netProfit / totalExpenses) * 100) : 0
+      // Revenue: Sales, Stock Decrease
+      if (log.type === 'Sale' || log.type === 'Stock Decrease') {
+        totalRevenue += amount
+      }
+      
+      // Expenses: Purchases, Stock Increase, Initial Stock
+      if (log.type === 'Purchase' || log.type === 'Stock Increase' || log.type === 'Initial Stock') {
+        inventoryExpenses += amount
+      }
+    })
 
-      // 7. Update state
-      setFinancialData({
-        totalRevenue,
-        totalExpenses, // NOW INCLUDES productionCostsExpenses + plantExpensesExpenses
-        netProfit,
-        simpleROI
-      })
-    } catch (error) {
-      console.error('Error fetching financial data:', error)
-    }
+    // 3. Process Production Costs
+    let productionCostsExpenses = 0
+    costsSnapshot.docs.forEach(doc => {
+      const data = doc.data()
+      productionCostsExpenses += data.cost || data.amount || 0
+    })
+
+    // 4. Process Plant Expenses
+    let plantExpensesExpenses = 0
+    expensesSnapshot.docs.forEach(doc => {
+      const data = doc.data()
+      plantExpensesExpenses += data.amount || 0
+    })
+
+    // 5. Process Harvests (NEW)
+    let harvestRevenue = 0
+    harvestsSnapshot.docs.forEach(doc => {
+      const data = doc.data()
+      harvestRevenue += data.totalRevenue || 0
+    })
+
+    // 6. Aggregate totals
+    totalRevenue += harvestRevenue // ADD harvest revenue to total
+    const totalExpenses = inventoryExpenses + productionCostsExpenses + plantExpensesExpenses
+    
+    // 7. Calculate Net Profit and ROI
+    const netProfit = totalRevenue - totalExpenses
+    const simpleROI = totalExpenses > 0 ? ((netProfit / totalExpenses) * 100) : 0
+
+    // 8. Update state
+    setFinancialData({
+      totalRevenue,
+      totalExpenses,
+      netProfit,
+      simpleROI,
+      harvestRevenue, // ADD THIS
+    harvestCount: harvestsSnapshot.docs.length 
+    })
+  } catch (error) {
+    console.error('Error fetching financial data:', error)
   }
-
+}
   // Fetch events data
   const fetchEvents = async () => {
     try {
@@ -186,33 +195,67 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
   }
 }
 
-  // Load all data
-  useEffect(() => {
-    const loadAllData = async () => {
-      setLoading(true)
-      try {
-        await Promise.all([
-          fetchFinancialData(), // This is the updated call
-          fetchEvents(),
-          fetchSensorData()
-        ])
-      } catch (error) {
-        console.error('Error loading dashboard data:', error)
-      } finally {
-        setLoading(false)
+// Fetch harvests data
+const fetchHarvests = async () => {
+  try {
+    const harvestsQuery = query(
+      collection(db, 'harvests'),
+      orderBy('createdAt', 'desc')
+    )
+    const harvestsSnapshot = await getDocs(harvestsQuery)
+    const harvestsData = harvestsSnapshot.docs.map(doc => {
+      const data = doc.data()
+      // harvestDate is stored as string (ISO format)
+      let harvestDate = new Date()
+      if (data.harvestDate) {
+        harvestDate = typeof data.harvestDate === 'string' 
+          ? new Date(data.harvestDate) 
+          : data.harvestDate.toDate?.() || new Date()
       }
-    }
+      
+      return {
+        id: doc.id,
+        ...data,
+        harvestDate: harvestDate
+      }
+    })
+    
+    setHarvests(harvestsData)
+  } catch (error) {
+    console.error('Error fetching harvests:', error)
+    setHarvests([]) // Set empty array on error
+  }
+}
 
-    loadAllData()
-    
-    // Set up real-time updates every 30 seconds
-    const interval = setInterval(() => {
-      fetchSensorData()
-      fetchEvents()
-    }, 30000)
-    
-    return () => clearInterval(interval)
-  }, [])
+// Load all data
+useEffect(() => {
+  const loadAllData = async () => {
+    setLoading(true)
+    try {
+      await Promise.all([
+        fetchFinancialData(), // This now includes harvests internally
+        fetchEvents(),
+        fetchSensorData(),
+        fetchHarvests() // ADD THIS if you need harvest data separately
+      ])
+    } catch (error) {
+      console.error('Error loading dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  loadAllData()
+  
+  // Set up real-time updates every 30 seconds
+  const interval = setInterval(() => {
+    fetchSensorData()
+    fetchEvents()
+    fetchHarvests() // ADD THIS
+  }, 30000)
+  
+  return () => clearInterval(interval)
+}, [])
 
 
   // Format currency
@@ -277,7 +320,24 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
       color: '#1565C0',
       bgColor: '#E3F2FD',
       icon: <FaPercentage />
-    }
+    },
+
+    {
+    title: 'Harvest Revenue',
+    amount: formatCurrency(financialData.harvestRevenue || 0),
+    color: '#059669',
+    bgColor: '#ECFDF5',
+    icon: <FaSeedling />,
+    isHarvest: true
+  },
+  {
+    title: 'Harvest Count',
+    amount: `${financialData.harvestCount || 0} batches`,
+    color: '#D97706',
+    bgColor: '#FEF3C7',
+    icon: <FaSeedling />,
+    isHarvest: true
+  }
   ]
 
   // Generate tasks from events
@@ -428,31 +488,131 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
             )}
           </div>
 
+          <div className="content-card harvest-summary-section">
+            <h3 className="card-title">Recent Harvests</h3>
+            <div className="harvest-list">
+              {loading ? (
+                <div className="harvest-loading">Loading harvests...</div>
+              ) : harvests.length === 0 ? (
+                <div className="harvest-empty">No recent harvests</div>
+              ) : (
+                harvests.slice(0, 5).map((harvest) => (
+                  <div key={harvest.id} className="harvest-item">
+                    <div className="harvest-item-header">
+                      <span className="harvest-plant-name">
+                        {harvest.plantName || 'Unknown Plant'}
+                      </span>
+                      <span className={`harvest-status-badge ${
+                        (harvest.profit || 0) >= 0 ? 'positive' : 'negative'
+                      }`}>
+                        {(harvest.profit || 0) >= 0 ? '✓ Profitable' : '✗ Loss'}
+                      </span>
+                    </div>
+                    <div className="harvest-item-details">
+                      <div className="harvest-detail">
+                        <small>Revenue:</small>
+                        <strong>{formatCurrency(harvest.totalRevenue || 0)}</strong>
+                      </div>
+                      <div className="harvest-detail">
+                        <small>Profit:</small>
+                        <strong style={{ 
+                          color: (harvest.profit || 0) >= 0 ? '#10b981' : '#ef4444' 
+                        }}>
+                          {formatCurrency(harvest.profit || 0)}
+                        </strong>
+                      </div>
+                      <div className="harvest-detail">
+                        <small>ROI:</small>
+                        <strong>{harvest.roi?.toFixed(1) || 0}%</strong>
+                      </div>
+                    </div>
+                    <div className="harvest-item-footer">
+                      <small>
+                        Harvested: {harvest.harvestDate ? 
+                          new Date(harvest.harvestDate).toLocaleDateString() : 
+                          'Unknown date'}
+                      </small>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="content-card harvest-summary-section">
+            <h3 className="card-title">Recent Harvests</h3>
+            <div className="harvest-list">
+              {loading ? (
+                <div className="task-item">Loading harvests...</div>
+              ) : harvests.length === 0 ? (
+                <div className="task-item">No recent harvests</div>
+              ) : (
+                harvests.slice(0, 5).map((harvest, index) => (
+                  <div key={harvest.id} className="harvest-item">
+                    <div className="harvest-item-header">
+                      <span className="harvest-plant-name">{harvest.plantName || 'Unknown Plant'}</span>
+                      <span className={`harvest-status-badge ${
+                        (harvest.profit || 0) >= 0 ? 'positive' : 'negative'
+                      }`}>
+                        {(harvest.profit || 0) >= 0 ? '✓ Profitable' : '✗ Loss'}
+                      </span>
+                    </div>
+                    <div className="harvest-item-details">
+                      <div className="harvest-detail">
+                        <small>Revenue:</small>
+                        <strong>{formatCurrency(harvest.totalRevenue || 0)}</strong>
+                      </div>
+                      <div className="harvest-detail">
+                        <small>Profit:</small>
+                        <strong style={{ 
+                          color: (harvest.profit || 0) >= 0 ? '#10b981' : '#ef4444' 
+                        }}>
+                          {formatCurrency(harvest.profit || 0)}
+                        </strong>
+                      </div>
+                      <div className="harvest-detail">
+                        <small>ROI:</small>
+                        <strong>{harvest.roi?.toFixed(1) || 0}%</strong>
+                      </div>
+                    </div>
+                    <div className="harvest-item-footer">
+                      <small>
+                        Harvested: {harvest.harvestDate ? 
+                          new Date(harvest.harvestDate).toLocaleDateString() : 
+                          'Unknown date'}
+                      </small>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* NPK Chart */}
-          <div className="content-card chart-card">
+          <div className="content-card chart-card chart-full-width">
             <div className="chart-header">
               <h3 className="card-title">
                 NPK & pH Level For Each Plant
                 {loading && <span className="loading-indicator"> (Loading...)</span>}
               </h3>
               <div className="chart-legend">
-                  <div className="legend-status">
-                      <span 
-                          className="status-indicator" 
-                          style={{ backgroundColor: '#10b981' }}
-                      ></span>
-                      <span>Optimal</span>
-                      <span 
-                          className="status-indicator" 
-                          style={{ backgroundColor: '#f59e0b' }}
-                      ></span>
-                      <span>Warning</span>
-                      <span 
-                          className="status-indicator" 
-                          style={{ backgroundColor: '#ef4444' }}
-                      ></span>
-                      <span>Critical</span>
-                  </div>
+                <div className="legend-status">
+                  <span 
+                    className="status-indicator" 
+                    style={{ backgroundColor: '#10b981' }}
+                  ></span>
+                  <span>Optimal</span>
+                  <span 
+                    className="status-indicator" 
+                    style={{ backgroundColor: '#f59e0b' }}
+                  ></span>
+                  <span>Warning</span>
+                  <span 
+                    className="status-indicator" 
+                    style={{ backgroundColor: '#ef4444' }}
+                  ></span>
+                  <span>Critical</span>
+                </div>
               </div>
               <div className="last-update">
                 Last updated: {sensorData.length > 0 ? 
@@ -538,6 +698,7 @@ const AdminDashboard = ({ userType = 'admin', user = null }) => {
               )}
             </div>
           </div>
+
         </div>
       </div>
     </div>

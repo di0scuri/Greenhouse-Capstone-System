@@ -86,27 +86,46 @@ const Costing = ({ userType = 'admin' }) => {
       }))
       
       setInventoryLogs(logs)
-      const harvestsQuery = query(
-      collection(db, 'harvests'),
-      orderBy('harvestDate', 'desc')
-    )
+      
+      // ADDED: Wrap harvest fetching with try-catch (Point 5)
+      let harvestsData = []
+      try {
+        const harvestsQuery = query(
+          collection(db, 'harvests'),
+          orderBy('createdAt', 'desc')
+        )
 
-    const harvestsSnapshot = await getDocs(harvestsQuery)
-    const harvestsData = harvestsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      harvestDate: doc.data().harvestDate?.toDate ? doc.data().harvestDate.toDate() : new Date()
-    }))
-    
-    setHarvests(harvestsData)
+        const harvestsSnapshot = await getDocs(harvestsQuery)
+        harvestsData = harvestsSnapshot.docs.map(doc => {
+          const data = doc.data()
+          // harvestDate is stored as string (ISO format)
+          let harvestDate = new Date()
+          if (data.harvestDate) {
+            harvestDate = typeof data.harvestDate === 'string' 
+              ? new Date(data.harvestDate) 
+              : data.harvestDate.toDate?.() || new Date()
+          }
+          
+          return {
+            id: doc.id,
+            ...data,
+            harvestDate: harvestDate
+          }
+        })
+        
+        setHarvests(harvestsData)
+      } catch (harvestError) {
+        console.error('Error fetching harvests:', harvestError)
+        setHarvests([]) // Set empty array on error
+      }
 
-    calculateFinancialData(costs, logs, expenses, harvestsData)
-    generateChartData(costs, logs, expenses, harvestsData)
-  } catch (error) {
-    console.error('Error fetching data:', error)
-  } finally {
-    setLoading(false)
-  }
+      calculateFinancialData(costs, logs, expenses, harvestsData)
+      generateChartData(costs, logs, expenses, harvestsData)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   
@@ -262,8 +281,16 @@ const Costing = ({ userType = 'admin' }) => {
 
   // **ADD THIS: Add harvests to chart**
   harvests.forEach(harvest => {
-    const harvestDate = harvest.harvestDate
-    if (harvestDate && harvestDate.getFullYear() === now.getFullYear()) {
+    let harvestDate = harvest.harvestDate
+    
+    // Convert string to Date if needed
+    if (typeof harvestDate === 'string') {
+      harvestDate = new Date(harvestDate)
+    }
+    
+    // Validate date before processing
+    if (harvestDate && !isNaN(harvestDate.getTime()) && 
+        harvestDate.getFullYear() === now.getFullYear()) {
       const monthIndex = harvestDate.getMonth()
       monthlyData[monthIndex].revenue += harvest.totalRevenue || 0
       monthlyData[monthIndex].harvestRevenue += harvest.totalRevenue || 0
@@ -339,19 +366,26 @@ const Costing = ({ userType = 'admin' }) => {
       details: log
     })),
     // Add harvests transactions
-    ...harvests.map(harvest => ({
-      id: harvest.id,
-      date: harvest.harvestDate,
-      itemName: harvest.plantName || 'Harvest',
-      type: 'Harvest Sale',
-      quantity: harvest.actualYield || 0,
-      unit: harvest.yieldUnit || 'kg',
-      amount: harvest.totalRevenue || 0,
-      status: 'revenue', // Harvest is revenue
-      profit: harvest.profit || 0,
-      roi: harvest.roi || 0,
-      details: harvest
-    }))
+    ...harvests.map(harvest => {
+      let harvestDate = harvest.harvestDate
+      if (typeof harvestDate === 'string') {
+        harvestDate = new Date(harvestDate)
+      }
+      
+          return {
+        id: harvest.id,
+        date: harvestDate,
+        itemName: harvest.plantName || 'Harvest',
+        type: 'Harvest Sale',
+        quantity: harvest.actualYield || 0,
+        unit: harvest.yieldUnit || 'kg',
+        amount: harvest.totalRevenue || 0,
+        status: 'revenue',
+        profit: harvest.profit || 0,
+        roi: harvest.roi || 0,
+        details: harvest
+      }
+    })
   ]
 
     // Sort by date and filter by search term

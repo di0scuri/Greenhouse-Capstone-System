@@ -2539,7 +2539,7 @@ const completeJobOrder = async (jobOrderId, userId, notes = '') => {
         }
       }
       
-      await addDoc(collection(db, 'plantsExpenses'), expenseData)
+      await addDoc(collection(db, 'plantExpenses'), expenseData)
       
       // Update job order with actual cost
       await updateDoc(jobOrderRef, {
@@ -2547,7 +2547,7 @@ const completeJobOrder = async (jobOrderId, userId, notes = '') => {
         updatedAt: serverTimestamp()
       })
       
-      console.log(`💰 Created expense record for job order ${jobOrderId}: ₱${totalCost.toFixed(2)}`)
+      console.log(`Created expense record for job order ${jobOrderId}: ₱${totalCost.toFixed(2)}`)
     }
     
     // Create completion event
@@ -5257,7 +5257,7 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                       details: [
                                         { label: 'Job Order', value: event.title || 'Fertilizer Application' },
                                         { label: 'Total Cost', value: `₱${totalCost.toFixed(2)}` },
-                                        { label: 'Status', value: 'Expense added to plantsExpenses' }
+                                        { label: 'Status', value: 'Expense added to plantExpenses' }
                                       ],
                                       confirmText: 'OK'
                                     })
