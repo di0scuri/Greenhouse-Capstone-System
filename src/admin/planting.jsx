@@ -2269,202 +2269,270 @@ const handleOpenFertilizerModal = async (plant) => {
     return Object.values(filters).some(value => value !== 'all')
   }
 
-  const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, userId) => {
-    try {
-      if (!fertilizerRecommendations || !fertilizerRecommendations.matchedScenario) {
-        console.error('No fertilizer recommendation provided')
-        return []
-      }
+const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, userId) => {
+  try {
+    if (!fertilizerRecommendations || !fertilizerRecommendations.matchedScenario) {
+      console.error('No fertilizer recommendation provided')
+      return []
+    }
 
-      const scenario = fertilizerRecommendations.matchedScenario
-      const applications = scenario.applications || []
+    const scenario = fertilizerRecommendations.matchedScenario
+    const applications = scenario.applications || []
+    
+    if (applications.length === 0) {
+      console.error('No applications found in scenario')
+      return []
+    }
+    
+    // Get plot size in m² for conversion
+    const plotSizeM2 = parsePlotSizeToM2(plant.plotSize) || 0
+    
+    if (plotSizeM2 === 0) {
+      console.error('Invalid plot size:', plant.plotSize)
+      return []
+    }
+    
+    // Find matching inventory item by NPK ratio
+    const inventorySnapshot = await getDocs(collection(db, 'inventory'))
+    const inventoryItems = inventorySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+    
+    // Match fertilizer by NPK ratio (exact match)
+    const npkRatio = scenario.npkRatio.toLowerCase().replace(/\s/g, '')
+    const matchingInventoryItem = inventoryItems.find(item => {
+      const category = String(item.category || '').toLowerCase()
+      const isFertilizer = category.includes('fertil')
       
-      if (applications.length === 0) {
-        console.error('No applications found in scenario')
-        return []
+      if (!isFertilizer) return false
+      
+      // Check npkRatio field
+      if (item.npkRatio) {
+        const itemNpk = String(item.npkRatio).toLowerCase().replace(/\s/g, '')
+        if (itemNpk === npkRatio) return true
       }
       
-      const createdJobOrderIds = []
-      const applicationEvents = [] // Store events for bulk creation
+      // Check npkKey field
+      if (item.npkKey) {
+        const itemNpk = String(item.npkKey).toLowerCase().replace(/\s/g, '')
+        if (itemNpk === npkRatio) return true
+      }
       
-      // Create job order for each application in the schedule
-      for (let i = 0; i < applications.length; i++) {
-        const application = applications[i]
-        
-        // Calculate scheduled date based on timing description
-        const scheduledDate = new Date()
-        scheduledDate.setHours(8, 0, 0, 0) // Set to 8:00 AM
-        
-        // Parse timing to determine when to schedule
-        const timingLower = application.timing.toLowerCase()
-        if (timingLower.includes('at planting')) {
-          // Schedule for tomorrow (assuming planting is soon)
-          scheduledDate.setDate(scheduledDate.getDate() + 1)
-        } else if (timingLower.includes('10-14 days after planting')) {
-          // Schedule for 12 days from now (middle of range)
-          scheduledDate.setDate(scheduledDate.getDate() + 12)
-        } else if (timingLower.includes('days after planting')) {
-          // Try to extract number of days
-          const daysMatch = timingLower.match(/(\d+)\s*days?\s*after/)
-          if (daysMatch) {
-            scheduledDate.setDate(scheduledDate.getDate() + parseInt(daysMatch[1]))
-          } else {
-            // Default: schedule sequentially
-            scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
-          }
-        } else if (timingLower.includes('weeks after planting')) {
-          // Try to extract number of weeks
-          const weeksMatch = timingLower.match(/(\d+)\s*weeks?\s*after/)
-          if (weeksMatch) {
-            scheduledDate.setDate(scheduledDate.getDate() + (parseInt(weeksMatch[1]) * 7))
-          } else {
-            // Default: schedule sequentially
-            scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
-          }
+      // Check name field
+      if (item.name) {
+        const itemName = String(item.name).toLowerCase().replace(/\s/g, '')
+        if (itemName.includes(npkRatio)) return true
+      }
+      
+      return false
+    })
+    
+    const createdJobOrderIds = []
+    const applicationEvents = []
+    
+    // Create job order for each application in the schedule
+    for (let i = 0; i < applications.length; i++) {
+      const application = applications[i]
+      
+      // Calculate scheduled date based on timing description
+      const scheduledDate = new Date()
+      scheduledDate.setHours(8, 0, 0, 0)
+      
+      const timingLower = application.timing.toLowerCase()
+      if (timingLower.includes('at planting') || timingLower.includes('immediately')) {
+        scheduledDate.setDate(scheduledDate.getDate() + 1)
+      } else if (timingLower.includes('10-14 days')) {
+        scheduledDate.setDate(scheduledDate.getDate() + 12)
+      } else if (timingLower.includes('days after')) {
+        const daysMatch = timingLower.match(/(\d+)\s*days?\s*after/)
+        if (daysMatch) {
+          scheduledDate.setDate(scheduledDate.getDate() + parseInt(daysMatch[1]))
         } else {
-          // Default: schedule sequentially (1 week apart)
           scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
         }
-        
-        // Format fertilizer bags information
-        const bagsInfo = Object.entries(application.bags)
-          .map(([type, amount]) => `${type}: ${amount}`)
-          .join(', ')
-        
-        // Create the job order document
-        const jobOrderData = {
-          plantId: plant.id,
-          plantName: plant.plantName,
-          plantType: plant.plantType,
-          plotNumber: plant.plotNumber,
-          
-          // Job details
-          type: 'FERTILIZER_APPLICATION',
-          title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
-          description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsInfo} (for ${parsePlotSizeToM2(plant.plotSize).toFixed(4)}m² plot)`,
-          
-          // Status tracking
-          status: 'pending', // pending, in-progress, completed, cancelled
-          priority: i === 0 ? 'high' : 'medium', // First application is high priority
-          
-          // Fertilizer details
-          fertilizerName: `NPK ${scenario.npkRatio}`,
-          fertilizerBags: application.bags,
-          fertilizerAmount: bagsInfo,
-          npkRatio: scenario.npkRatio,
-          applicationMethod: application.method,
-          applicationInstructions: application.method,
-          
-          // Scheduling
-          scheduledDate: scheduledDate.toISOString(),
-          dueDate: scheduledDate.toISOString(),
-          frequency: application.timing,
-          applicationNumber: i + 1,
-          totalApplications: applications.length,
-          applicationStage: application.stage,
-          applicationTiming: application.timing,
-          
-          // Context
-          stage: fertilizerRecommendations.stage,
-          nutrientCondition: fertilizerRecommendations.currentCondition,
-          soilCondition: scenario.condition,
-          reason: `Nutrient levels: N=${fertilizerRecommendations.nCondition}, P=${fertilizerRecommendations.pCondition}, K=${fertilizerRecommendations.kCondition}`,
-          
-          // Expected results
-          expectedResult: `Follow ${application.stage} schedule for optimal growth`,
-          
-          // Metadata
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          userId: userId,
-          createdBy: userId,
-          assignedTo: null, // Can be assigned to specific user
-          completedAt: null,
-          completedBy: null,
-          notes: '',
-          
-          // Cost tracking
-          estimatedCost: 0, // Will be calculated when completed
-          actualCost: null
+      } else if (timingLower.includes('weeks after')) {
+        const weeksMatch = timingLower.match(/(\d+)\s*weeks?\s*after/)
+        if (weeksMatch) {
+          scheduledDate.setDate(scheduledDate.getDate() + (parseInt(weeksMatch[1]) * 7))
+        } else {
+          scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
         }
-        
-        // Add to Firebase jobOrders collection
-        const docRef = await addDoc(collection(db, 'jobOrders'), jobOrderData)
-        createdJobOrderIds.push(docRef.id)
-        
-        // Create a scheduled event for this application
-        const scheduledEvent = {
-          plantId: plant.id,
-          plantName: plant.plantName,
-          plotNumber: plant.plotNumber,
-          type: 'FERTILIZER_SCHEDULED',
-          status: 'scheduled',
-          message: `Fertilizer application scheduled: ${application.stage} on ${scheduledDate.toLocaleDateString()}`,
-          scheduledDate: scheduledDate.toISOString(),
-          timestamp: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          userId: userId,
-          details: {
-            jobOrderId: docRef.id,
-            applicationStage: application.stage,
-            timing: application.timing,
-            npkRatio: scenario.npkRatio,
-            fertilizerBags: application.bags,
-            scheduledFor: scheduledDate.toISOString(),
-            applicationNumber: i + 1,
-            totalApplications: applications.length
-          }
-        }
-        
-        // Store event for later creation
-        applicationEvents.push(scheduledEvent)
-        
-        console.log(`✅ Created job order ${i + 1}/${applications.length} in jobOrders collection: ${application.stage} for ${scheduledDate.toLocaleDateString()}`)
+      } else if (timingLower.includes('when') || timingLower.includes('start')) {
+        // "when plants start to bloom" etc - estimate based on application number
+        scheduledDate.setDate(scheduledDate.getDate() + (i * 14 + 7))
+      } else {
+        scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
       }
       
-      // Create all scheduled events
-      const eventPromises = applicationEvents.map(event => 
-        addDoc(collection(db, 'events'), event)
-      )
-      await Promise.all(eventPromises)
+      // Convert bags/ha to bags for this specific plot
+      const fertilizerBagsForPlot = {}
+      Object.entries(application.bags).forEach(([type, bagsPerHa]) => {
+        const bags = typeof bagsPerHa === 'string' 
+          ? parseFloat(bagsPerHa.split('-')[0]) || parseFloat(bagsPerHa) || 0
+          : parseFloat(bagsPerHa) || 0
+        
+        // Convert to plot size
+        const bagsForPlot = convertFertilizerToPlotSize(bags, plotSizeM2)
+        fertilizerBagsForPlot[type] = parseFloat(bagsForPlot)
+      })
       
-      // Create a summary event in events collection
-      const summaryEvent = {
+      // Format fertilizer bags information
+      const bagsInfo = Object.entries(application.bags)
+        .map(([type, amount]) => `${type}: ${amount}`)
+        .join(', ')
+      
+      // Format fertilizer bags for plot (converted amounts)
+      const bagsForPlotInfo = Object.entries(fertilizerBagsForPlot)
+        .map(([type, bags]) => `${type}: ${bags.toFixed(4)} bags`)
+        .join(', ')
+      
+      // Create the job order document
+      const jobOrderData = {
         plantId: plant.id,
         plantName: plant.plantName,
-        type: 'FERTILIZER_SCHEDULE_CREATED',
-        status: 'info',
-        message: `Created fertilizer schedule: ${applications.length} applications for NPK ${scenario.npkRatio}`,
+        plantType: plant.plantType,
+        plotNumber: plant.plotNumber,
+        plotSize: plant.plotSize,
+        plotSizeM2: plotSizeM2,
+        
+        // Job details
+        type: 'FERTILIZER_APPLICATION',
+        title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
+        description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsForPlotInfo} (for ${plotSizeM2.toFixed(4)}m² plot)`,
+        
+        // Status tracking
+        status: 'pending',
+        priority: i === 0 ? 'high' : 'medium',
+        
+        // Fertilizer details
+        fertilizerName: `NPK ${scenario.npkRatio}`,
+        fertilizerBags: application.bags, // Original bags/ha
+        fertilizerBagsForPlot: fertilizerBagsForPlot, // CRITICAL: Converted bags for this plot
+        fertilizerAmount: bagsInfo,
+        fertilizerAmountForPlot: bagsForPlotInfo,
+        npkRatio: scenario.npkRatio,
+        applicationMethod: application.method,
+        applicationInstructions: application.method,
+        
+        // Inventory reference (if found)
+        inventoryItemId: matchingInventoryItem?.id || null,
+        inventoryItemName: matchingInventoryItem?.name || null,
+        
+        // Scheduling
+        scheduledDate: scheduledDate.toISOString(),
+        dueDate: scheduledDate.toISOString(),
+        frequency: application.timing,
+        applicationNumber: i + 1,
+        totalApplications: applications.length,
+        applicationStage: application.stage,
+        applicationTiming: application.timing,
+        
+        // Context
+        stage: fertilizerRecommendations.stage,
+        nutrientCondition: fertilizerRecommendations.currentCondition,
+        soilCondition: scenario.condition,
+        reason: `Nutrient levels: N=${fertilizerRecommendations.nCondition}, P=${fertilizerRecommendations.pCondition}, K=${fertilizerRecommendations.kCondition}`,
+        
+        // Expected results
+        expectedResult: `Follow ${application.stage} schedule for optimal growth`,
+        
+        // Metadata
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        userId: userId,
+        createdBy: userId,
+        assignedTo: null,
+        completedAt: null,
+        completedBy: null,
+        notes: '',
+        
+        // Inventory tracking
+        inventoryLogged: false,
+        inventoryLogId: null,
+        
+        // Cost tracking
+        estimatedCost: 0,
+        actualCost: null
+      }
+      
+      // Add to Firebase jobOrders collection
+      const docRef = await addDoc(collection(db, 'jobOrders'), jobOrderData)
+      createdJobOrderIds.push(docRef.id)
+      
+      // Create a scheduled event
+      const scheduledEvent = {
+        plantId: plant.id,
+        plantName: plant.plantName,
+        plotNumber: plant.plotNumber,
+        type: 'FERTILIZER_SCHEDULED',
+        status: 'scheduled',
+        message: `Fertilizer application scheduled: ${application.stage} on ${scheduledDate.toLocaleDateString()}`,
+        scheduledDate: scheduledDate.toISOString(),
         timestamp: serverTimestamp(),
         createdAt: serverTimestamp(),
         userId: userId,
+        jobOrderId: docRef.id,
         details: {
+          jobOrderId: docRef.id,
+          applicationStage: application.stage,
+          timing: application.timing,
           npkRatio: scenario.npkRatio,
-          condition: scenario.condition,
-          totalApplications: applications.length,
-          jobOrderIds: createdJobOrderIds, // Reference to created job orders
-          firstApplicationDate: applicationEvents[0]?.scheduledDate,
-          lastApplicationDate: applicationEvents[applicationEvents.length - 1]?.scheduledDate,
-          applications: applications.map(app => app.stage).join(', '),
-          schedules: applications.map((app, i) => ({
-            stage: app.stage,
-            timing: app.timing,
-            scheduledDate: applicationEvents[i]?.scheduledDate
-          }))
+          fertilizerBags: application.bags,
+          fertilizerBagsForPlot: fertilizerBagsForPlot,
+          scheduledFor: scheduledDate.toISOString(),
+          applicationNumber: i + 1,
+          totalApplications: applications.length
         }
       }
       
-      await addDoc(collection(db, 'events'), summaryEvent)
+      applicationEvents.push(scheduledEvent)
       
-      console.log(`📋 Summary: Created ${createdJobOrderIds.length} job orders and ${applicationEvents.length + 1} events for ${plant.plantName}`)
-      
-      return createdJobOrderIds
-      
-    } catch (error) {
-      console.error('Error generating fertilizer job orders:', error)
-      throw error
+      console.log(`✅ Created job order ${i + 1}/${applications.length}: ${application.stage} for ${scheduledDate.toLocaleDateString()}`)
     }
+    
+    // Create all scheduled events
+    const eventPromises = applicationEvents.map(event => 
+      addDoc(collection(db, 'events'), event)
+    )
+    await Promise.all(eventPromises)
+    
+    // Create a summary event
+    const summaryEvent = {
+      plantId: plant.id,
+      plantName: plant.plantName,
+      type: 'FERTILIZER_SCHEDULE_CREATED',
+      status: 'info',
+      message: `Created fertilizer schedule: ${applications.length} applications for NPK ${scenario.npkRatio}`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        npkRatio: scenario.npkRatio,
+        condition: scenario.condition,
+        totalApplications: applications.length,
+        jobOrderIds: createdJobOrderIds,
+        matchedInventoryItem: matchingInventoryItem ? {
+          id: matchingInventoryItem.id,
+          name: matchingInventoryItem.name
+        } : null,
+        firstApplicationDate: applicationEvents[0]?.scheduledDate,
+        lastApplicationDate: applicationEvents[applicationEvents.length - 1]?.scheduledDate,
+        applications: applications.map(app => app.stage).join(', ')
+      }
+    }
+    
+    await addDoc(collection(db, 'events'), summaryEvent)
+    
+    console.log(`📋 Summary: Created ${createdJobOrderIds.length} job orders and ${applicationEvents.length + 1} events for ${plant.plantName}`)
+    
+    return createdJobOrderIds
+    
+  } catch (error) {
+    console.error('Error generating fertilizer job orders:', error)
+    throw error
   }
+}
 
 // Helper function to complete a job order
 const completeJobOrder = async (jobOrderId, userId, notes = '') => {
