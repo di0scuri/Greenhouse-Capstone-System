@@ -1314,6 +1314,21 @@ const PricingCalculatorModal = ({
                                 >
                                   <MdReceipt />
                                 </button>
+
+                                <button 
+                                  className="action-btn pricing-btn"
+                                  onClick={() => {
+                                    setSelectedPlant(plant)
+                                    setShowPricingModal(true)
+                                  }}
+                                  title="Calculate Pricing"
+                                  style={{
+                                    background: '#8b5cf6',
+                                    color: 'white'
+                                  }}
+                                >
+                                  <MdAttachMoney />
+                                </button>
                               </>
                             )}
                           </div>

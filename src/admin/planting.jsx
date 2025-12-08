@@ -8,6 +8,10 @@ import { db, realtimeDb } from '../firebase'
 import { useNavigate } from 'react-router-dom'
 import { ref, get } from 'firebase/database'
 import inventoryLogger from "../functions/inventoryLogger";
+import JobOrderManager, { 
+  parsePlotSizeToM2, 
+  convertFertilizerToPlotSize 
+} from '../functions/jobOrderManager';
 
 import {
   MdLocationOn,
@@ -189,59 +193,6 @@ const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
     )
   }
 
-const parsePlotSizeToM2 = (plotSizeStr) => {
-  if (!plotSizeStr) {
-    console.warn("parsePlotSizeToM2: No plot size string provided");
-    return 0;
-  }
-
-  // Log the input for debugging
-  console.log("Parsing plot size string:", plotSizeStr);
-
-  // Normalize the string for easier parsing
-  const normalizedStr = String(plotSizeStr).toLowerCase().replace(/\s/g, '');
-
-  // Case 1: Already in m2 (e.g., "50m2", "50sqm")
-  const m2Match = normalizedStr.match(/^(\d+(\.\d+)?)(m2|sqm|sqmeters|sqmeter)$/);
-  if (m2Match) {
-    const result = parseFloat(m2Match[1]);
-    console.log("Matched m2 format, result:", result);
-    return result;
-  }
-
-  // Case 2: Dimensions in cm (e.g., "30x20cm")
-  const cmMatch = normalizedStr.match(/^(\d+(\.\d+)?)[x*](\d+(\.\d+)?)cm$/);
-  if (cmMatch) {
-    const lengthCm = parseFloat(cmMatch[1]);
-    const widthCm = parseFloat(cmMatch[3]);
-    // Convert cm² to m²: (length * width) / 10000
-    const result = (lengthCm * widthCm) / 10000;
-    console.log("Matched cm dimensions, result:", result, "from", lengthCm, "x", widthCm, "cm");
-    return result;
-  }
-
-  // Case 3: Dimensions in meters (e.g., "10x5m", "10*5")
-  const mMatch = normalizedStr.match(/^(\d+(\.\d+)?)[x*](\d+(\.\d+)?)(m|meter)?$/);
-  if (mMatch) {
-    const length = parseFloat(mMatch[1]);
-    const width = parseFloat(mMatch[3]);
-    const result = length * width;
-    console.log("Matched m dimensions, result:", result, "from", length, "x", width, "m");
-    return result;
-  }
-  
-  // Case 4: Simple number (Assume it's the area in m² if only a number is present)
-  const numberMatch = normalizedStr.match(/^(\d+(\.\d+)?)$/);
-  if (numberMatch) {
-    const result = parseFloat(numberMatch[1]);
-    console.log("Matched simple number, result:", result);
-    return result;
-  }
-
-  // Fallback: If parsing fails, return 0 to prevent crashes
-  console.warn(`Unable to parse plot size: "${plotSizeStr}"`);
-  return 0;
-};
 
   const showAlert = (config) => {
     setAlertConfig({
@@ -259,61 +210,6 @@ const parsePlotSizeToM2 = (plotSizeStr) => {
   }
 
   const FERTILIZER_WEIGHT_PER_BAG = 50;
-
-
-const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2, returnWeight = false) => {
-  // 1 hectare = 10,000 m²
-  const hectareInM2 = 10000;
-  const FERTILIZER_WEIGHT_PER_BAG = 50; // kg
-  
-  // Ensure plotSizeM2 is a valid number
-  const validPlotSize = plotSizeM2 || 0;
-  
-  if (validPlotSize === 0) {
-    return returnWeight ? { 
-      bags: '0.00',
-      amount: '0.00', 
-      unit: 'g',
-      weightKg: 0,
-      weightGrams: 0
-    } : '0.00';
-  }
-  
-  // Calculate bags for plot
-  const bagsForPlot = (bagsPerHa * validPlotSize) / hectareInM2;
-  const weightKg = bagsForPlot * FERTILIZER_WEIGHT_PER_BAG;
-  const weightGrams = weightKg * 1000;
-  
-  if (!returnWeight) {
-    return bagsForPlot.toFixed(6);
-  }
-  
-  // Auto-select unit based on weight - MORE AGGRESSIVE gram conversion
-  let displayAmount, displayUnit;
-  
-  // NEW LOGIC: Always use grams for amounts less than 0.1 kg (100g)
-  if (weightKg >= 0.1) {
-    // Use kg for >= 0.1 kg (100g)
-    displayAmount = weightKg.toFixed(3);
-    displayUnit = 'kg';
-  } else if (weightKg >= 0.0001) {
-    // Use grams for 0.1g - 99.9g
-    displayAmount = (weightKg * 1000).toFixed(1);
-    displayUnit = 'g';
-  } else {
-    // Use milligrams for < 0.1g
-    displayAmount = (weightKg * 1000000).toFixed(0);
-    displayUnit = 'mg';
-  }
-  
-  return {
-    bags: bagsForPlot.toFixed(6),
-    amount: displayAmount,
-    unit: displayUnit,
-    weightKg: weightKg,
-    weightGrams: weightGrams
-  };
-};
 
 
 // Add this function near your other helper functions (around line 400)
@@ -637,6 +533,63 @@ const rankPlantsBySensorData = (sensorData, plantsList) => {
     throw error
   }
 }
+
+
+const fetchRecommendedPriceFromProduction = async (plantId) => {
+  try {
+    const plantRef = doc(db, 'plants', plantId)
+    const plantDoc = await getDoc(plantRef)
+    
+    if (!plantDoc.exists()) {
+      return null
+    }
+    
+    const plantData = plantDoc.data()
+    
+    // Check if plant has recommended price from production costing
+    if (plantData.recommendedPrice) {
+      return {
+        recommendedPrice: plantData.recommendedPrice,
+        profitMargin: plantData.profitMargin || 0,
+        sellingPrice: plantData.sellingPrice || plantData.recommendedPrice,
+        profitAmount: plantData.profitAmount || 0,
+        lastPricingUpdate: plantData.lastPricingUpdate,
+        pricingSource: 'production_costing'
+      }
+    }
+    
+    // Fallback: Check if there's a production cost record
+    const costQuery = query(
+      collection(db, 'productionCosts'), 
+      where('plantId', '==', plantId)
+    )
+    const costSnapshot = await getDocs(costQuery)
+    
+    if (!costSnapshot.empty) {
+      const costData = costSnapshot.docs[0].data()
+      
+      // If cost exists but no recommended price, calculate a basic one (30% margin)
+      const totalCost = costData.totalCost || 0
+      const recommendedPrice = totalCost * 1.3 // 30% markup
+      
+      return {
+        recommendedPrice: recommendedPrice,
+        profitMargin: 30,
+        sellingPrice: recommendedPrice,
+        profitAmount: totalCost * 0.3,
+        totalProductionCost: totalCost,
+        costPerUnit: costData.costPerUnit || 0,
+        pricingSource: 'calculated_from_cost'
+      }
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Error fetching recommended price from production:', error)
+    return null
+  }
+}
+
 
 
 
@@ -1172,10 +1125,11 @@ const fetchPlantEvents = async (plantId) => {
     const jobOrdersQuery = query(jobOrdersCollection, where('plantId', '==', plantId))
     const jobOrdersSnapshot = await getDocs(jobOrdersQuery)
     const jobOrders = jobOrdersSnapshot.docs.map(doc => ({
-      id: doc.id,
+      id: `joborder-${doc.id}`,  // ✅ Add prefix for consistency
+      jobOrderId: doc.id,         // ✅ Keep original ID
       ...doc.data(),
-      isJobOrder: true,  // Mark as job order
-      type: 'FERTILIZER_JOB_ORDER'  // Add consistent type
+      isJobOrder: true,
+      type: 'FERTILIZER_JOB_ORDER'
     }))
     
     // Merge and sort by timestamp/scheduledDate
@@ -1979,12 +1933,46 @@ const handleOpenFertilizerModal = async (plant) => {
     setFertilizerInfo(null)
   }
 
-  const handleOpenPriceModal = (plant) => {
+  const handleOpenPriceModal = async (plant) => {
+  try {
+    // First, try to get pricing from production costing
+    const productionPricing = await fetchRecommendedPriceFromProduction(plant.id)
+    
+    if (productionPricing) {
+      // Use pricing from production costing module
+      setPriceRecommendation({
+        recommendedPrice: productionPricing.sellingPrice || productionPricing.recommendedPrice,
+        minPrice: Math.round(productionPricing.recommendedPrice * 0.9), // 10% below
+        maxPrice: Math.round(productionPricing.recommendedPrice * 1.1), // 10% above
+        avgMarketPrice: productionPricing.recommendedPrice,
+        unit: plant.unit || 'per kilo',
+        qualityScore: 85,
+        priceStrategy: productionPricing.pricingSource === 'production_costing' 
+          ? 'Production Costing' 
+          : 'Cost-Based Pricing',
+        profitMargin: productionPricing.profitMargin,
+        profitAmount: productionPricing.profitAmount,
+        totalCost: productionPricing.totalProductionCost,
+        factors: [
+          'Production Cost Analysis',
+          productionPricing.profitMargin ? `${productionPricing.profitMargin}% Profit Margin` : 'Cost Recovery',
+          'Quality Assessment',
+          'Market Positioning'
+        ],
+        source: productionPricing.pricingSource,
+        lastUpdate: productionPricing.lastPricingUpdate
+      })
+      
+      setShowPriceModal(true)
+      return
+    }
+    
+    // Fallback: Use plantsList data if no production costing available
     const plantInfo = plantsList[plant.plantType]
     
     if (plantInfo) {
       const basePrice = parseFloat(plantInfo.pricing) || 100
-
+      
       setPriceRecommendation({
         recommendedPrice: basePrice,
         minPrice: Math.round(basePrice * 0.8),
@@ -1992,13 +1980,37 @@ const handleOpenFertilizerModal = async (plant) => {
         avgMarketPrice: basePrice,
         unit: plantInfo.pricingUnit || 'per kilo',
         qualityScore: 85,
-        priceStrategy: 'Market Rate',
-        factors: ['Quality', 'Season', 'Demand']
+        priceStrategy: 'Market Rate (Default)',
+        factors: [
+          'Market Average',
+          'Plant Type Standard',
+          'Quality Assessment'
+        ],
+        source: 'plantsList_fallback',
+        warning: 'No production costing data available. Using default market rates.'
       })
       
       setShowPriceModal(true)
+    } else {
+      showAlert({
+        type: 'warning',
+        title: 'No Pricing Data',
+        message: 'Unable to fetch pricing information for this plant.',
+        confirmText: 'OK'
+      })
     }
+  } catch (error) {
+    console.error('Error opening price modal:', error)
+    showAlert({
+      type: 'error',
+      title: 'Error',
+      message: 'Failed to load pricing information.',
+      details: [{ label: 'Error', value: error.message }],
+      confirmText: 'OK'
+    })
   }
+}
+
 
   const handleClosePriceModal = () => {
     setShowPriceModal(false)
@@ -2268,518 +2280,6 @@ const handleOpenFertilizerModal = async (plant) => {
   const hasActiveFilters = () => {
     return Object.values(filters).some(value => value !== 'all')
   }
-
-const generateFertilizerJobOrders = async (plant, fertilizerRecommendations, userId) => {
-  try {
-    if (!fertilizerRecommendations || !fertilizerRecommendations.matchedScenario) {
-      console.error('No fertilizer recommendation provided')
-      return []
-    }
-
-    const scenario = fertilizerRecommendations.matchedScenario
-    const applications = scenario.applications || []
-    
-    if (applications.length === 0) {
-      console.error('No applications found in scenario')
-      return []
-    }
-    
-    // Get plot size in m² for conversion
-    const plotSizeM2 = parsePlotSizeToM2(plant.plotSize) || 0
-    
-    if (plotSizeM2 === 0) {
-      console.error('Invalid plot size:', plant.plotSize)
-      return []
-    }
-    
-    // Find matching inventory item by NPK ratio
-    const inventorySnapshot = await getDocs(collection(db, 'inventory'))
-    const inventoryItems = inventorySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
-    
-    // Match fertilizer by NPK ratio (exact match)
-    const npkRatio = scenario.npkRatio.toLowerCase().replace(/\s/g, '')
-    const matchingInventoryItem = inventoryItems.find(item => {
-      const category = String(item.category || '').toLowerCase()
-      const isFertilizer = category.includes('fertil')
-      
-      if (!isFertilizer) return false
-      
-      // Check npkRatio field
-      if (item.npkRatio) {
-        const itemNpk = String(item.npkRatio).toLowerCase().replace(/\s/g, '')
-        if (itemNpk === npkRatio) return true
-      }
-      
-      // Check npkKey field
-      if (item.npkKey) {
-        const itemNpk = String(item.npkKey).toLowerCase().replace(/\s/g, '')
-        if (itemNpk === npkRatio) return true
-      }
-      
-      // Check name field
-      if (item.name) {
-        const itemName = String(item.name).toLowerCase().replace(/\s/g, '')
-        if (itemName.includes(npkRatio)) return true
-      }
-      
-      return false
-    })
-    
-    const createdJobOrderIds = []
-    const applicationEvents = []
-    
-    // Create job order for each application in the schedule
-    for (let i = 0; i < applications.length; i++) {
-      const application = applications[i]
-      
-      // Calculate scheduled date based on timing description
-      const scheduledDate = new Date()
-      scheduledDate.setHours(8, 0, 0, 0)
-      
-      const timingLower = application.timing.toLowerCase()
-      if (timingLower.includes('at planting') || timingLower.includes('immediately')) {
-        scheduledDate.setDate(scheduledDate.getDate() + 1)
-      } else if (timingLower.includes('10-14 days')) {
-        scheduledDate.setDate(scheduledDate.getDate() + 12)
-      } else if (timingLower.includes('days after')) {
-        const daysMatch = timingLower.match(/(\d+)\s*days?\s*after/)
-        if (daysMatch) {
-          scheduledDate.setDate(scheduledDate.getDate() + parseInt(daysMatch[1]))
-        } else {
-          scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
-        }
-      } else if (timingLower.includes('weeks after')) {
-        const weeksMatch = timingLower.match(/(\d+)\s*weeks?\s*after/)
-        if (weeksMatch) {
-          scheduledDate.setDate(scheduledDate.getDate() + (parseInt(weeksMatch[1]) * 7))
-        } else {
-          scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
-        }
-      } else if (timingLower.includes('when') || timingLower.includes('start')) {
-        // "when plants start to bloom" etc - estimate based on application number
-        scheduledDate.setDate(scheduledDate.getDate() + (i * 14 + 7))
-      } else {
-        scheduledDate.setDate(scheduledDate.getDate() + (i * 7 + 1))
-      }
-      
-      // Convert bags/ha to bags for this specific plot
-      const fertilizerBagsForPlot = {}
-      Object.entries(application.bags).forEach(([type, bagsPerHa]) => {
-        const bags = typeof bagsPerHa === 'string' 
-          ? parseFloat(bagsPerHa.split('-')[0]) || parseFloat(bagsPerHa) || 0
-          : parseFloat(bagsPerHa) || 0
-        
-        // Convert to plot size
-        const bagsForPlot = convertFertilizerToPlotSize(bags, plotSizeM2)
-        fertilizerBagsForPlot[type] = parseFloat(bagsForPlot)
-      })
-      
-      // Format fertilizer bags information
-      const bagsInfo = Object.entries(application.bags)
-        .map(([type, amount]) => `${type}: ${amount}`)
-        .join(', ')
-      
-      // Format fertilizer bags for plot (converted amounts)
-      const bagsForPlotInfo = Object.entries(fertilizerBagsForPlot)
-        .map(([type, bags]) => `${type}: ${bags.toFixed(4)} bags`)
-        .join(', ')
-      
-      // Create the job order document
-      const jobOrderData = {
-        plantId: plant.id,
-        plantName: plant.plantName,
-        plantType: plant.plantType,
-        plotNumber: plant.plotNumber,
-        plotSize: plant.plotSize,
-        plotSizeM2: plotSizeM2,
-        
-        // Job details
-        type: 'FERTILIZER_APPLICATION',
-        title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
-        description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsForPlotInfo} (for ${plotSizeM2.toFixed(4)}m² plot)`,
-        
-        // Status tracking
-        status: 'pending',
-        priority: i === 0 ? 'high' : 'medium',
-        
-        // Fertilizer details
-        fertilizerName: `NPK ${scenario.npkRatio}`,
-        fertilizerBags: application.bags, // Original bags/ha
-        fertilizerBagsForPlot: fertilizerBagsForPlot, // CRITICAL: Converted bags for this plot
-        fertilizerAmount: bagsInfo,
-        fertilizerAmountForPlot: bagsForPlotInfo,
-        npkRatio: scenario.npkRatio,
-        applicationMethod: application.method,
-        applicationInstructions: application.method,
-        
-        // Inventory reference (if found)
-        inventoryItemId: matchingInventoryItem?.id || null,
-        inventoryItemName: matchingInventoryItem?.name || null,
-        
-        // Scheduling
-        scheduledDate: scheduledDate.toISOString(),
-        dueDate: scheduledDate.toISOString(),
-        frequency: application.timing,
-        applicationNumber: i + 1,
-        totalApplications: applications.length,
-        applicationStage: application.stage,
-        applicationTiming: application.timing,
-        
-        // Context
-        stage: fertilizerRecommendations.stage,
-        nutrientCondition: fertilizerRecommendations.currentCondition,
-        soilCondition: scenario.condition,
-        reason: `Nutrient levels: N=${fertilizerRecommendations.nCondition}, P=${fertilizerRecommendations.pCondition}, K=${fertilizerRecommendations.kCondition}`,
-        
-        // Expected results
-        expectedResult: `Follow ${application.stage} schedule for optimal growth`,
-        
-        // Metadata
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        userId: userId,
-        createdBy: userId,
-        assignedTo: null,
-        completedAt: null,
-        completedBy: null,
-        notes: '',
-        
-        // Inventory tracking
-        inventoryLogged: false,
-        inventoryLogId: null,
-        
-        // Cost tracking
-        estimatedCost: 0,
-        actualCost: null
-      }
-      
-      // Add to Firebase jobOrders collection
-      const docRef = await addDoc(collection(db, 'jobOrders'), jobOrderData)
-      createdJobOrderIds.push(docRef.id)
-      
-      // Create a scheduled event
-      const scheduledEvent = {
-        plantId: plant.id,
-        plantName: plant.plantName,
-        plotNumber: plant.plotNumber,
-        type: 'FERTILIZER_SCHEDULED',
-        status: 'scheduled',
-        message: `Fertilizer application scheduled: ${application.stage} on ${scheduledDate.toLocaleDateString()}`,
-        scheduledDate: scheduledDate.toISOString(),
-        timestamp: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        userId: userId,
-        jobOrderId: docRef.id,
-        details: {
-          jobOrderId: docRef.id,
-          applicationStage: application.stage,
-          timing: application.timing,
-          npkRatio: scenario.npkRatio,
-          fertilizerBags: application.bags,
-          fertilizerBagsForPlot: fertilizerBagsForPlot,
-          scheduledFor: scheduledDate.toISOString(),
-          applicationNumber: i + 1,
-          totalApplications: applications.length
-        }
-      }
-      
-      applicationEvents.push(scheduledEvent)
-      
-      console.log(`✅ Created job order ${i + 1}/${applications.length}: ${application.stage} for ${scheduledDate.toLocaleDateString()}`)
-    }
-    
-    // Create all scheduled events
-    const eventPromises = applicationEvents.map(event => 
-      addDoc(collection(db, 'events'), event)
-    )
-    await Promise.all(eventPromises)
-    
-    // Create a summary event
-    const summaryEvent = {
-      plantId: plant.id,
-      plantName: plant.plantName,
-      type: 'FERTILIZER_SCHEDULE_CREATED',
-      status: 'info',
-      message: `Created fertilizer schedule: ${applications.length} applications for NPK ${scenario.npkRatio}`,
-      timestamp: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      userId: userId,
-      details: {
-        npkRatio: scenario.npkRatio,
-        condition: scenario.condition,
-        totalApplications: applications.length,
-        jobOrderIds: createdJobOrderIds,
-        matchedInventoryItem: matchingInventoryItem ? {
-          id: matchingInventoryItem.id,
-          name: matchingInventoryItem.name
-        } : null,
-        firstApplicationDate: applicationEvents[0]?.scheduledDate,
-        lastApplicationDate: applicationEvents[applicationEvents.length - 1]?.scheduledDate,
-        applications: applications.map(app => app.stage).join(', ')
-      }
-    }
-    
-    await addDoc(collection(db, 'events'), summaryEvent)
-    
-    console.log(`📋 Summary: Created ${createdJobOrderIds.length} job orders and ${applicationEvents.length + 1} events for ${plant.plantName}`)
-    
-    return createdJobOrderIds
-    
-  } catch (error) {
-    console.error('Error generating fertilizer job orders:', error)
-    throw error
-  }
-}
-
-// Helper function to complete a job order
-const completeJobOrder = async (jobOrderId, userId, notes = '') => {
-  try {
-    // Get the job order details first
-    const jobOrderRef = doc(db, 'jobOrders', jobOrderId)
-    const jobOrderDoc = await getDoc(jobOrderRef)
-    
-    if (!jobOrderDoc.exists()) {
-      throw new Error('Job order not found')
-    }
-    
-    const jobOrderData = jobOrderDoc.data()
-    const completionDate = new Date()
-    
-    // Update job order status
-    await updateDoc(jobOrderRef, {
-      status: 'completed',
-      completedAt: serverTimestamp(),
-      completedBy: userId,
-      notes: notes,
-      updatedAt: serverTimestamp()
-    })
-    
-    // Calculate total cost based on fertilizer bags
-    let totalCost = 0
-    let quantityDetails = []
-    let totalBags = 0
-    
-    if (jobOrderData.fertilizerBags) {
-      Object.entries(jobOrderData.fertilizerBags).forEach(([type, amount]) => {
-        // Estimate cost per bag (adjust these prices to match your actual costs)
-        const costPerBag = type.includes('14-14-14') ? 800 : 
-                         type.includes('Urea') ? 600 : 
-                         type.includes('Complete') ? 900 : 
-                         type.includes('16-16-16') ? 850 :
-                         700 // Default price
-        
-        // Parse the amount (handles formats like "2-3 bags/ha" or just "2")
-        const bags = typeof amount === 'string' 
-          ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-          : parseFloat(amount) || 0
-        
-        const cost = bags * costPerBag
-        totalCost += cost
-        totalBags += bags
-        
-        quantityDetails.push(`${type}: ${bags} bags @ ₱${costPerBag}/bag`)
-      })
-    }
-    
-    // Create expense record for fertilizer application
-    if (jobOrderData.type === 'FERTILIZER_APPLICATION' && jobOrderData.plantId) {
-      const expenseData = {
-        plantId: jobOrderData.plantId,
-        expenseType: 'Fertilizer',
-        description: `${jobOrderData.title || 'Fertilizer Application'} - NPK ${jobOrderData.npkRatio || 'N/A'}`,
-        date: serverTimestamp(),
-        cost: totalCost,
-        unit: 'PHP',
-        quantity: totalBags,
-        unitType: 'bags',
-        userId: userId,
-        createdAt: serverTimestamp(),
-        notes: notes || `Completed ${jobOrderData.applicationStage || 'fertilizer application'}. ${quantityDetails.join(', ')}`,
-        jobOrderId: jobOrderId,
-        fertilizerDetails: {
-          npkRatio: jobOrderData.npkRatio || 'N/A',
-          applicationStage: jobOrderData.applicationStage || 'N/A',
-          applicationMethod: jobOrderData.applicationMethod || 'N/A',
-          breakdown: quantityDetails
-        }
-      }
-      
-      await addDoc(collection(db, 'plantExpenses'), expenseData)
-      
-      // Update job order with actual cost
-      await updateDoc(jobOrderRef, {
-        actualCost: totalCost,
-        updatedAt: serverTimestamp()
-      })
-      
-      console.log(`Created expense record for job order ${jobOrderId}: ₱${totalCost.toFixed(2)}`)
-    }
-    
-    // Create completion event
-    const completionEvent = {
-      plantId: jobOrderData.plantId,
-      plantName: jobOrderData.plantName,
-      plotNumber: jobOrderData.plotNumber,
-      type: 'FERTILIZER_APPLIED',
-      status: 'success',
-      message: `Fertilizer applied: ${jobOrderData.applicationStage} - NPK ${jobOrderData.npkRatio}`,
-      timestamp: serverTimestamp(),
-      completedDate: completionDate.toISOString(),
-      createdAt: serverTimestamp(),
-      userId: userId,
-      details: {
-        jobOrderId: jobOrderId,
-        jobOrderTitle: jobOrderData.title,
-        applicationStage: jobOrderData.applicationStage,
-        npkRatio: jobOrderData.npkRatio,
-        applicationMethod: jobOrderData.applicationMethod,
-        notes: notes,
-        cost: totalCost,
-        quantity: quantityDetails.join(', ')
-      }
-    }
-    
-    await addDoc(collection(db, 'events'), completionEvent)
-    
-    console.log(`✅ Job order ${jobOrderId} marked as completed and event created`)
-    return true
-  } catch (error) {
-    console.error('Error completing job order:', error)
-    throw error
-  }
-}
-
-
-// Helper function to cancel a job order
-const cancelJobOrder = async (jobOrderId, userId, reason = '') => {
-  try {
-    const jobOrderRef = doc(db, 'jobOrders', jobOrderId)
-    const jobOrderDoc = await getDoc(jobOrderRef)
-    
-    if (!jobOrderDoc.exists()) {
-      throw new Error('Job order not found')
-    }
-    
-    const jobOrderData = jobOrderDoc.data()
-    
-    await updateDoc(jobOrderRef, {
-      status: 'cancelled',
-      cancelledAt: serverTimestamp(),
-      cancelledBy: userId,
-      cancellationReason: reason,
-      updatedAt: serverTimestamp()
-    })
-    
-    // Create cancellation event
-    const cancellationEvent = {
-      plantId: jobOrderData.plantId,
-      plantName: jobOrderData.plantName,
-      plotNumber: jobOrderData.plotNumber,
-      type: 'FERTILIZER_CANCELLED',
-      status: 'warning',
-      message: `Fertilizer application cancelled: ${jobOrderData.applicationStage}`,
-      timestamp: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      userId: userId,
-      details: {
-        jobOrderId: jobOrderId,
-        applicationStage: jobOrderData.applicationStage,
-        npkRatio: jobOrderData.npkRatio,
-        scheduledDate: jobOrderData.scheduledDate,
-        reason: reason
-      }
-    }
-    
-    await addDoc(collection(db, 'events'), cancellationEvent)
-    
-    console.log(`❌ Job order ${jobOrderId} cancelled and event created`)
-    return true
-  } catch (error) {
-    console.error('Error cancelling job order:', error)
-    throw error
-  }
-}
-
-
-// Helper function to update job order status
-const updateJobOrderStatus = async (jobOrderId, status, userId) => {
-  try {
-    const jobOrderRef = doc(db, 'jobOrders', jobOrderId)
-    const jobOrderDoc = await getDoc(jobOrderRef)
-    
-    if (!jobOrderDoc.exists()) {
-      throw new Error('Job order not found')
-    }
-    
-    const jobOrderData = jobOrderDoc.data()
-    const previousStatus = jobOrderData.status
-    const updateData = {
-      status: status,
-      updatedAt: serverTimestamp(),
-      updatedBy: userId
-    }
-    
-    if (status === 'in-progress') {
-      updateData.startedAt = serverTimestamp()
-      updateData.startedBy = userId
-      
-      // Create "in progress" event
-      const progressEvent = {
-        plantId: jobOrderData.plantId,
-        plantName: jobOrderData.plantName,
-        plotNumber: jobOrderData.plotNumber,
-        type: 'FERTILIZER_IN_PROGRESS',
-        status: 'info',
-        message: `Fertilizer application started: ${jobOrderData.applicationStage}`,
-        timestamp: serverTimestamp(),
-        startedDate: new Date().toISOString(),
-        createdAt: serverTimestamp(),
-        userId: userId,
-        details: {
-          jobOrderId: jobOrderId,
-          applicationStage: jobOrderData.applicationStage,
-          npkRatio: jobOrderData.npkRatio,
-          scheduledDate: jobOrderData.scheduledDate
-        }
-      }
-      
-      await addDoc(collection(db, 'events'), progressEvent)
-    }
-    
-    await updateDoc(jobOrderRef, updateData)
-    
-    // Create status update event
-    const statusEvent = {
-      plantId: jobOrderData.plantId,
-      plantName: jobOrderData.plantName,
-      plotNumber: jobOrderData.plotNumber,
-      type: 'FERTILIZER_STATUS_CHANGE',
-      status: 'info',
-      message: `Fertilizer application status changed: ${previousStatus} → ${status}`,
-      timestamp: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      userId: userId,
-      details: {
-        jobOrderId: jobOrderId,
-        applicationStage: jobOrderData.applicationStage,
-        previousStatus: previousStatus,
-        newStatus: status,
-        scheduledDate: jobOrderData.scheduledDate
-      }
-    }
-    
-    await addDoc(collection(db, 'events'), statusEvent)
-    
-    console.log(`✅ Job order ${jobOrderId} status updated to ${status} and events created`)
-    return true
-  } catch (error) {
-    console.error('Error updating job order status:', error)
-    throw error
-  }
-}
 
   const getUniqueFilterOptions = () => {
     const uniquePlantTypes = [...new Set(plants.map(p => p.plantType).filter(Boolean))]
@@ -4272,10 +3772,10 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                             onClick={async () => {
                               setIsGeneratingJobOrders(true)
                               try {
-                                const eventIds = await generateFertilizerJobOrders(
+                                const jobOrderManager = new JobOrderManager(userId, 'Admin User');
+                                const eventIds = await jobOrderManager.generateFertilizerJobOrders(
                                   selectedPlant,
-                                  fertilizerInfo.recommendations,
-                                  userId
+                                  fertilizerInfo.recommendations
                                 )
                                 
                                 showAlert({
@@ -4409,13 +3909,51 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                 <h2 className="planting-modal-title">
                   <MdAttachMoney style={{ marginRight: '8px', verticalAlign: 'middle' }} />
                   Price Recommendation
+                  {priceRecommendation.source === 'production_costing' && (
+                    <span style={{
+                      marginLeft: '12px',
+                      fontSize: '0.7em',
+                      background: '#10b981',
+                      color: 'white',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      fontWeight: '600'
+                    }}>
+                      âœ… FROM PRODUCTION COSTING
+                    </span>
+                  )}
                 </h2>
                 <button className="planting-modal-close" onClick={handleClosePriceModal}>
-                  ✕
+                  âœ•
                 </button>
               </div>
 
               <div className="planting-modal-body">
+                {/* Warning banner if using fallback data */}
+                {priceRecommendation.warning && (
+                  <div style={{
+                    padding: '12px 16px',
+                    background: '#fffbeb',
+                    border: '2px solid #f59e0b',
+                    borderRadius: '8px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <MdWarning style={{ fontSize: '24px', color: '#f59e0b' }} />
+                    <div>
+                      <strong style={{ color: '#92400e' }}>Note:</strong>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.9em', color: '#78350f' }}>
+                        {priceRecommendation.warning}
+                      </p>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.85em', color: '#92400e' }}>
+                        Add production costing data in the <strong>Production module</strong> for accurate pricing.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="price-strategy-badge">
                   <span className={`strategy-badge strategy-${priceRecommendation.priceStrategy.toLowerCase().replace(' ', '-')}`}>
                     {priceRecommendation.priceStrategy}
@@ -4425,6 +3963,43 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                   </span>
                 </div>
 
+                {/* Production Cost Breakdown (if available) */}
+                {priceRecommendation.totalCost && (
+                  <div style={{
+                    background: '#f0fdf4',
+                    padding: '16px',
+                    borderRadius: '8px',
+                    marginBottom: '20px',
+                    border: '2px solid #10b981'
+                  }}>
+                    <h4 style={{ margin: '0 0 12px 0', color: '#065f46', fontSize: '1em' }}>
+                      Production Cost Analysis
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '0.85em', color: '#047857' }}>Total Production Cost:</p>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '1.2em', fontWeight: 'bold', color: '#065f46' }}>
+                          ₱{priceRecommendation.totalCost.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '0.85em', color: '#047857' }}>Profit Amount:</p>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '1.2em', fontWeight: 'bold', color: '#065f46' }}>
+                          ₱{(priceRecommendation.profitAmount || 0).toLocaleString()}
+                        </p>
+                      </div>
+                      {priceRecommendation.profitMargin && (
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <p style={{ margin: 0, fontSize: '0.85em', color: '#047857' }}>Profit Margin:</p>
+                          <p style={{ margin: '4px 0 0 0', fontSize: '1.2em', fontWeight: 'bold', color: '#065f46' }}>
+                            {priceRecommendation.profitMargin}%
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="price-highlight-card">
                   <div className="price-icon">
                     <MdAttachMoney style={{ fontSize: '48px', color: '#10b981' }} />
@@ -4433,11 +4008,16 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                     <p className="price-label">Recommended Selling Price</p>
                     <h3 className="price-amount">₱{priceRecommendation.recommendedPrice}</h3>
                     <p className="price-unit">{priceRecommendation.unit}</p>
+                    {priceRecommendation.lastUpdate && (
+                      <p style={{ fontSize: '0.8em', color: '#666', marginTop: '8px' }}>
+                        Last updated: {new Date(priceRecommendation.lastUpdate.toDate()).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="price-section">
-                  <h3 className="section-title">Market Price Analysis</h3>
+                  <h3 className="section-title">Price Range Analysis</h3>
                   <div className="price-range-container">
                     <div className="price-range-bar">
                       <div className="range-marker min-marker" style={{ left: '0%' }}>
@@ -4455,7 +4035,7 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                         className="range-marker recommended-marker" 
                         style={{ left: `${((priceRecommendation.recommendedPrice - priceRecommendation.minPrice) / (priceRecommendation.maxPrice - priceRecommendation.minPrice)) * 100}%` }}
                       >
-                        <span className="marker-label"></span>
+                        <span className="marker-label">✓</span>
                         <span className="marker-value">₱{priceRecommendation.recommendedPrice}</span>
                       </div>
                       <div className="range-marker max-marker" style={{ left: '100%' }}>
@@ -4480,6 +4060,43 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                     ))}
                   </div>
                 </div>
+
+                {/* Call to action if no production costing */}
+                {priceRecommendation.source === 'plantsList_fallback' && (
+                  <div style={{
+                    marginTop: '20px',
+                    padding: '16px',
+                    background: '#eff6ff',
+                    border: '2px solid #3b82f6',
+                    borderRadius: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#1e40af' }}>
+                      Want more accurate pricing?
+                    </h4>
+                    <p style={{ margin: '0 0 12px 0', fontSize: '0.9em', color: '#1e3a8a' }}>
+                      Add production costing data for this plant to get AI-powered price recommendations based on your actual costs.
+                    </p>
+                    <button
+                      onClick={() => {
+                        handleClosePriceModal()
+                        navigate('/production/admin')
+                      }}
+                      style={{
+                        padding: '10px 20px',
+                        background: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '0.95em',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Go to Production Costing →
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="planting-modal-footer">
@@ -4497,13 +4114,18 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                         const plantRef = doc(db, 'plants', selectedPlant.id)
                         await updateDoc(plantRef, {
                           currentSellingPrice: priceRecommendation.recommendedPrice,
+                          priceSource: priceRecommendation.source,
                           updatedAt: serverTimestamp()
                         })
                         
                         setPlantsData(prev =>
                           prev.map(plant =>
                             plant.id === selectedPlant.id
-                              ? { ...plant, currentSellingPrice: priceRecommendation.recommendedPrice }
+                              ? { 
+                                  ...plant, 
+                                  currentSellingPrice: priceRecommendation.recommendedPrice,
+                                  priceSource: priceRecommendation.source
+                                }
                               : plant
                           )
                         )
@@ -4512,6 +4134,13 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                           type: 'success',
                           title: 'Price Updated',
                           message: `Price set to ₱${priceRecommendation.recommendedPrice} ${priceRecommendation.unit}`,
+                          details: [
+                            { label: 'Source', value: priceRecommendation.priceStrategy },
+                            ...(priceRecommendation.totalCost ? [
+                              { label: 'Production Cost', value: `₱${priceRecommendation.totalCost.toLocaleString()}` },
+                              { label: 'Profit Margin', value: `${priceRecommendation.profitMargin}%` }
+                            ] : [])
+                          ],
                           confirmText: 'OK'
                         })
                         handleClosePriceModal()
@@ -5211,7 +4840,8 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                           <button
                             onClick={async () => {
                               try {
-                                await updateJobOrderStatus(event.id, 'in-progress', userId)
+                                const jobOrderManager = new JobOrderManager(userId, 'Admin User');
+                                await jobOrderManager.updateJobOrderStatus(event.id, 'in-progress');
                                 await fetchPlantEvents(selectedPlant.id)
                                 showAlert({
                                   type: 'success',
@@ -5252,26 +4882,36 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                                 confirmText: 'Yes, Cancel',
                                 cancelText: 'No, Keep It',
                                 onConfirm: async () => {
-                                  try {
-                                    await cancelJobOrder(event.id, userId, 'Cancelled by user')
-                                    await fetchPlantEvents(selectedPlant.id)
-                                    closeAlert()
+                                  try {                                    
+                                    const jobOrderManager = new JobOrderManager(userId, 'Admin User');
+                                    await jobOrderManager.cancelJobOrder(event.id, "No longer needed"); // Use event.id
+                                    await fetchPlantEvents(selectedPlant.id);
+                                    closeAlert();
+                                    
                                     showAlert({
                                       type: 'success',
                                       title: 'Job Cancelled',
                                       message: 'Job order has been cancelled',
+                                      details: [
+                                        { label: 'Job Order', value: event.title },
+                                        { label: 'Reason', value: reason }
+                                      ],
                                       confirmText: 'OK'
-                                    })
+                                    });
                                   } catch (error) {
+                                    console.error('Error cancelling job order:', error);
                                     showAlert({
                                       type: 'error',
                                       title: 'Cancellation Failed',
                                       message: error.message,
+                                      details: [
+                                        { label: 'Error', value: error.message }
+                                      ],
                                       confirmText: 'OK'
-                                    })
+                                    });
                                   }
                                 }
-                              })
+                              });
                             }}
                             style={{
                               padding: '8px 16px',
@@ -5296,48 +4936,53 @@ const updateJobOrderStatus = async (jobOrderId, status, userId) => {
                           borderTop: '1px solid #e2e8f0'
                         }}>
                           <button
-                            onClick={() => {
-                              const notes = prompt('Add completion notes (optional):')
+                            onClick={async () => {
+                              const notes = prompt('Add completion notes (optional):');
                               if (notes !== null) {
-                                completeJobOrder(event.id, userId, notes)
-                                  .then(async () => {
-                                    await fetchPlantEvents(selectedPlant.id)
-                                    
-                                    // Calculate expense info for display
-                                    let totalCost = 0
-                                    if (event.fertilizerBags) {
-                                      Object.entries(event.fertilizerBags).forEach(([type, amount]) => {
-                                        const costPerBag = type.includes('14-14-14') ? 800 : 
-                                                        type.includes('Urea') ? 600 : 
-                                                        type.includes('Complete') ? 900 : 
-                                                        type.includes('16-16-16') ? 850 : 700
-                                        const bags = typeof amount === 'string' 
-                                          ? parseFloat(amount.split('-')[0]) || parseFloat(amount) || 0
-                                          : parseFloat(amount) || 0
-                                        totalCost += bags * costPerBag
-                                      })
-                                    }
-                                    
-                                    showAlert({
-                                      type: 'success',
-                                      title: '✅ Job Completed!',
-                                      message: 'Fertilizer application has been marked as completed and expense recorded.',
-                                      details: [
-                                        { label: 'Job Order', value: event.title || 'Fertilizer Application' },
-                                        { label: 'Total Cost', value: `₱${totalCost.toFixed(2)}` },
-                                        { label: 'Status', value: 'Expense added to plantExpenses' }
-                                      ],
-                                      confirmText: 'OK'
-                                    })
-                                  })
-                                  .catch(error => {
-                                    showAlert({
-                                      type: 'error',
-                                      title: 'Update Failed',
-                                      message: error.message,
-                                      confirmText: 'OK'
-                                    })
-                                  })
+                                try {
+                                  // Use JobOrderManager to complete the job order
+                                  const jobOrderManager = new JobOrderManager(userId, 'Admin User');
+                                  await jobOrderManager.completeJobOrder(event.id, notes);
+                                  
+                                  // Refresh plant events to show updated status
+                                  await fetchPlantEvents(selectedPlant.id);
+                                  
+                                  // Get the completed job order data to show in alert
+                                  const jobOrderRef = doc(db, 'jobOrders', event.id.replace('joborder-', ''));
+                                  const jobOrderDoc = await getDoc(jobOrderRef);
+                                  const jobOrderData = jobOrderDoc.exists() ? jobOrderDoc.data() : null;
+                                  
+                                  // Calculate total cost from the completed job order
+                                  const totalCost = jobOrderData?.actualCost || 0;
+                                  const bagsUsed = jobOrderData?.fertilizerBagsForPlot 
+                                    ? Object.values(jobOrderData.fertilizerBagsForPlot)
+                                        .reduce((sum, bags) => sum + parseFloat(bags || 0), 0)
+                                    : 0;
+                                  
+                                  showAlert({
+                                    type: 'success',
+                                    title: '✅ Job Completed!',
+                                    message: 'Fertilizer application has been completed and logged to inventory.',
+                                    details: [
+                                      { label: 'Job Order', value: event.title || 'Fertilizer Application' },
+                                      { label: 'Bags Used', value: `${bagsUsed.toFixed(2)} bags` },
+                                      { label: 'Total Cost', value: `₱${totalCost.toFixed(2)}` },
+                                      { label: 'Status', value: 'Inventory deducted & expense recorded' }
+                                    ],
+                                    confirmText: 'OK'
+                                  });
+                                } catch (error) {
+                                  console.error('Error completing job order:', error);
+                                  showAlert({
+                                    type: 'error',
+                                    title: 'Update Failed',
+                                    message: error.message,
+                                    details: [
+                                      { label: 'Error', value: error.message }
+                                    ],
+                                    confirmText: 'OK'
+                                  });
+                                }
                               }
                             }}
                             style={{

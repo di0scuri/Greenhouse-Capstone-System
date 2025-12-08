@@ -574,7 +574,7 @@ const formatPercentage = (value) => {
                   <div className="breakdown-items">
                     <div className="breakdown-item">
                       <div className="breakdown-info">
-                        <span className="breakdown-label">Fertilizer</span>
+                        <span className="breakdown-label">Labor</span>
                         <span className="breakdown-value">{formatCurrency(financialData.totalLaborCost)}</span>
                       </div>
                       <div className="breakdown-bar">
@@ -588,7 +588,7 @@ const formatPercentage = (value) => {
                     </div>
                     <div className="breakdown-item">
                       <div className="breakdown-info">
-                        <span className="breakdown-label">Seedling Cost</span>
+                        <span className="breakdown-label">Seed Cost</span>
                         <span className="breakdown-value">{formatCurrency(financialData.totalSeedCost)}</span>
                       </div>
                       <div className="breakdown-bar">
@@ -602,7 +602,7 @@ const formatPercentage = (value) => {
                     </div>
                     <div className="breakdown-item">
                       <div className="breakdown-info">
-                        <span className="breakdown-label">Labor Cost</span>
+                        <span className="breakdown-label">Fertilizer Cost</span>
                         <span className="breakdown-value">{formatCurrency(financialData.totalFertilizer)}</span>
                       </div>
                       <div className="breakdown-bar">

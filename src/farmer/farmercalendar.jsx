@@ -4,6 +4,10 @@ import './farmercalendar.css';
 import { collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, serverTimestamp, query, where, orderBy, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import inventoryLogger from "../functions/inventoryLogger";
+import JobOrderManager, { 
+  parsePlotSizeToM2, 
+  convertFertilizerToPlotSize 
+} from '../functions/jobOrderManager';
 
 import { 
   FaSeedling, FaLeaf, FaTint, FaBug, FaCut, FaCarrot, FaTools, FaEye, 
@@ -67,76 +71,6 @@ const eventTypes = [
   };
 
 
-  // Add this function to farmercalendar.jsx
-const logFertilizerApplicationExpense = async (jobOrderData, totalBagsUsed, userId, inventoryItemId = null) => {
-  try {
-    let costPerBag = 0;
-    let inventoryItem = null;
-
-    if (inventoryItemId) {
-      costPerBag = await getFertilizerUnitCost(inventoryItemId);
-      try {
-        const invSnap = await getDoc(doc(db, 'inventory', inventoryItemId));
-        if (invSnap.exists()) inventoryItem = { id: invSnap.id, ...invSnap.data() };
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    // Fallback: attempt to find used fertilizer by name/npk (best-effort)
-    if (!inventoryItem) {
-      const snapshot = await getDocs(collection(db, 'inventory'));
-      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      const used = items.find(item =>
-        String(item.category || '').toLowerCase().includes('fertil') &&
-        (
-          (jobOrderData.npkRatio && String(item.npkRatio || item.npkKey || item.name || '').toLowerCase().includes(String(jobOrderData.npkRatio).toLowerCase())) ||
-          String(item.name || '').toLowerCase().includes('npk')
-        )
-      );
-      if (used) {
-        inventoryItem = used;
-        costPerBag = used.pricePerUnit || used.pricePerBag || used.price || 0;
-      }
-    }
-
-    // If still no cost, leave costPerBag 0 (expense will be 0)
-    const totalCost = totalBagsUsed * (costPerBag || 0);
-
-    const expenseData = {
-      plantId: jobOrderData.plantId,
-      plantName: jobOrderData.plantName || 'Unknown Plant',
-      category: 'Fertilizer',
-      description: `Applied ${totalBagsUsed.toFixed(2)} bags of ${jobOrderData.fertilizerName || jobOrderData.title}`,
-      amount: totalCost,
-      date: serverTimestamp(),
-      paymentMethod: 'Internal Application',
-      receiptNumber: `JOB-${jobOrderData.id}`,
-      vendor: inventoryItem ? (inventoryItem.vendor || 'Internal Inventory') : 'External',
-      notes: `Fertilizer application. Application ${jobOrderData.applicationNumber} of ${jobOrderData.totalApplications}. ${jobOrderData.notes || ''}`,
-      addedBy: userId,
-      createdAt: serverTimestamp(),
-      lastModifiedAt: serverTimestamp(),
-      jobOrderId: jobOrderData.id,
-      inventoryItemId: inventoryItem ? inventoryItem.id : null,
-      inventoryItemName: inventoryItem ? inventoryItem.name : null,
-      applicationDetails: {
-        bagsUsed: totalBagsUsed,
-        costPerBag: costPerBag,
-        fertilizerName: jobOrderData.fertilizerName,
-        npkRatio: jobOrderData.npkRatio,
-        applicationMethod: jobOrderData.applicationMethod
-      }
-    };
-
-    const expenseRef = await addDoc(collection(db, 'plantExpenses'), expenseData);
-    console.log(`💰 Fertilizer application expense logged: ₱${totalCost.toFixed(2)}`);
-    return expenseRef.id;
-  } catch (error) {
-    console.error('Error logging fertilizer application expense:', error);
-    return null;
-  }
-};
   // Check if job order can be started based on date
 const canStartJobOrder = (eventDate) => {
   if (!eventDate) return true; // Allow if no date specified
@@ -423,11 +357,6 @@ const renderListView = () => {
     setViewMode('Week'); 
   };
 
-  const convertFertilizerToPlotSize = (bagsPerHa, plotSizeM2) => {
-    const hectareInM2 = 10000;
-    const bagsForPlot = (bagsPerHa * plotSizeM2) / hectareInM2;
-    return bagsForPlot.toFixed(2);
-  };
 
   const fetchPlants = async () => {
     try {
@@ -540,63 +469,12 @@ const renderListView = () => {
       console.error('Error fetching events:', error);
     }
   };
-
   const updateJobOrderStatus = async (jobOrderId, status) => {
     try {
-      const isEventId = jobOrderId.startsWith('event-');
-      const isJobOrderPrefix = jobOrderId.startsWith('joborder-');
-      
-      let actualJobOrderId = jobOrderId;
-      if (isJobOrderPrefix) {
-        actualJobOrderId = jobOrderId.replace('joborder-', '');
-      }
-      
-      if (isEventId) {
-        const eventRef = doc(db, 'events', jobOrderId.replace('event-', ''));
-        const updateData = {
-          status: status,
-          updatedAt: serverTimestamp(),
-          updatedBy: userId
-        };
-        
-        if (status === 'in-progress') {
-          updateData.startedAt = serverTimestamp();
-          updateData.startedBy = userId;
-        }
-        
-        await updateDoc(eventRef, updateData);
-      } else {
-        // New job order system
-        const jobOrderRef = doc(db, 'jobOrders', actualJobOrderId);
-        const updateData = {
-          status: status,
-          updatedAt: serverTimestamp(),
-          updatedBy: userId
-        };
-        
-        if (status === 'in-progress') {
-          updateData.startedAt = serverTimestamp();
-          updateData.startedBy = userId;
-        }
-        
-        await updateDoc(jobOrderRef, updateData);
-        
-        // Also update corresponding event
-        const eventsQuery = query(
-          collection(db, 'events'),
-          where('jobOrderId', '==', actualJobOrderId)
-        );
-        const eventsSnapshot = await getDocs(eventsQuery);
-        
-        for (const eventDoc of eventsSnapshot.docs) {
-          await updateDoc(eventDoc.ref, updateData);
-        }
-      }
-      
-      // Refresh events
+      const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
+      // Note: You'll need to add this method to JobOrderManager
+      await jobOrderManager.updateJobOrderStatus(jobOrderId, status);
       await fetchEvents();
-      
-      console.log(`✅ Job order ${jobOrderId} status updated to ${status}`);
       return true;
     } catch (error) {
       console.error('Error updating job order status:', error);
@@ -604,421 +482,20 @@ const renderListView = () => {
     }
   };
 
-
-  const getFertilizerUnitCost = async (inventoryItemId) => {
-  try {
-    if (!inventoryItemId) return 0;
-    const docRef = doc(db, 'inventory', inventoryItemId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const d = docSnap.data();
-      return d.pricePerUnit || d.pricePerBag || d.price || 0;
-    }
-    return 0;
-  } catch (e) {
-    console.error('getFertilizerUnitCost error:', e);
-    return 0;
-  }
-};
-
-
-  // New function to log the financial expense to Firestore
-// Function to log the financial expense to the 'plantExpenses' collection
-const logFertilizerExpense = async (event, quantityBags, costPerBag, plantData, userId) => {
-    if (!event || !event.plantId || !quantityBags || !costPerBag) {
-        console.warn("Cannot log expense: Missing event data, quantity, or cost.");
-        return;
-    }
-
-    const totalCost = quantityBags * costPerBag;
-
-    const expenseData = {
-        // Use fallbacks for plant details
-        plantId: event.plantId,
-        plantName: plantData?.plantName || plantData?.name || 'N/A',
-        date: serverTimestamp(),
-        category: 'Fertilizer', // Explicitly set the category for production.jsx
-        description: `Used ${quantityBags.toFixed(2)} bags (${costPerBag.toFixed(2)}/bag) for task: ${event.title}`,
-        amount: totalCost,
-        vendor: 'Internal Inventory Withdrawal', 
-        paymentMethod: 'Internal',
-        user: userId, 
-        createdAt: serverTimestamp(),
-    };
-
-    try {
-        await addDoc(collection(db, 'plantExpenses'), expenseData);
-        console.log(`Successfully logged ₱${totalCost.toFixed(2)} fertilizer expense for Plant ID: ${event.plantId}`);
-    } catch (error) {
-        console.error("Error logging fertilizer expense:", error);
-        // Do not use 'alert' here, let the main handler manage user feedback
-    }
-};
-
-  // Helper function to cancel a job order
-  const cancelJobOrder = async (jobOrderId, reason = '') => {
-    try {
-      const isEventId = jobOrderId.startsWith('event-');
-      const isJobOrderPrefix = jobOrderId.startsWith('joborder-');
-      
-      let actualJobOrderId = jobOrderId;
-      if (isJobOrderPrefix) {
-        actualJobOrderId = jobOrderId.replace('joborder-', '');
-      }
-      
-      if (isEventId) {
-        // Old event-based system
-        const eventRef = doc(db, 'events', jobOrderId.replace('event-', ''));
-        await updateDoc(eventRef, {
-          status: 'cancelled',
-          cancelledAt: serverTimestamp(),
-          cancelledBy: userId,
-          cancellationReason: reason,
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        // New job order system
-        const jobOrderRef = doc(db, 'jobOrders', actualJobOrderId);
-        await updateDoc(jobOrderRef, {
-          status: 'cancelled',
-          cancelledAt: serverTimestamp(),
-          cancelledBy: userId,
-          cancellationReason: reason,
-          updatedAt: serverTimestamp()
-        });
-        
-        // Also update corresponding event
-        const eventsQuery = query(
-          collection(db, 'events'),
-          where('jobOrderId', '==', actualJobOrderId)
-        );
-        const eventsSnapshot = await getDocs(eventsQuery);
-        
-        for (const eventDoc of eventsSnapshot.docs) {
-          await updateDoc(eventDoc.ref, {
-            status: 'cancelled',
-            cancelledAt: serverTimestamp(),
-            cancelledBy: userId,
-            cancellationReason: reason,
-            updatedAt: serverTimestamp()
-          });
-        }
-      }
-      
-      // Refresh events
-      await fetchEvents();
-      
-      console.log(`❌ Job order ${jobOrderId} cancelled`);
-      return true;
-    } catch (error) {
-      console.error('Error cancelling job order:', error);
-      throw error;
-    }
-  };
-
-
-  const findMatchingFertilizer = async (jobOrderData) => {
-  try {
-    // 1) Direct id match
-    if (jobOrderData.inventoryItemId) {
-      const invRef = doc(db, 'inventory', jobOrderData.inventoryItemId);
-      const invSnap = await getDoc(invRef);
-      if (invSnap.exists()) return { id: invSnap.id, ref: invRef, data: invSnap.data() };
-    }
-
-    // 2) Load inventory batch
-    const inventorySnapshot = await getDocs(collection(db, 'inventory'));
-    const inventoryItems = inventorySnapshot.docs.map(d => ({ id: d.id, ref: d.ref, data: d.data() }));
-
-    // 2a) Try matching by explicit npkRatio or npkKey field
-    if (jobOrderData.npkRatio) {
-      const wanted = String(jobOrderData.npkRatio).toLowerCase();
-      const byNpk = inventoryItems.find(item =>
-        item.data && (
-          (item.data.npkRatio && String(item.data.npkRatio).toLowerCase() === wanted) ||
-          (item.data.npkKey && String(item.data.npkKey).toLowerCase() === wanted)
-        )
-      );
-      if (byNpk) return byNpk;
-    }
-
-    // 3) Fallback: plural/singular category matching and name contains npk token
-    const npkToken = (jobOrderData.npkRatio || 'npk').toString().toLowerCase();
-    const fuzzy = inventoryItems.find(item => {
-      const cat = String(item.data?.category || '').toLowerCase();
-      const name = String(item.data?.name || '').toLowerCase();
-      const categoryMatches = cat.includes('fertil'); // accepts 'fertilizer', 'fertilizers' etc.
-      const nameMatches = name.includes(npkToken) || name.includes('npk');
-      return categoryMatches && (nameMatches || item.data?.npkRatio || item.data?.npkKey);
-    });
-
-    if (fuzzy) return fuzzy;
-    return null;
-  } catch (error) {
-    console.error('findMatchingFertilizer error:', error);
-    return null;
-  }
-};
-
-
-
-  
-  // Complete job order and log to inventory
 const completeJobOrder = async (jobOrderId, notes = '') => {
   try {
-    const { runTransaction } = await import('firebase/firestore');
+    const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
+    await jobOrderManager.completeJobOrder(jobOrderId, notes);
     
-    const isJobOrderPrefix = jobOrderId.startsWith('joborder-');
-    let actualJobOrderId = jobOrderId;
-    if (isJobOrderPrefix) {
-      actualJobOrderId = jobOrderId.replace('joborder-', '');
-    }
-
-    const jobOrderRef = doc(db, 'jobOrders', actualJobOrderId);
-    const jobOrderDoc = await getDoc(jobOrderRef);
-
-    if (!jobOrderDoc.exists()) {
-      throw new Error('Job order not found');
-    }
-
-    const jobOrderData = jobOrderDoc.data();
-
-    // Check if already logged
-    if (jobOrderData.inventoryLogged) {
-      console.warn('⚠️ Job order already logged to inventory');
-      return true;
-    }
-
-    // Validate required data
-    if (!jobOrderData.fertilizerBagsForPlot || Object.keys(jobOrderData.fertilizerBagsForPlot).length === 0) {
-      throw new Error('No fertilizer bags data found for this job order');
-    }
-
-    // Calculate total bags used (sum of all fertilizer types)
-    const totalBagsUsed = Object.values(jobOrderData.fertilizerBagsForPlot)
-      .reduce((sum, bags) => sum + parseFloat(bags || 0), 0);
-
-    if (totalBagsUsed <= 0) {
-      throw new Error('Invalid fertilizer amount: ' + totalBagsUsed);
-    }
-
-    // Find matching inventory item
-    let matchingInventoryItem = null;
-    
-    // First try: Use inventoryItemId if available
-    if (jobOrderData.inventoryItemId) {
-      const invRef = doc(db, 'inventory', jobOrderData.inventoryItemId);
-      const invSnap = await getDoc(invRef);
-      if (invSnap.exists()) {
-        matchingInventoryItem = {
-          id: invSnap.id,
-          ref: invRef,
-          ...invSnap.data()
-        };
-      }
-    }
-    
-    // Second try: Search by NPK ratio
-    if (!matchingInventoryItem && jobOrderData.npkRatio) {
-      const inventorySnapshot = await getDocs(collection(db, 'inventory'));
-      const npkRatio = jobOrderData.npkRatio.toLowerCase().replace(/\s/g, '');
-      
-      const items = inventorySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ref: doc.ref,
-        ...doc.data()
-      }));
-      
-      matchingInventoryItem = items.find(item => {
-        const category = String(item.category || '').toLowerCase();
-        if (!category.includes('fertil')) return false;
-        
-        // Check npkRatio field
-        if (item.npkRatio) {
-          const itemNpk = String(item.npkRatio).toLowerCase().replace(/\s/g, '');
-          if (itemNpk === npkRatio) return true;
-        }
-        
-        // Check npkKey field
-        if (item.npkKey) {
-          const itemNpk = String(item.npkKey).toLowerCase().replace(/\s/g, '');
-          if (itemNpk === npkRatio) return true;
-        }
-        
-        // Check name
-        if (item.name) {
-          const itemName = String(item.name).toLowerCase().replace(/\s/g, '');
-          if (itemName.includes(npkRatio)) return true;
-        }
-        
-        return false;
-      });
-    }
-
-    if (!matchingInventoryItem) {
-      throw new Error(`No matching fertilizer found in inventory for NPK ${jobOrderData.npkRatio}`);
-    }
-
-    // Check stock availability
-    const currentStock = parseFloat(matchingInventoryItem.stock || matchingInventoryItem.packs || 0);
-    if (currentStock < totalBagsUsed) {
-      throw new Error(`Insufficient stock: Need ${totalBagsUsed.toFixed(2)} bags, but only ${currentStock.toFixed(2)} available`);
-    }
-
-    // Get unit cost for expense calculation
-    const costPerBag = parseFloat(matchingInventoryItem.pricePerUnit || matchingInventoryItem.pricePerBag || matchingInventoryItem.price || 0);
-    const totalCost = totalBagsUsed * costPerBag;
-
-    // Use transaction for atomic inventory update
-    let inventoryLogId = null;
-    
-    await runTransaction(db, async (transaction) => {
-      const invRef = matchingInventoryItem.ref || doc(db, 'inventory', matchingInventoryItem.id);
-      const invSnap = await transaction.get(invRef);
-      
-      if (!invSnap.exists()) {
-        throw new Error('Inventory item disappeared during transaction');
-      }
-
-      const prevStock = parseFloat(invSnap.data().stock || invSnap.data().packs || 0);
-      const newStock = Math.max(0, prevStock - totalBagsUsed);
-
-      // Update inventory stock
-      transaction.update(invRef, {
-        stock: newStock,
-        packs: newStock,
-        updatedAt: serverTimestamp(),
-        lastUsed: serverTimestamp()
-      });
-
-      // Mark job order as completed and logged
-      transaction.update(jobOrderRef, {
-        status: 'completed',
-        completedAt: serverTimestamp(),
-        completedBy: userId,
-        appliedAt: serverTimestamp(),
-        appliedBy: userId,
-        notes: notes,
-        updatedAt: serverTimestamp(),
-        inventoryLogged: true,
-        actualCost: totalCost,
-        inventoryDeducted: totalBagsUsed
-      });
-    });
-
-    // After transaction: Create logs and events
-    
-    // 1. Create inventory log
-    inventoryLogId = await inventoryLogger.createLog(
-      matchingInventoryItem.id,
-      'USE',
-      {
-        previousQuantity: currentStock,
-        newQuantity: Math.max(0, currentStock - totalBagsUsed),
-        quantityChange: -totalBagsUsed,
-        previousPacks: currentStock,
-        newPacks: Math.max(0, currentStock - totalBagsUsed),
-        reason: `Applied ${totalBagsUsed.toFixed(2)} bags of ${jobOrderData.fertilizerName} - ${jobOrderData.title}`,
-        itemName: matchingInventoryItem.name,
-        category: matchingInventoryItem.category || 'Fertilizer',
-        plantId: jobOrderData.plantId,
-        plantName: jobOrderData.plantName,
-        notes: `${jobOrderData.description}. Application ${jobOrderData.applicationNumber} of ${jobOrderData.totalApplications}. ${notes || ''}`
-      },
-      userId,
-      'Farmer'
-    );
-
-    // 2. Create expense record
-    const expenseData = {
-      plantId: jobOrderData.plantId,
-      plantName: jobOrderData.plantName || 'Unknown Plant',
-      category: 'Fertilizer',
-      description: `Applied ${totalBagsUsed.toFixed(2)} bags of ${jobOrderData.fertilizerName}`,
-      amount: totalCost,
-      date: serverTimestamp(),
-      paymentMethod: 'Internal Application',
-      receiptNumber: `JOB-${actualJobOrderId}`,
-      vendor: matchingInventoryItem.vendor || 'Internal Inventory',
-      notes: `Fertilizer application. ${jobOrderData.applicationMethod}. ${notes || ''}`,
-      addedBy: userId,
-      createdAt: serverTimestamp(),
-      lastModifiedAt: serverTimestamp(),
-      jobOrderId: actualJobOrderId,
-      inventoryItemId: matchingInventoryItem.id,
-      inventoryItemName: matchingInventoryItem.name,
-      applicationDetails: {
-        bagsUsed: totalBagsUsed,
-        costPerBag: costPerBag,
-        fertilizerName: jobOrderData.fertilizerName,
-        npkRatio: jobOrderData.npkRatio,
-        applicationMethod: jobOrderData.applicationMethod,
-        applicationNumber: jobOrderData.applicationNumber,
-        totalApplications: jobOrderData.totalApplications
-      }
-    };
-
-    await addDoc(collection(db, 'plantExpenses'), expenseData);
-
-    // 3. Update job order with log ID
-    await updateDoc(jobOrderRef, {
-      inventoryLogId: inventoryLogId,
-      lastInventoryUpdateAt: serverTimestamp()
-    });
-
-    // 4. Create completion event
-    await addDoc(collection(db, 'events'), {
-      plantId: jobOrderData.plantId,
-      plantName: jobOrderData.plantName,
-      type: 'FERTILIZER_APPLIED',
-      status: 'success',
-      message: `Fertilizer applied: ${jobOrderData.fertilizerName} - ${jobOrderData.title}`,
-      timestamp: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      userId: userId,
-      details: {
-        jobOrderId: actualJobOrderId,
-        fertilizerName: jobOrderData.fertilizerName,
-        bagsUsed: totalBagsUsed,
-        cost: totalCost,
-        applicationNumber: jobOrderData.applicationNumber,
-        totalApplications: jobOrderData.totalApplications,
-        notes: notes,
-        inventoryLogged: true,
-        inventoryLogId: inventoryLogId,
-        inventoryItemId: matchingInventoryItem.id,
-        inventoryItemName: matchingInventoryItem.name
-      }
-    });
-
-    // 5. Update related events
-    const eventsQuery = query(
-      collection(db, 'events'),
-      where('jobOrderId', '==', actualJobOrderId)
-    );
-    const eventsSnapshot = await getDocs(eventsQuery);
-    
-    for (const eventDoc of eventsSnapshot.docs) {
-      await updateDoc(eventDoc.ref, {
-        status: 'completed',
-        completedAt: serverTimestamp(),
-        completedBy: userId,
-        notes: notes,
-        updatedAt: serverTimestamp()
-      });
-    }
-
-    // Refresh events
     await fetchEvents();
-
-    console.log(`✅ Job order completed: ${totalBagsUsed.toFixed(2)} bags deducted, ₱${totalCost.toFixed(2)} expense logged`);
     return true;
-
   } catch (error) {
     console.error('Error completing job order:', error);
     throw error;
   }
 };
+
+
 
   // Generate farming activities based on plant data
   const generatePlantActivities = () => {
@@ -1841,7 +1318,8 @@ return (
                       onClick={async () => {
                         if (window.confirm('Are you sure you want to cancel this job order?')) {
                           try {
-                            await cancelJobOrder(selectedEvent.jobOrderId || selectedEvent.id, 'Cancelled by user');
+                            const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
+                            await jobOrderManager.cancelJobOrder(selectedEvent.jobOrderId || selectedEvent.id, 'Cancelled by user');
                             setSelectedEvent(null);
                             alert('Job order cancelled!');
                           } catch (error) {
