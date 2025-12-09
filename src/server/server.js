@@ -13,6 +13,7 @@ const __dirname = path.dirname(__filename);
 import { db, realtimeDb } from './config/firebase.js';
 import alertService from './services/smsAlertService.js';
 import plantAgeScheduler from './services/plantAgeScheduler.js';
+import jobOrderNotificationService from './services/jobOrderNotificationService.js';
 
 const app = express();
 
@@ -30,7 +31,7 @@ console.log("Checking ENABLE_SOIL_ALERTS flag...");
 if (process.env.ENABLE_SOIL_ALERTS === "true") {
   console.log("🚨 ENABLED: Starting real-time SMS alert listener...");
   unsubscribe = alertService.setupRealtimeAlertListener(realtimeDb, db);
-  console.log("SMS Alert Service is active — monitoring sensor readings.");
+  console.log("SMS Alert Service is active – monitoring sensor readings.");
 } else {
   console.log("⏸️ DISABLED: SMS alert listener will NOT run at startup.");
   console.log("Set ENABLE_SOIL_ALERTS=true in .env to enable real-time monitoring.");
@@ -45,8 +46,15 @@ alertService.setupAlertRoute(app, realtimeDb, db);
 console.log('Setting up plant age update scheduler...');
 plantAgeScheduler.setupDailyScheduler(db);
 plantAgeScheduler.setupRoutes(app, db);
-console.log('Plant Age Scheduler is active — runs daily at midnight.');
+console.log('Plant Age Scheduler is active – runs daily at midnight.');
 
+// ================================
+// JOB ORDER NOTIFICATION SCHEDULER
+// ================================
+console.log('Setting up job order notification scheduler...');
+jobOrderNotificationService.setupScheduler(db);
+jobOrderNotificationService.setupRoutes(app, db);
+console.log('Job Order Notification Service is active – checks daily at 6:00 AM.');
 
 // ================================
 // API ENDPOINTS
@@ -58,6 +66,7 @@ app.get('/api/health', (req, res) => {
     status: 'Server is running',
     alertService: process.env.ENABLE_SOIL_ALERTS === "true" ? 'active' : 'disabled',
     plantAgeScheduler: 'active',
+    jobOrderNotifications: 'active',
     timestamp: new Date().toISOString()
   });
 });
@@ -190,4 +199,5 @@ app.listen(PORT, () => {
   console.log('Services active:');
   console.log(`  • SMS Alert Service: ${process.env.ENABLE_SOIL_ALERTS === "true" ? 'enabled' : 'disabled'}`);
   console.log('  • Plant Age Scheduler: enabled');
+  console.log('  • Job Order Notifications: enabled');
 });

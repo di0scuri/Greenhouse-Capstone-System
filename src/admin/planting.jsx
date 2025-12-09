@@ -214,6 +214,106 @@ const Planting = ({ userType = 'admin' }) => {
   const FERTILIZER_WEIGHT_PER_BAG = 50;
 
 
+
+  const fetchSensorData = async (sensorId) => {
+  try {
+    // Get the main sensor data
+    const sensorRef = ref(realtimeDb, sensorId)
+    const snapshot = await get(sensorRef)
+    
+    if (!snapshot.exists()) {
+      console.error(`Sensor ${sensorId} not found`)
+      return null
+    }
+    
+    const data = snapshot.val()
+    
+    // Determine sensor number for moisture mapping
+    const sensorNumber = sensorId === 'SoilSensor' ? '1' : sensorId.replace('SoilSensor', '')
+    
+    // Always get moisture data from Moisture node (ignore moisture in sensor readings)
+    const moistureRef = ref(realtimeDb, 'Moisture')
+    const moistureSnapshot = await get(moistureRef)
+    let latestMoistureValue = 0
+    
+    if (moistureSnapshot.exists()) {
+      const moistureData = moistureSnapshot.val()
+      const moistureKey = sensorNumber === '1' ? 'Moisture1' : `Moisture${sensorNumber}`
+      const moistureNode = moistureData[moistureKey]
+      
+      if (moistureNode && typeof moistureNode === 'object') {
+        // Try different property names for moisture value
+        latestMoistureValue = moistureNode.Moisture || moistureNode.moisture || moistureNode.value || 0
+      }
+    }
+    
+    let latestReading = null
+    let latestTimestamp = new Date(0)
+    
+    // Process all readings from SoilSensor (matching sensors.jsx pattern)
+    Object.keys(data).forEach(readingKey => {
+      if (readingKey === 'metadata' || readingKey === 'config' || readingKey === 'location') {
+        return
+      }
+      
+      const reading = data[readingKey]
+      if (typeof reading !== 'object' || reading === null) {
+        return
+      }
+      
+      const timestamp = parseTimestamp(readingKey, reading)
+      
+      // Use the latest moisture value from Moisture node for all readings
+      const moistureValue = latestMoistureValue
+      
+      const readingData = {
+        id: readingKey,
+        timestamp,
+        nitrogen: reading.Nitrogen || reading.nitrogen || reading.N || 0,
+        phosphorus: reading.Phosphorus || reading.phosphorus || reading.P || 0,
+        potassium: reading.Potassium || reading.potassium || reading.K || 0,
+        ph: reading.pH || reading.ph || 0,
+        temperature: reading.Temperature || reading.temperature || reading.temp || 0,
+        conductivity: reading.Conductivity || reading.conductivity || 0,
+        moisture: moistureValue
+      }
+      
+      if (timestamp > latestTimestamp) {
+        latestTimestamp = timestamp
+        latestReading = { ...readingData }
+      }
+    })
+    
+    // Fallback: if no valid timestamped data found, log warning and return null
+    if (!latestReading) {
+      console.warn(`No valid timestamped readings found for ${sensorId}`)
+      return null
+    }
+    
+    // Construct the sensor data object
+    const sensorData = {
+      nitrogen: latestReading.nitrogen,
+      phosphorus: latestReading.phosphorus,
+      potassium: latestReading.potassium,
+      ph: latestReading.ph,
+      moisture: latestReading.moisture,
+      temperature: latestReading.temperature,
+      conductivity: latestReading.conductivity,
+      timestamp: latestReading.id
+    }
+    
+    console.log(`Fetched sensor data for ${sensorId}:`, {
+      ...sensorData,
+      moistureSource: `Moisture/Moisture${sensorNumber}`,
+      timestampUsed: latestReading.id
+    })
+    
+    return sensorData
+  } catch (error) {
+    console.error(`Error fetching sensor data for ${sensorId}:`, error)
+    return null
+  }
+}
 // Add this function near your other helper functions (around line 400)
 const calculateNutrientPercentages = (sensorData, plantInfo) => {
   if (!sensorData || !plantInfo || !plantInfo.stages || plantInfo.stages.length === 0) {
@@ -321,6 +421,7 @@ const calculateNutrientPercentages = (sensorData, plantInfo) => {
   }
 
   // Calculate sensor data percentage based on ideal range
+  // Calculate sensor data percentage based on ideal range (exponential curve)
   const calculateSensorPercentage = (current, low, high) => {
     if (!current || !low || !high) return 0
     
@@ -328,18 +429,29 @@ const calculateNutrientPercentages = (sensorData, plantInfo) => {
     const range = high - low
     
     if (current >= low && current <= high) {
+      // Within optimal range: gentle exponential curve that peaks at 100% in the middle
       const distanceFromMid = Math.abs(current - mid)
-      const percentageFromMid = (distanceFromMid / (range / 2)) * 100
-      return Math.max(0, 100 - percentageFromMid)
+      const normalizedDistance = distanceFromMid / (range / 2) // 0 to 1
+      
+      // Gentler exponential decay: e^(-0.5x²)
+      // This keeps values within range scoring 85-100%
+      const score = 100 * Math.exp(-0.5 * Math.pow(normalizedDistance, 2))
+      return Math.max(0, Math.min(100, score))
     }
     
     if (current < low) {
+      // Below optimal: exponential penalty
       const deficit = low - current
-      return Math.max(0, 100 - (deficit / low) * 100)
+      const normalizedDeficit = deficit / low // 0 to infinity
+      const score = 100 * Math.exp(-1.5 * normalizedDeficit)
+      return Math.max(0, score)
     }
     
+    // Above optimal: exponential penalty
     const excess = current - high
-    return Math.max(0, 100 - (excess / high) * 100)
+    const normalizedExcess = excess / high // 0 to infinity
+    const score = 100 * Math.exp(-1.5 * normalizedExcess)
+    return Math.max(0, score)
   }
 
   // Get percentage color
@@ -362,56 +474,60 @@ const calculateNutrientPercentages = (sensorData, plantInfo) => {
 
   // Check sensor status
   const checkSensorStatus = async (sensorId) => {
-    try {
-      const sensorRef = ref(realtimeDb, sensorId)
-      const snapshot = await get(sensorRef)
-      
-      if (!snapshot.exists()) {
-        return { online: false, reason: 'Sensor not found' }
-      }
-      
-      const data = snapshot.val()
-      
-      let latestTimestamp = null
-      Object.keys(data).forEach(key => {
-        if (key.includes('_') || key.includes('-')) {
-          if (!latestTimestamp || key > latestTimestamp) {
-            latestTimestamp = key
-          }
-        }
-      })
-      
-      if (!latestTimestamp) {
-        return { online: false, reason: 'No data available' }
-      }
-      
-      const [datePart, timePart] = latestTimestamp.split('_')
-      const [year, month, day] = datePart.split('-')
-      const [hour, minute, second] = timePart.split(':')
-      const lastReadingTime = new Date(year, month - 1, day, hour, minute, second)
-      
-      const now = new Date()
-      const minutesSinceLastReading = (now - lastReadingTime) / (1000 * 60)
-      
-      if (minutesSinceLastReading <= 5) {
-        return { 
-          online: true, 
-          lastReading: lastReadingTime,
-          minutesAgo: Math.floor(minutesSinceLastReading)
-        }
-      } else {
-        return { 
-          online: false, 
-          reason: 'No recent data',
-          lastReading: lastReadingTime,
-          minutesAgo: Math.floor(minutesSinceLastReading)
-        }
-      }
-    } catch (error) {
-      console.error('Error checking sensor status:', error)
-      return { online: false, reason: 'Error checking sensor' }
+  try {
+    const sensorRef = ref(realtimeDb, sensorId)
+    const snapshot = await get(sensorRef)
+    
+    if (!snapshot.exists()) {
+      return { online: false, reason: 'Sensor not found' }
     }
+    
+    const data = snapshot.val()
+    
+    let latestTimestamp = null
+    Object.keys(data).forEach(key => {
+      if (key === 'metadata' || key === 'config' || key === 'location') {
+        return
+      }
+      
+      if (key.includes('_') || key.includes('-')) {
+        if (!latestTimestamp || key > latestTimestamp) {
+          latestTimestamp = key
+        }
+      }
+    })
+    
+    if (!latestTimestamp) {
+      return { online: false, reason: 'No data available' }
+    }
+    
+    const [datePart, timePart] = latestTimestamp.split('_')
+    const [year, month, day] = datePart.split('-')
+    const [hour, minute, second] = timePart.split(':')
+    const lastReadingTime = new Date(year, month - 1, day, hour, minute, second)
+    
+    const now = new Date()
+    const minutesSinceLastReading = (now - lastReadingTime) / (1000 * 60)
+    
+    if (minutesSinceLastReading <= 5) {
+      return { 
+        online: true, 
+        lastReading: lastReadingTime,
+        minutesAgo: Math.floor(minutesSinceLastReading)
+      }
+    } else {
+      return { 
+        online: false, 
+        reason: 'No recent data',
+        lastReading: lastReadingTime,
+        minutesAgo: Math.floor(minutesSinceLastReading)
+      }
+    }
+  } catch (error) {
+    console.error('Error checking sensor status:', error)
+    return { online: false, reason: 'Error checking sensor' }
   }
+}
 
   // Plant ranking system
   const calculatePlantCompatibility = (sensorData, plantInfo) => {
@@ -984,6 +1100,24 @@ useEffect(() => {
   fetchPlants()
 }, [])
 
+// Parse timestamp from various formats (matches sensors.jsx)
+const parseTimestamp = (timestampStr, reading) => {
+  // Try to get timestamp from reading object first
+  if (reading.timestamp) {
+    return new Date(reading.timestamp)
+  }
+  
+  // Parse from key format: 2025-10-01_00:16:36
+  const dateTimeMatch = timestampStr.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2}):(\d{2}):(\d{2})/)
+  if (dateTimeMatch) {
+    const [, year, month, day, hour, minute, second] = dateTimeMatch
+    return new Date(year, month - 1, day, hour, minute, second)
+  }
+  
+  // Fallback: try direct Date parsing
+  return new Date(timestampStr)
+}
+
 const fetchFertilizerRecommendations = async (plant, sensorData) => {
   try {
     if (!plant || !plant.plantType || !plant.status || !sensorData) {
@@ -1190,47 +1324,6 @@ const fetchPlantEvents = async (plantId) => {
   }
 
   // Fetch soil sensor data when sensor is selected
-  const fetchSensorData = async (sensorId) => {
-    try {
-      const sensorRef = ref(realtimeDb, sensorId)
-      const snapshot = await get(sensorRef)
-      
-      if (snapshot.exists()) {
-        const data = snapshot.val()
-        
-        let latestData = null
-        let latestTimestamp = null
-        
-        Object.keys(data).forEach(key => {
-          if (key.includes('_') || key.includes('-')) {
-            if (!latestTimestamp || key > latestTimestamp) {
-              latestTimestamp = key
-              latestData = data[key]
-            }
-          }
-        })
-        
-        if (!latestData) {
-          latestData = data
-        }
-        
-        return {
-          nitrogen: latestData.Nitrogen || latestData.nitrogen || 0,
-          phosphorus: latestData.Phosphorus || latestData.phosphorus || 0,
-          potassium: latestData.Potassium || latestData.potassium || 0,
-          ph: latestData.pH || latestData.ph || 7,
-          moisture: latestData.Moisture || latestData.moisture || 0,
-          temperature: latestData.Temperature || latestData.temperature || 0,
-          conductivity: latestData.Conductivity || latestData.conductivity || 0,
-          timestamp: latestTimestamp
-        }
-      }
-      return null
-    } catch (error) {
-      console.error('Error fetching sensor data:', error)
-      return null
-    }
-  }
 
   const handleOpenEditModal = (plant) => {
     setSelectedPlant(plant)
@@ -2263,6 +2356,17 @@ const handleOpenFertilizerModal = async (plant) => {
     setActiveDetailTab('summary')
     await fetchPlantEvents(plant.id)
     setShowDetailModal(true)
+
+    if (plant.soilSensor) {
+      const freshSensorData = await fetchSensorData(plant.soilSensor)
+      if (freshSensorData) {
+        // Update the selected plant with fresh sensor data
+        setSelectedPlant(prev => ({
+          ...prev,
+          sensorData: freshSensorData
+        }))
+      }
+    }
   }
 
   const handleCloseDetailModal = () => {
