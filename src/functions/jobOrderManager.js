@@ -278,21 +278,32 @@ class JobOrderManager {
         }
         
         const fertilizerBagsForPlot = {};
+        const fertilizerWeightDisplay = {}
         Object.entries(application.bags).forEach(([type, bagsPerHa]) => {
           const bags = typeof bagsPerHa === 'string' 
             ? parseFloat(bagsPerHa.split('-')[0]) || parseFloat(bagsPerHa) || 0
             : parseFloat(bagsPerHa) || 0;
           
+          // 1. Get the small number of bags (for inventory logging)
           const bagsForPlot = convertFertilizerToPlotSize(bags, plotSizeM2);
           fertilizerBagsForPlot[type] = parseFloat(bagsForPlot);
+
+          // 2. Get the human-readable weight (for display)
+          const weightInfo = convertFertilizerToPlotSize(bags, plotSizeM2, true); // Use returnWeight=true
+          fertilizerWeightDisplay[type] = `${weightInfo.amount} ${weightInfo.unit}`; // e.g., "30.0 g" or "0.500 kg"
         });
         
         const bagsInfo = Object.entries(application.bags)
           .map(([type, amount]) => `${type}: ${amount}`)
           .join(', ');
         
+        // Update to use toFixed(6) for bags (more precise for tiny plots)
         const bagsForPlotInfo = Object.entries(fertilizerBagsForPlot)
-          .map(([type, bags]) => `${type}: ${bags.toFixed(4)} bags`)
+          .map(([type, bags]) => `${type}: ${bags.toFixed(6)} bags`)
+          .join(', ');
+
+        const convertedWeightInfo = Object.entries(fertilizerWeightDisplay)
+          .map(([type, amount]) => `${type}: ${amount}`)
           .join(', ');
         
         const jobOrderData = {
@@ -305,16 +316,18 @@ class JobOrderManager {
           
           type: 'FERTILIZER_APPLICATION',
           title: `${application.stage} - ${fertilizerRecommendations.plantName || plant.plantType}`,
-          description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${bagsForPlotInfo} (for ${plotSizeM2.toFixed(4)}m² plot)`,
+          // UPDATE description to use human-readable weight
+          description: `Apply fertilizers as per NPK ratio ${scenario.npkRatio}: ${convertedWeightInfo} (for ${plotSizeM2.toFixed(4)}m² plot)`, 
           
           status: 'pending',
           priority: i === 0 ? 'high' : 'medium',
           
           fertilizerName: `NPK ${scenario.npkRatio}`,
           fertilizerBags: application.bags,
-          fertilizerBagsForPlot: fertilizerBagsForPlot,
-          fertilizerAmount: bagsInfo,
+          fertilizerBagsForPlot: fertilizerBagsForPlot, 
+          fertilizerAmount: convertedWeightInfo,
           fertilizerAmountForPlot: bagsForPlotInfo,
+          convertedFertilizerAmount: convertedWeightInfo,
           npkRatio: scenario.npkRatio,
           applicationMethod: application.method,
           applicationInstructions: application.method,
@@ -394,9 +407,6 @@ class JobOrderManager {
     }
   }
 
-  // ==========================================================================
-  // UPDATE STATUS: Update job order status (NEW METHOD)
-  // ==========================================================================
   async updateJobOrderStatus(jobOrderId, status) {
     try {
       const actualJobOrderId = normalizeJobOrderId(jobOrderId);

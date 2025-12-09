@@ -20,29 +20,43 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Setup real-time listener
-console.log('Setting up real-time SMS alert listener...');
-const unsubscribe = alertService.setupRealtimeAlertListener(realtimeDb, db);
-console.log('SMS Alert Service is active - monitoring for new sensor readings...');
+// ================================
+// REAL-TIME SMS ALERT LISTENER (controlled by .env)
+// ================================
+let unsubscribe = () => {};
+
+console.log("Checking ENABLE_SOIL_ALERTS flag...");
+
+if (process.env.ENABLE_SOIL_ALERTS === "true") {
+  console.log("🚨 ENABLED: Starting real-time SMS alert listener...");
+  unsubscribe = alertService.setupRealtimeAlertListener(realtimeDb, db);
+  console.log("SMS Alert Service is active — monitoring sensor readings.");
+} else {
+  console.log("⏸️ DISABLED: SMS alert listener will NOT run at startup.");
+  console.log("Set ENABLE_SOIL_ALERTS=true in .env to enable real-time monitoring.");
+}
 
 // Setup alert routes
 alertService.setupAlertRoute(app, realtimeDb, db);
 
-// Setup plant age scheduler
+// ================================
+// PLANT AGE SCHEDULER
+// ================================
 console.log('Setting up plant age update scheduler...');
 plantAgeScheduler.setupDailyScheduler(db);
 plantAgeScheduler.setupRoutes(app, db);
-console.log('Plant Age Scheduler is active - will run daily at midnight');
+console.log('Plant Age Scheduler is active — runs daily at midnight.');
 
-// ========================
-// API Endpoints
-// ========================
 
-// Health check endpoint
+// ================================
+// API ENDPOINTS
+// ================================
+
+// Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'Server is running',
-    alertService: 'active',
+    alertService: process.env.ENABLE_SOIL_ALERTS === "true" ? 'active' : 'disabled',
     plantAgeScheduler: 'active',
     timestamp: new Date().toISOString()
   });
@@ -53,7 +67,7 @@ app.get('/api/thresholds', (req, res) => {
   res.json(alertService.THRESHOLDS);
 });
 
-// Test endpoint to check users from Firestore
+// Test Firestore recipients
 app.get('/api/test/recipients', async (req, res) => {
   try {
     const usersRef = db.collection('users');
@@ -72,34 +86,32 @@ app.get('/api/test/recipients', async (req, res) => {
       });
     });
 
-    res.json({ 
+    res.json({
       count: users.length,
-      users 
+      users
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-
-// In server.js, add:
+// Debug sensors
 app.get('/api/debug/sensors', async (req, res) => {
   try {
     const sensors = {};
-    
-    // Check all SoilSensorX
+
     for (let i = 1; i <= 5; i++) {
       const sensorName = `SoilSensor${i}`;
       const snapshot = await realtimeDb.ref(sensorName)
         .orderByKey()
         .limitToLast(1)
         .once('value');
-      
+
       if (snapshot.exists()) {
         sensors[sensorName] = snapshot.val();
       }
     }
-    
+
     res.json({
       availableSensors: Object.keys(sensors),
       latestReadings: sensors
@@ -109,7 +121,7 @@ app.get('/api/debug/sensors', async (req, res) => {
   }
 });
 
-// Test endpoint to get latest sensor reading from Realtime Database
+// Latest reading
 app.get('/api/test/latest-reading', async (req, res) => {
   try {
     const snapshot = await realtimeDb.ref('SoilSensor')
@@ -123,27 +135,23 @@ app.get('/api/test/latest-reading', async (req, res) => {
 
     const data = snapshot.val();
     const timestamp = Object.keys(data)[0];
-    const sensorData = data[timestamp];
 
     res.json({
       timestamp,
-      data: sensorData
+      data: data[timestamp]
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// ========================
-// Serve Frontend (MUST come AFTER API routes)
-// ========================
 
-// Serve the static files from the React build folder (Vite dist)
-// The dist folder should be at the project root after build
+// ================================
+// Serve Frontend (Vite dist)
+// ================================
 const distPath = path.join(__dirname, '..', '..', 'dist');
 app.use(express.static(distPath));
 
-// For all other routes not starting with /api, serve index.html (this handles React Router)
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api')) {
     res.sendFile(path.join(distPath, 'index.html'));
@@ -152,32 +160,34 @@ app.use((req, res, next) => {
   }
 });
 
-// ========================
+
+// ================================
 // Graceful Shutdown
-// ========================
+// ================================
 process.on('SIGINT', () => {
   console.log('\nShutting down gracefully...');
-  unsubscribe();
+  if (unsubscribe) unsubscribe();
   plantAgeScheduler.stopScheduler();
-  console.log('Listeners and schedulers stopped');
+  console.log('Listeners and schedulers stopped.');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   console.log('\nShutting down gracefully...');
-  unsubscribe();
+  if (unsubscribe) unsubscribe();
   plantAgeScheduler.stopScheduler();
   process.exit(0);
 });
 
-// ========================
-// Start Server
-// ========================
-const PORT = process.env.PORT || 5000;
 
+// ================================
+// Start Server
+// ================================
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+
   console.log('Services active:');
-  console.log('  ✓ SMS Alert Service (real-time monitoring)');
-  console.log('  ✓ Plant Age Scheduler (daily at midnight)');
+  console.log(`  • SMS Alert Service: ${process.env.ENABLE_SOIL_ALERTS === "true" ? 'enabled' : 'disabled'}`);
+  console.log('  • Plant Age Scheduler: enabled');
 });

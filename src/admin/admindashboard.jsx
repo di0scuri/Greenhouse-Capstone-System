@@ -539,55 +539,6 @@ useEffect(() => {
             </div>
           </div>
 
-          <div className="content-card harvest-summary-section">
-            <h3 className="card-title">Recent Harvests</h3>
-            <div className="harvest-list">
-              {loading ? (
-                <div className="task-item">Loading harvests...</div>
-              ) : harvests.length === 0 ? (
-                <div className="task-item">No recent harvests</div>
-              ) : (
-                harvests.slice(0, 5).map((harvest, index) => (
-                  <div key={harvest.id} className="harvest-item">
-                    <div className="harvest-item-header">
-                      <span className="harvest-plant-name">{harvest.plantName || 'Unknown Plant'}</span>
-                      <span className={`harvest-status-badge ${
-                        (harvest.profit || 0) >= 0 ? 'positive' : 'negative'
-                      }`}>
-                        {(harvest.profit || 0) >= 0 ? '✓ Profitable' : '✗ Loss'}
-                      </span>
-                    </div>
-                    <div className="harvest-item-details">
-                      <div className="harvest-detail">
-                        <small>Revenue:</small>
-                        <strong>{formatCurrency(harvest.totalRevenue || 0)}</strong>
-                      </div>
-                      <div className="harvest-detail">
-                        <small>Profit:</small>
-                        <strong style={{ 
-                          color: (harvest.profit || 0) >= 0 ? '#10b981' : '#ef4444' 
-                        }}>
-                          {formatCurrency(harvest.profit || 0)}
-                        </strong>
-                      </div>
-                      <div className="harvest-detail">
-                        <small>ROI:</small>
-                        <strong>{harvest.roi?.toFixed(1) || 0}%</strong>
-                      </div>
-                    </div>
-                    <div className="harvest-item-footer">
-                      <small>
-                        Harvested: {harvest.harvestDate ? 
-                          new Date(harvest.harvestDate).toLocaleDateString() : 
-                          'Unknown date'}
-                      </small>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
           {/* NPK Chart */}
           <div className="content-card chart-card chart-full-width">
             <div className="chart-header">

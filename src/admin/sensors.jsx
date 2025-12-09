@@ -65,8 +65,16 @@ const fetchSensors = async () => {
           
           // Determine sensor number for moisture mapping
           const sensorNumber = key === 'SoilSensor' ? '1' : key.replace('SoilSensor', '')
-          const moistureKey = `Moisture${sensorNumber}`
-          const moistureData = data.Moisture?.[moistureKey] || {}
+          
+          // Always get moisture data from Moisture node (ignore moisture in sensor readings)
+          const moistureKey = sensorNumber === '1' ? 'Moisture1' : `Moisture${sensorNumber}`
+          const moistureNode = data.Moisture?.[moistureKey]
+          
+          // Get the latest moisture value (Moisture nodes don't have timestamps, just the value)
+          let latestMoistureValue = 0
+          if (moistureNode && typeof moistureNode === 'object') {
+            latestMoistureValue = moistureNode.Moisture || moistureNode.moisture || moistureNode.value || 0
+          }
           
           let latestReading = null
           let latestTimestamp = new Date(0)
@@ -87,17 +95,8 @@ const fetchSensors = async () => {
             readingCount++
             const timestamp = parseTimestamp(readingKey, reading)
             
-            // Try to find corresponding moisture reading by timestamp
-            let moistureValue = reading.Moisture || reading.moisture || 0
-            
-            // If no moisture in sensor reading, check Moisture node
-            if (!moistureValue && moistureData) {
-              // Look for matching timestamp in moisture data
-              const moistureReading = moistureData[readingKey]
-              if (moistureReading && typeof moistureReading === 'object') {
-                moistureValue = moistureReading.Moisture || moistureReading.moisture || moistureReading.value || 0
-              }
-            }
+            // Use the latest moisture value from Moisture node for all readings
+            const moistureValue = latestMoistureValue
             
             const historyEntry = {
               id: readingKey,
@@ -119,42 +118,7 @@ const fetchSensors = async () => {
             }
           })
           
-          // Also process standalone moisture readings that might not have corresponding NPK data
-          if (moistureData) {
-            Object.keys(moistureData).forEach(moistureKey => {
-              const moistureReading = moistureData[moistureKey]
-              if (typeof moistureReading !== 'object' || moistureReading === null) {
-                return
-              }
-              
-              // Check if this timestamp already exists in history
-              const existingReading = history.find(h => h.id === moistureKey)
-              if (!existingReading) {
-                const timestamp = parseTimestamp(moistureKey, moistureReading)
-                const moistureValue = moistureReading.Moisture || moistureReading.moisture || moistureReading.value || 0
-                
-                const historyEntry = {
-                  id: moistureKey,
-                  timestamp,
-                  nitrogen: 0,
-                  phosphorus: 0,
-                  potassium: 0,
-                  ph: 0,
-                  temperature: 0,
-                  conductivity: 0,
-                  moisture: moistureValue
-                }
-                
-                history.push(historyEntry)
-                readingCount++
-                
-                if (timestamp > latestTimestamp) {
-                  latestTimestamp = timestamp
-                  latestReading = { ...historyEntry }
-                }
-              }
-            })
-          }
+          // No need to process standalone moisture readings since Moisture nodes don't have timestamps
           
           if (latestReading && readingCount > 0) {
             sensorsArray.push({

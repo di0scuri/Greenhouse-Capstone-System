@@ -98,7 +98,7 @@ const Inventory = ({ userType = "admin" }) => {
     // Add expense to plantsExpenses collection
     const expenseRef = await addDoc(collection(db, 'plantExpenses'), expenseData);
     
-    console.log(`💰 Created expense record for inventory purchase: ₱${totalCost.toFixed(2)}`);
+    console.log(`Created expense record for inventory purchase: ₱${totalCost.toFixed(2)}`);
     
     return expenseRef.id;
   } catch (error) {

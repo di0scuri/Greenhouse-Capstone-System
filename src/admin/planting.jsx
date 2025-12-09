@@ -12,6 +12,7 @@ import JobOrderManager, {
   parsePlotSizeToM2, 
   convertFertilizerToPlotSize 
 } from '../functions/jobOrderManager';
+import { useUser } from '../contexts/UserContext'
 
 import {
   MdLocationOn,
@@ -38,7 +39,8 @@ import {
 
 
 
-const Planting = ({ userType = 'admin', userId = 'default-user' }) => {
+const Planting = ({ userType = 'admin' }) => {
+  const { userId, userName, currentUser } = useUser();
   const [activeMenu, setActiveMenu] = useState('Planting')
   const [searchTerm, setSearchTerm] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
@@ -1151,20 +1153,26 @@ const fetchPlantEvents = async (plantId) => {
 
   // Get current stage based on plant age
   const getCurrentStage = (plantData, plantInfo) => {
-    if (!plantData.plantedDate || !plantInfo?.stages) return null
-    
-    const plantedDate = new Date(plantData.plantedDate)
-    const now = new Date()
-    const daysSincePlanted = Math.floor((now - plantedDate) / (1000 * 60 * 60 * 24))
-    
-    for (let stage of plantInfo.stages) {
-      if (daysSincePlanted >= stage.startDuration && daysSincePlanted <= stage.endDuration) {
-        return stage
-      }
-    }
-    
-    return plantInfo.stages[plantInfo.stages.length - 1]
+  if (!plantData.plantedDate || !plantInfo?.stages) return null;
+  
+  const plantedDate = new Date(plantData.plantedDate);
+  const now = new Date();
+  const daysSincePlanted = Math.floor((now - plantedDate) / (1000 * 60 * 60 * 24));
+
+  // FIX: Day 0 should always be the first stage (Germination)
+  if (daysSincePlanted <= 0) {
+    return plantInfo.stages[0];
   }
+
+  for (let stage of plantInfo.stages) {
+    if (daysSincePlanted >= stage.startDuration && daysSincePlanted <= stage.endDuration) {
+      return stage;
+    }
+  }
+
+  return plantInfo.stages[plantInfo.stages.length - 1];
+};
+
 
   // Calculate recommended seedlings based on spacing
   const calculateRecommendedSeedlings = (plantKey, plotSizeM2) => {
@@ -1375,18 +1383,22 @@ const fetchPlantEvents = async (plantId) => {
     }
   }
 
-  const getStageFromAge = (plantAge, stages) => {
-    if (!stages || stages.length === 0) return null
-    
-    for (const stage of stages) {
-      if (plantAge >= stage.startDuration && plantAge <= stage.endDuration) {
-        return stage.stage
-      }
-    }
-    
-    // If age exceeds all stages, return last stage
-    return stages[stages.length - 1].stage
+const getStageFromAge = (plantAge, stages) => {
+  if (!stages || stages.length === 0) return null
+
+  if (plantAge === 0) {
+    return stages[0].stage
   }
+  
+  for (const stage of stages) {
+    if (plantAge >= stage.startDuration && plantAge <= stage.endDuration) {
+      return stage.stage
+    }
+  }
+  
+  // If age exceeds all stages, return last stage
+  return stages[stages.length - 1].stage
+}
 
   const handleOpenAddPlotModal = () => {
     const availablePlots = getAvailablePlots()
@@ -1766,7 +1778,7 @@ const handleConfirmPlanting = async () => {
         plotNumber: selectedPlotNumber
       },
       userId,
-      userName || 'Unknown User' // Pass user name if available
+      userName
     )
 
     // Create initial stage event

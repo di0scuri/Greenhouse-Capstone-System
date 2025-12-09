@@ -8,6 +8,7 @@ import JobOrderManager, {
   parsePlotSizeToM2, 
   convertFertilizerToPlotSize 
 } from '../functions/jobOrderManager';
+import '../admin/custom-alert.css';
 
 import { 
   FaSeedling, FaLeaf, FaTint, FaBug, FaCut, FaCarrot, FaTools, FaEye, 
@@ -30,7 +31,21 @@ const FarmerCalendar = () => {
   const [jobOrderFilter, setJobOrderFilter] = useState('all'); // all, pending, in-progress, completed
   const userId = 'farmer-user-id'; // Replace with actual user ID from auth
   
-  const [showEventModal, setShowEventModal] = useState(false); // Add this
+  const [showEventModal, setShowEventModal] = useState();
+
+  const [customAlert, setCustomAlert] = useState({
+    show: false,
+    type: 'info',
+    title: '',
+    message: '',
+    details: null,
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancel: false
+  });
+
   const [showDetailsModal, setShowDetailsModal] = useState(false); // Add this
 
   const [eventForm, setEventForm] = useState({
@@ -84,6 +99,51 @@ const canStartJobOrder = (eventDate) => {
   return jobDate <= today; // Can start if job date is today or in the past
 };
 
+// Custom Alert Helper Functions
+const showCustomAlert = (type, title, message, details = null, options = {}) => {
+  setCustomAlert({
+    show: true,
+    type,
+    title,
+    message,
+    details,
+    onConfirm: options.onConfirm || null,
+    onCancel: options.onCancel || null,
+    confirmText: options.confirmText || 'OK',
+    cancelText: options.cancelText || 'Cancel',
+    showCancel: options.showCancel || false
+  });
+};
+
+const closeCustomAlert = () => {
+  setCustomAlert({
+    show: false,
+    type: 'info',
+    title: '',
+    message: '',
+    details: null,
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancel: false
+  });
+};
+
+const handleAlertConfirm = () => {
+  if (customAlert.onConfirm) {
+    customAlert.onConfirm();
+  }
+  closeCustomAlert();
+};
+
+const handleAlertCancel = () => {
+  if (customAlert.onCancel) {
+    customAlert.onCancel();
+  }
+  closeCustomAlert();
+};
+
 // Get lock status text
 const getLockStatus = (eventDate) => {
   if (!eventDate) return { canStart: true, message: '' };
@@ -107,6 +167,9 @@ const getLockStatus = (eventDate) => {
     return { canStart: true, message: 'Available today' };
   }
 };
+
+
+
 
   // Render calendar grid (Admin-style)
 const renderCalendarGrid = () => {
@@ -146,11 +209,16 @@ const renderCalendarGrid = () => {
                   borderLeft: `4px solid ${typeConfig.color}`,
                   opacity: !canStart ? 0.7 : 1
                 }}
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={() => {
                   if (!canStart) {
-                    const lockStatus = getLockStatus(event.date);
-                    alert(`🔒 This job is scheduled for ${new Date(event.date).toLocaleDateString()}\n${lockStatus.message}`);
+                    const lockStatus = getLockStatus(event.date);  // ✅ Define it first
+                    showCustomAlert(
+                      'warning',
+                      '🔒 Job Locked',
+                      `This job is scheduled for ${new Date(event.date).toLocaleDateString()}`,
+                      [{ label: 'Status', value: lockStatus.message }],
+                      { confirmText: 'OK' }
+                    );
                     return;
                   }
                   setSelectedEvent(event);
@@ -220,7 +288,13 @@ const renderListView = () => {
                   className={`fc-event-list-item ${event.isJobOrder ? 'job-order' : ''} ${!canStart ? 'locked' : ''}`}
                   onClick={() => {
                     if (!canStart) {
-                      alert(`🔒 This job is scheduled for ${new Date(event.date).toLocaleDateString()}\n${lockStatus.message}`);
+                      showCustomAlert(
+                        'warning',
+                        '🔒 Job Locked',
+                        `This job is scheduled for ${new Date(event.date).toLocaleDateString()}`,
+                        [{ label: 'Status', value: lockStatus.message }],
+                        { confirmText: 'OK' }
+                      );
                       return;
                     }
                     setSelectedEvent(event);
@@ -237,7 +311,7 @@ const renderListView = () => {
                     <div className="fc-event-list-header">
                       <span className="fc-event-list-message">
                         {!canStart && '🔒 '}
-                        {event.isJobOrder && '📋 '}
+                        {event.isJobOrder}
                         {event.title}
                         {!canStart && <span className="fc-lock-text"> ({lockStatus.message})</span>}
                       </span>
@@ -304,7 +378,7 @@ const renderListView = () => {
                   <div className="fc-event-list-content">
                     <div className="fc-event-list-header">
                       <span className="fc-event-list-message">
-                        {event.isJobOrder && '📋 '}
+                        {event.isJobOrder}
                         {event.title}
                       </span>
                       <span 
@@ -385,27 +459,51 @@ const renderListView = () => {
       
       const eventsData = eventsSnapshot.docs.map(doc => {
         const data = doc.data();
+        
+        // Handle timestamp - can be Firestore Timestamp, string, or missing
+        let timestamp;
+        if (data.timestamp) {
+          if (typeof data.timestamp === 'object' && data.timestamp.toDate) {
+            timestamp = data.timestamp.toDate();
+          } else if (typeof data.timestamp === 'string') {
+            timestamp = new Date(data.timestamp);
+          } else {
+            timestamp = new Date(data.timestamp);
+          }
+        } else if (data.createdAt) {
+          timestamp = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+        } else {
+          timestamp = new Date();
+        }
+        
         return {
           id: doc.id,
           ...data,
-          timestamp: data.timestamp && data.timestamp.toDate 
-           ? data.timestamp.toDate() 
-           : data.scheduledDate
-           ? new Date(data.scheduledDate) // Fallback for scheduledDate string
-           : data.createdAt && data.createdAt.toDate 
-           ? data.createdAt.toDate() 
-           : new Date()
+          timestamp: timestamp
         };
       });
       
       const jobOrderEvents = jobOrdersSnapshot.docs.map(doc => {
         const data = doc.data();
-        const scheduledDate = data.scheduledDate ? new Date(data.scheduledDate) : new Date();
+        
+        // Handle scheduledDate - could be Firestore Timestamp or string
+        let scheduledDate;
+        if (data.scheduledDate) {
+          if (data.scheduledDate.toDate && typeof data.scheduledDate.toDate === 'function') {
+            scheduledDate = data.scheduledDate.toDate();
+          } else if (typeof data.scheduledDate === 'string') {
+            scheduledDate = new Date(data.scheduledDate);
+          } else {
+            scheduledDate = new Date(data.scheduledDate);
+          }
+        } else {
+          scheduledDate = new Date();
+        }
         
         return {
           id: `joborder-${doc.id}`,
           jobOrderId: doc.id,
-          title: data.title,
+          title: data.title || `${data.applicationStage} - ${data.plantName}`,
           time: data.scheduledTime || '8:00 AM',
           date: scheduledDate.toISOString().split('T')[0],
           type: 'job-order',
@@ -416,42 +514,45 @@ const renderListView = () => {
           priority: data.priority || 'medium',
           isJobOrder: true,
           fertilizerName: data.fertilizerName,
-          fertilizerAmount: data.fertilizerAmountForPlot || data.fertilizerAmount,
+          fertilizerAmount: data.fertilizerAmount,
           applicationMethod: data.applicationMethod,
+          applicationInstructions: data.applicationInstructions,
           applicationNumber: data.applicationNumber,
+          applicationStage: data.applicationStage,
           totalApplications: data.totalApplications,
           plantId: data.plantId,
           plantName: data.plantName,
+          plantType: data.plantType,
           plotNumber: data.plotNumber,
+          npkRatio: data.npkRatio,
+          stage: data.stage,
+          description: data.description,
+          expectedResult: data.expectedResult,
           inventoryLogged: data.inventoryLogged || false,
-          inventoryItemId: data.inventoryItemId || null // pass through if present
+          inventoryItemId: data.inventoryItemId || null
         };
       });
       
       const calendarEvents = eventsData.map(event => {
-        const eventDate = event.type === 'FERTILIZER_JOB_ORDER' && event.scheduledDate 
-          ? event.scheduledDate 
-          : (event.timestamp || event.createdAt);
-
-        const isJobOrder = event.type === 'FERTILIZER_JOB_ORDER';
+        const eventDate = event.timestamp || event.createdAt || new Date();
         
         return {
           id: `event-${event.id}`,
           jobOrderId: event.jobOrderId,
-          title: isJobOrder ? event.title : (event.message || `${event.type} - ${event.status}`),
+          title: event.message || event.title || `${event.type} - ${event.status}`,
           time: eventDate.toLocaleTimeString('en-US', { 
             hour: 'numeric', 
             minute: '2-digit',
             hour12: true 
           }),
           date: eventDate.toISOString().split('T')[0],
-          type: isJobOrder ? 'job-order' : 'event',
+          type: 'event',
           eventType: event.type,
           color: getEventColor(event.type, event.status),
           originalEvent: event,
           status: event.status || 'info',
           priority: event.priority || 'medium',
-          isJobOrder: isJobOrder,
+          isJobOrder: false, // Regular events are NOT job orders
           fertilizerName: event.fertilizerName,
           fertilizerAmount: event.fertilizerAmount,
           applicationMethod: event.applicationMethod,
@@ -472,7 +573,6 @@ const renderListView = () => {
   const updateJobOrderStatus = async (jobOrderId, status) => {
     try {
       const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
-      // Note: You'll need to add this method to JobOrderManager
       await jobOrderManager.updateJobOrderStatus(jobOrderId, status);
       await fetchEvents();
       return true;
@@ -491,12 +591,16 @@ const completeJobOrder = async (jobOrderId, notes = '') => {
     return true;
   } catch (error) {
     console.error('Error completing job order:', error);
+    showCustomAlert(
+      'error',
+      'Completion Failed',
+      `Failed to complete job order: ${error.message}`,
+      null,
+      { confirmText: 'OK' }
+    );
     throw error;
   }
 };
-
-
-
   // Generate farming activities based on plant data
   const generatePlantActivities = () => {
     const activities = [];
@@ -761,6 +865,37 @@ const completeJobOrder = async (jobOrderId, notes = '') => {
     
     return filteredEvents;
   };
+
+  const formatFertilizerAmount = (fertilizerBagsForPlot, plotSizeM2) => {
+  if (!fertilizerBagsForPlot || Object.keys(fertilizerBagsForPlot).length === 0) {
+    return 'No fertilizer amount specified';
+  }
+  
+  const FERTILIZER_WEIGHT_PER_BAG = 50; // kg per bag
+  
+  return Object.entries(fertilizerBagsForPlot)
+    .map(([type, bags]) => {
+      const bagsNum = parseFloat(bags) || 0;
+      const weightKg = bagsNum * FERTILIZER_WEIGHT_PER_BAG;
+      
+      let displayAmount, displayUnit;
+      
+      if (weightKg >= 1) {
+        displayAmount = weightKg.toFixed(2);
+        displayUnit = 'kg';
+      } else if (weightKg >= 0.001) {
+        displayAmount = (weightKg * 1000).toFixed(1);
+        displayUnit = 'g';
+      } else {
+        displayAmount = (weightKg * 1000000).toFixed(0);
+        displayUnit = 'mg';
+      }
+      
+      return `${type}: ${displayAmount}${displayUnit} (${bagsNum.toFixed(4)} bags)`;
+    })
+    .join(', ');
+};
+
 
   // Get all events for the current view (filtered by search and job order filter)
   const getAllEventsForView = () => {
@@ -1069,7 +1204,7 @@ return (
         <div className="fc-right-sidebar">
           {/* Job Order Stats */}
           <div className="fc-job-stats">
-            <h3>📋 Job Orders</h3>
+            <h3>Job Orders</h3>
             <div className="fc-stats-grid">
               <div className="fc-stat-item pending">
                 <div className="fc-stat-number">{jobOrderStats.pending}</div>
@@ -1113,7 +1248,13 @@ return (
                         className={`fc-upcoming-event ${isJobOrder ? 'job-order' : ''} ${!canStart ? 'locked' : ''}`}
                         onClick={() => {
                           if (!canStart) {
-                            alert(`🔒 This job is scheduled for ${new Date(event.date).toLocaleDateString()}\n${lockStatus.message}`);
+                            showCustomAlert(
+                              'warning',
+                              '🔒 Job Locked',
+                              `This job is scheduled for ${new Date(event.date).toLocaleDateString()}`,
+                              [{ label: 'Status', value: lockStatus.message }],
+                              { confirmText: 'OK' }
+                            );
                             return;
                           }
                           setSelectedEvent(event);
@@ -1130,7 +1271,7 @@ return (
                         <div className="fc-event-details">
                           <div className="fc-event-time-range">
                             {!canStart && '🔒 '}
-                            {isJobOrder && '📋 '}
+                            {isJobOrder}
                             {event.time}
                           </div>
 
@@ -1194,7 +1335,7 @@ return (
         <div className="fc-modal" onClick={(e) => e.stopPropagation()}>
           <div className="fc-modal-header">
             <h3>
-              {selectedEvent.isJobOrder && '📋 '}
+              {selectedEvent.isJobOrder}
               {selectedEvent.title}
             </h3>
             <button className="fc-modal-close" onClick={() => setSelectedEvent(null)}>×</button>
@@ -1243,7 +1384,8 @@ return (
                   </span>
                 </p>
                 <p><strong>Priority:</strong> {selectedEvent.priority}</p>
-                <p><strong>Fertilizer:</strong> {selectedEvent.fertilizerName}</p>
+                <p><strong>NPK Range:</strong> {selectedEvent.npkRatio}</p>
+                <p><strong>Fertilizer:</strong> {selectedEvent.fertilizerBags}</p>
                 <p><strong>Amount:</strong> {selectedEvent.fertilizerAmount}</p>
                 <p><strong>Method:</strong> {selectedEvent.applicationMethod}</p>
                 {selectedEvent.applicationNumber && (
@@ -1270,11 +1412,24 @@ return (
                       <button
                         onClick={async () => {
                           try {
-                            await updateJobOrderStatus(selectedEvent.jobOrderId || selectedEvent.id, 'in-progress');
+                            const jobId = selectedEvent.jobOrderId || selectedEvent.id.replace('joborder-', '');
+                            await updateJobOrderStatus(jobId, 'in-progress');
                             setSelectedEvent(null);
-                            alert('Job order started!');
+                            showCustomAlert(
+                              'success',
+                              'Job Started',
+                              'The job order has been started successfully!',
+                              null,
+                              { confirmText: 'OK' }
+                            );
                           } catch (error) {
-                            alert('Failed to start job order: ' + error.message);
+                            showCustomAlert(
+                              'error',
+                              'Start Failed',
+                              `Failed to start job order: ${error.message}`,
+                              null,
+                              { confirmText: 'OK' }
+                            );
                           }
                         }}
                         style={{
@@ -1315,17 +1470,42 @@ return (
                     
                     {/* Cancel button remains unchanged */}
                     <button
-                      onClick={async () => {
-                        if (window.confirm('Are you sure you want to cancel this job order?')) {
-                          try {
-                            const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
-                            await jobOrderManager.cancelJobOrder(selectedEvent.jobOrderId || selectedEvent.id, 'Cancelled by user');
-                            setSelectedEvent(null);
-                            alert('Job order cancelled!');
-                          } catch (error) {
-                            alert('Failed to cancel job order: ' + error.message);
+                      onClick={() => {
+                        showCustomAlert(
+                          'warning',
+                          'Cancel Job Order',
+                          'Are you sure you want to cancel this job order? This action cannot be undone.',
+                          null,
+                          {
+                            showCancel: true,
+                            confirmText: 'Yes, Cancel',
+                            cancelText: 'No, Keep It',
+                            onConfirm: async () => {
+                              try {
+                                const jobId = selectedEvent.jobOrderId || selectedEvent.id.replace('joborder-', '');
+                                const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
+                                await jobOrderManager.cancelJobOrder(jobId, 'Cancelled by user');
+                                await fetchEvents();
+                                setSelectedEvent(null);
+                                showCustomAlert(
+                                  'success',
+                                  'Job Cancelled',
+                                  'The job order has been cancelled successfully.',
+                                  null,
+                                  { confirmText: 'OK' }
+                                );
+                              } catch (error) {
+                                showCustomAlert(
+                                  'error',
+                                  'Cancellation Failed',
+                                  `Failed to cancel job order: ${error.message}`,
+                                  null,
+                                  { confirmText: 'OK' }
+                                );
+                              }
+                            }
                           }
-                        }
+                        );
                       }}
                       style={{
                         padding: '10px 16px',
@@ -1346,18 +1526,41 @@ return (
                 {selectedEvent.status === 'in-progress' && (
                   <div style={{ marginTop: '20px' }}>
                     <button
-                      onClick={async () => {
-                        const notes = prompt('Add completion notes (optional):');
-                        if (notes !== null) {
-                          try {
-                            await completeJobOrder(selectedEvent.jobOrderId || selectedEvent.id, notes);
-                            setSelectedEvent(null);
-                            alert('✅ Job completed and logged to inventory!');
-                          } catch (error) {
-                            alert('Failed to complete job order: ' + error.message);
+                      onClick={() => {
+                      const notes = prompt('Add completion notes (optional):');
+                      if (notes !== null) {
+                        showCustomAlert(
+                          'info',
+                          'Complete Job Order',
+                          'Are you sure you want to mark this job as completed? This will log the fertilizer usage to inventory.',
+                          notes ? [{ label: 'Notes', value: notes }] : null,
+                          {
+                            showCancel: true,
+                            confirmText: 'Complete Job',
+                            cancelText: 'Cancel',
+                            onConfirm: async () => {
+                              try {
+                                const jobId = selectedEvent.jobOrderId || selectedEvent.id.replace('joborder-', '');
+                                await completeJobOrder(jobId, notes);
+                                setSelectedEvent(null);
+                                showCustomAlert(
+                                  'success',
+                                  'Job Completed',
+                                  'Job completed successfully and logged to inventory!',
+                                  [
+                                    { label: 'Status', value: 'Completed' },
+                                    { label: 'Inventory', value: 'Updated' }
+                                  ],
+                                  { confirmText: 'OK' }
+                                );
+                              } catch (error) {
+                                console.error('Complete error:', error);
+                              }
+                            }
                           }
-                        }
-                      }}
+                        );
+                      }
+                    }}
                       style={{
                         width: '100%',
                         padding: '12px 16px',
@@ -1390,8 +1593,63 @@ return (
                 )}
               </>
             )}
+
+            
           </div>
         </div>
+      </div>
+    )}
+    {customAlert.show && (
+        <div className="custom-alert-overlay" onClick={handleAlertCancel}>
+          <div 
+            className={`custom-alert-modal ${customAlert.type}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="custom-alert-header">
+              <div className="custom-alert-icon">
+                {customAlert.type === 'success' && '✅'}
+                {customAlert.type === 'error' && '❌'}
+                {customAlert.type === 'warning' && '⚠️'}
+                {customAlert.type === 'info' && 'ℹ️'}
+              </div>
+              <div className="custom-alert-content">
+                <h3 className="custom-alert-title">{customAlert.title}</h3>
+                <p className="custom-alert-message">{customAlert.message}</p>
+              </div>
+            </div>
+
+            {customAlert.details && customAlert.details.length > 0 && (
+              <div className="custom-alert-details">
+                {customAlert.details.map((detail, index) => (
+                  <div key={index} className="alert-detail-item">
+                    <span className="alert-detail-label">{detail.label}:</span>
+                    <span className="alert-detail-value">{detail.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="custom-alert-footer">
+              {customAlert.showCancel && (
+                <button 
+                  className="custom-alert-btn custom-alert-btn-cancel"
+                  onClick={handleAlertCancel}
+                >
+                  {customAlert.cancelText}
+                </button>
+              )}
+              <button 
+                className={`custom-alert-btn ${
+                  customAlert.type === 'success' ? 'custom-alert-btn-success' :
+                  customAlert.type === 'error' ? 'custom-alert-btn-danger' :
+                  customAlert.type === 'warning' ? 'custom-alert-btn-danger' :
+                  'custom-alert-btn-primary'
+                }`}
+                onClick={handleAlertConfirm}
+              />
+                {customAlert.confirmText}
+                </div>
+            </div>
       </div>
     )}
   </div>

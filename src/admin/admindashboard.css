@@ -1,21 +1,23 @@
-/*Admin Dashboard CSS*/
+/* ============ ADMIN DASHBOARD PROFESSIONAL STYLES ============ */
 
+/* Main Dashboard Container */
 .dashboard-container-ad {
   display: flex;
-  height: 100vh;
+  min-height: 100vh;
   width: 100vw;
-  overflow: auto;
 }
-
-/* ============ MAIN CONTENT ============ */
+/* ============ MAIN CONTENT AREA ============ */
 .main-content {
   flex: 1;
   background: #f5f7fa;
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100vh;
 }
 
+/* ============ DASHBOARD HEADER ============ */
 .dashboard-header {
   background: white;
   padding: 24px 40px;
@@ -24,13 +26,18 @@
   align-items: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border-bottom: 1px solid #e5e7eb;
+  position: sticky; /* Makes header stay at top while scrolling */
+  top: 0;
+  z-index: 10;
 }
+
 
 .header-left h1 {
   font-size: 26px;
   font-weight: 600;
   color: #1f2937;
   letter-spacing: -0.5px;
+  margin: 0;
 }
 
 .date-text {
@@ -54,32 +61,30 @@
   gap: 20px;
 }
 
+/* ============ SEARCH COMPONENT ============ */
 .search-container-ad {
   position: relative;
 }
 
 .search-input-ad {
-    width: 320px;
-    padding: 10px 42px 10px 18px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 14px;
-    background: #ffffff;
-    outline: none;
-    transition: all 0.2s ease;
+  width: 320px;
+  padding: 10px 42px 10px 18px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #ffffff;
+  outline: none;
+  transition: all 0.2s ease;
+  color: #374151;
 } 
 
 .search-input-ad:focus {
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-} 
+}
 
-.search-bar input {
-  border: none;
-  background: transparent;
-  outline: none;
-  width: 100%;
-  font-size: 14px;
+.search-input-ad::placeholder {
+  color: #9ca3af;
 }
 
 .search-icon-ad {
@@ -92,8 +97,10 @@
   align-items: center;
   justify-content: center;
   font-size: 16px;
+  pointer-events: none;
 }
 
+/* ============ NOTIFICATION & SETTINGS ICONS ============ */
 .notification-btn {
   position: relative;
   cursor: pointer;
@@ -153,30 +160,21 @@
   transform: rotate(90deg);
 }
 
-/* ============ COSTING BODY ============ */
+/* ============ DASHBOARD BODY (Content Area) ============ */
 .admindashboard-body {
   flex: 1;
-  padding: 30px;
-  overflow-y: auto;
+  padding: 30px; /* This padding will apply to everything including stats */
   display: flex;
   flex-direction: column;
   gap: 30px;
 }
 
-/* ============ TOP SECTION ============ */
-.admindashboard-top {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr;
-  gap: 30px;
-}
-
-/* ============ CONTENT AREA ============ */
+/* ============ STATS GRID (Financial Cards) ============ */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
-  padding: 30px;
-  padding-bottom: 20px;
+  padding: 15px;
 }
 
 .stat-card {
@@ -207,6 +205,22 @@
   font-weight: 500;
 }
 
+/* Specific icon colors for harvest cards */
+.stat-icon.harvest-revenue {
+  background-color: #ecfdf5;
+  color: #059669;
+}
+
+.stat-icon.harvest-profit {
+  background-color: #f0fdf4;
+  color: #16a34a;
+}
+
+.stat-icon.harvest-count {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
 .stat-content-ad {
   flex: 1;
 }
@@ -220,7 +234,7 @@
   letter-spacing: 0.5px;
 }
 
-.stat-amount-10{
+.stat-amount-10 {
   font-size: 22px;
   font-weight: 600;
   color: #1f2937;
@@ -234,7 +248,7 @@
   font-style: italic;
 }
 
-/* ============ HARVEST CARDS ============ */
+/* ============ HARVEST SUMMARY CARD ============ */
 .harvest-summary-card {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -256,6 +270,33 @@
   margin-bottom: 16px;
 }
 
+.harvest-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.harvest-card-icon {
+  font-size: 24px;
+  opacity: 0.9;
+}
+
+.harvest-card-amount {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-family: 'Inter', -apple-system, sans-serif;
+}
+
+.harvest-card-subtitle {
+  font-size: 13px;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+/* ============ HARVEST LIST SECTION ============ */
 .harvest-summary-section {
   padding: 24px;
 }
@@ -290,6 +331,37 @@
   font-size: 15px;
   font-weight: 600;
   color: #1f2937;
+}
+
+.harvest-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.harvest-status-badge.positive {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.harvest-status-badge.negative {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.harvest-status-badge.neutral {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.harvest-status-icon {
+  font-size: 10px;
 }
 
 .harvest-item-details {
@@ -327,36 +399,121 @@
   color: #6b7280;
 }
 
-.harvest-card-title {
-  font-size: 14px;
+.harvest-roi-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  font-size: 13px;
   font-weight: 500;
-  opacity: 0.9;
+}
+
+.roi-label {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.roi-value {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.roi-value.positive {
+  color: #10b981;
+}
+
+.roi-value.negative {
+  color: #ef4444;
+}
+
+/* ============ HARVEST MINI TRENDS ============ */
+.harvest-trends {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.harvest-trends-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.harvest-trends-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.harvest-card-icon {
-  font-size: 24px;
-  opacity: 0.9;
+.harvest-trends-period {
+  font-size: 12px;
+  color: #6b7280;
 }
 
-.harvest-card-amount {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  font-family: 'Inter', -apple-system, sans-serif;
+.harvest-trends-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 60px;
+  padding: 0 4px;
 }
 
-.harvest-card-subtitle {
-  font-size: 13px;
+.harvest-trend-bar {
+  flex: 1;
+  background: linear-gradient(to top, #10b981, #34d399);
+  border-radius: 3px 3px 0 0;
+  min-height: 4px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.harvest-trend-bar:hover {
   opacity: 0.8;
-  font-weight: 400;
+  transform: scaleY(1.05);
 }
 
-/* ============ CONTENT GRID ============ */
+.harvest-trend-bar::after {
+  content: attr(data-value);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 4px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  margin-bottom: 4px;
+}
+
+.harvest-trend-bar:hover::after {
+  opacity: 1;
+}
+
+/* ============ CONTENT GRID (Main Layout) ============ */
 .content-grid {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
+  gap: 30px;
+}
+
+.content-grid-extended {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 30px;
   padding: 0 30px 30px;
   flex: 1;
@@ -372,7 +529,6 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 400px;
 }
 
 .card-title {
@@ -383,21 +539,10 @@
   letter-spacing: -0.3px;
 }
 
-
-.content-grid-extended {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr); /* 2 columns by default */
-  gap: 30px;
-  padding: 0 30px 30px;
-  flex: 1;
-  overflow: auto;
-  min-height: 0;
-}
-
-/* Chart spans full width */
 .chart-full-width {
-  grid-column: 1 / -1; /* Spans all columns */
+  grid-column: 1 / -1;
 }
+
 /* ============ TASKS CARD ============ */
 .tasks-card {
   padding: 24px;
@@ -504,7 +649,6 @@
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-/* Legend status with correct colors */
 .legend-status {
   display: flex;
   align-items: center;
@@ -529,18 +673,16 @@
   text-align: center;
 }
 
-/* ============ CHART CONTAINER - CENTERED ============ */
+/* ============ CHART CONTAINER ============ */
 .chart-container {
   display: flex;
   align-items: flex-end;
   justify-content: center;
   padding: 20px 0;
-  flex: 1;
   min-height: 350px;
   position: relative;
 }
 
-/* Y-Axis for Chart - aligned with bars */
 .chart-y-axis {
   display: flex;
   flex-direction: column;
@@ -551,7 +693,7 @@
   margin-right: 16px;
   border-right: 2px solid #e5e7eb;
   flex-shrink: 0;
-  padding-bottom: 60px; /* Space for labels at bottom */
+  padding-bottom: 60px;
 }
 
 .y-axis-label {
@@ -564,7 +706,6 @@
   padding-right: 8px;
 }
 
-/* Chart bars wrapper - to align with Y-axis */
 .chart-bars-wrapper {
   display: flex;
   flex-direction: column;
@@ -573,20 +714,18 @@
   max-width: 800px;
 }
 
-/* Chart bars - CENTERED and aligned with Y-axis */
 .chart-bars {
   display: flex;
   justify-content: center;
   align-items: flex-end;
   gap: 32px;
-  height: 280px; /* Must match Y-axis height exactly */
-  padding-bottom: 60px; /* Same as Y-axis padding for alignment */
+  height: 280px;
+  padding-bottom: 60px;
   flex: 1;
   max-width: 800px;
   position: relative;
 }
 
-/* Add a baseline indicator */
 .chart-bars::after {
   content: '';
   position: absolute;
@@ -611,18 +750,17 @@
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  height: 220px; /* Height for actual bars (280px - 60px padding) */
+  height: 220px;
   position: relative;
 }
 
-/* Individual bars - aligned to bottom */
 .bar {
   position: relative;
   width: 22px;
   border-radius: 4px 4px 0 0;
   transition: all 0.3s ease;
   cursor: pointer;
-  min-height: 3px; /* Very small minimum for low values */
+  min-height: 3px;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -635,7 +773,6 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Bar value on hover */
 .bar-value-hover {
   position: absolute;
   top: -28px;
@@ -658,7 +795,6 @@
   opacity: 1;
 }
 
-/* Sensor labels - PROPERLY AT THE BOTTOM */
 .bar-label {
   font-size: 13px;
   color: #374151;
@@ -692,178 +828,20 @@
   min-height: 300px;
 }
 
-/* ============ HARVEST MINI TRENDS ============ */
-.harvest-trends {
-  margin-top: 16px;
-  padding: 16px;
-  background: #f9fafb;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-}
-
-.harvest-trends-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.harvest-trends-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.harvest-trends-period {
-  font-size: 12px;
+/* ============ LOADING & EMPTY STATES ============ */
+.harvest-loading,
+.harvest-empty {
+  padding: 24px;
+  text-align: center;
   color: #6b7280;
-}
-
-.harvest-trends-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  height: 60px;
-  padding: 0 4px;
-}
-
-.harvest-trend-bar {
-  flex: 1;
-  background: linear-gradient(to top, #10b981, #34d399);
-  border-radius: 3px 3px 0 0;
-  min-height: 4px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  position: relative;
-}
-
-.harvest-trend-bar:hover {
-  opacity: 0.8;
-  transform: scaleY(1.05);
-}
-
-.harvest-trend-bar::after {
-  content: attr(data-value);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.85);
-  color: white;
-  padding: 4px 6px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-  margin-bottom: 4px;
-}
-
-.harvest-trend-bar:hover::after {
-  opacity: 1;
-}
-
-  .stat-title {
-    font-size: 12px;
-  }
-
-  .stat-amount-10 {
-    font-size: 16px;
-  }
-
-  .harvest-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  margin-top: 8px;
-}
-
-.harvest-roi-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.roi-label {
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.roi-value {
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.roi-value.positive {
-  color: #10b981;
-}
-
-.roi-value.negative {
-  color: #ef4444;
-}
-
-.harvest-status-badge.positive {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.harvest-status-badge.negative {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.harvest-status-badge.neutral {
-  background: #e0e7ff;
-  color: #3730a3;
-}
-
-.harvest-status-icon {
-  font-size: 10px;
+  font-style: italic;
 }
 
 /* ============ RESPONSIVE DESIGN ============ */
 @media (max-width: 1200px) {
-  .content-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
-  
-  .chart-bars {
-    gap: 24px;
-  }
-  
-  .bar {
-    width: 20px;
-  }
-
-  .legend-status {
-    margin-left: 0;
-    padding-left: 0;
-    border-left: none;
-    margin-top: 8px;
-    width: 100%;
-  }
-
-   .stats-grid {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
-  
   .content-grid {
     grid-template-columns: 1fr;
     gap: 20px;
@@ -887,20 +865,6 @@
 }
 
 @media (max-width: 768px) {
-
-  .stats-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 15px;
-    padding: 20px;
-  }
-  
-  .harvest-card-amount {
-    font-size: 22px;
-  }
-  
-  .harvest-trends-bars {
-    height: 50px;
-  }
   .dashboard-container-ad {
     flex-direction: column;
   }
@@ -920,14 +884,19 @@
     width: 200px;
   }
   
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
-  padding: 30px;
-  padding-bottom: 20px;
-  max-width: 100%;
+  .stats-grid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  padding: 20px;
 }
+  
+  .harvest-card-amount {
+    font-size: 22px;
+  }
+  
+  .harvest-trends-bars {
+    height: 50px;
+  }
 
   .chart-y-axis {
     height: 240px;
@@ -978,6 +947,13 @@
 }
 
 @media (max-width: 480px) {
+  .costing-header {
+    padding: 16px 20px;
+  }
+
+  .header-left h1 {
+    font-size: 20px;
+  }
 
   .stats-grid {
     grid-template-columns: 1fr;
@@ -1001,11 +977,6 @@
     height: 40px;
     gap: 6px;
   }
-  .stats-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 15px;
-  }
   
   .content-grid {
     gap: 15px;
@@ -1016,32 +987,19 @@
     width: 150px;
   }
 
-  .header-left h1 {
-    font-size: 20px;
-  }
-
   .stat-icon {
     width: 40px;
     height: 40px;
     font-size: 20px;
   }
 
-  /* Specific icon colors for harvest cards */
-.stat-icon.harvest-revenue {
-  background-color: #ecfdf5;
-  color: #059669;
-}
+  .stat-title {
+    font-size: 12px;
+  }
 
-.stat-icon.harvest-profit {
-  background-color: #f0fdf4;
-  color: #16a34a;
-}
-
-.stat-icon.harvest-count {
-  background-color: #fef3c7;
-  color: #d97706;
-}
-
+  .stat-amount-10 {
+    font-size: 16px;
+  }
 
   .chart-y-axis {
     height: 220px;
@@ -1075,3 +1033,28 @@
     font-size: 9px;
   }
 }
+
+/* ============ ANIMATIONS ============ */
+@keyframes dashboardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stats-grid,
+.content-grid,
+.harvest-summary-section {
+  animation: dashboardFadeIn 0.4s ease-out;
+}
+
+.stat-card:nth-child(1) { animation-delay: 0.05s; }
+.stat-card:nth-child(2) { animation-delay: 0.1s; }
+.stat-card:nth-child(3) { animation-delay: 0.15s; }
+.stat-card:nth-child(4) { animation-delay: 0.2s; }
+.stat-card:nth-child(5) { animation-delay: 0.25s; }
+.stat-card:nth-child(6) { animation-delay: 0.3s; }

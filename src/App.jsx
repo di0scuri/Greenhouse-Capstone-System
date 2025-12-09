@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { auth, db } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
+import { UserProvider } from './contexts/UserContext';
 
 // ============================================
 // AUTH & USER PAGES
@@ -92,16 +93,44 @@ function App() {
       if (firebaseUser) {
         // User is signed in with Firebase
         try {
-          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid))
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
           if (userDoc.exists()) {
-            const userData = { uid: firebaseUser.uid, ...userDoc.data() };
-            setUser(userData);
-            localStorage.setItem('user', JSON.stringify(userData));
+            const userData = userDoc.data();
+            const fullUserData = { 
+              uid: firebaseUser.uid, 
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || userData.displayName || userData.name || firebaseUser.email.split('@')[0],
+              photoURL: firebaseUser.photoURL || userData.photoURL,
+              ...userData 
+            };
+            
+            setUser(fullUserData);
+            localStorage.setItem('user', JSON.stringify(fullUserData));
+            localStorage.setItem('userId', firebaseUser.uid);
+            localStorage.setItem('userName', fullUserData.displayName);
+            localStorage.setItem('userRole', (userData.role || 'user').toLowerCase());
             localStorage.setItem('isAuthenticated', 'true');
-            console.log('Firebase user authenticated:', userData);
+            
+            console.log('Firebase user authenticated:', fullUserData);
           } else {
             console.log('No Firestore document for user:', firebaseUser.uid);
-            setUser(null);
+            
+            // Create basic user object from Firebase auth
+            const basicUserData = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+              role: 'user'
+            };
+            
+            setUser(basicUserData);
+            localStorage.setItem('user', JSON.stringify(basicUserData));
+            localStorage.setItem('userId', firebaseUser.uid);
+            localStorage.setItem('userName', basicUserData.displayName);
+            localStorage.setItem('userRole', 'user');
+            localStorage.setItem('isAuthenticated', 'true');
           }
         } catch (error) {
           console.error('Error fetching user document:', error);
@@ -164,405 +193,401 @@ function App() {
   }
 
   return (
-    <Router>
-      <div className="App">
-        <Routes>
-          {/* ============================================ */}
-          {/* ROOT & AUTH ROUTES */}
-          {/* ============================================ */}
-          <Route path="/" element={<Navigate to="/user-selection" replace />} />
-          <Route path="/user-selection" element={<User />} />
-          
-          <Route path="/login/admin" element={<Login userType="admin" />} />
-          <Route path="/login/farmer" element={<Login userType="farmer" />} />
-          <Route path="/login/finance" element={<Login userType="finance" />} />
+    <UserProvider>
+      <Router>
+        <div className="App">
+          <Routes>
+            {/* ============================================ */}
+            {/* ROOT & AUTH ROUTES */}
+            {/* ============================================ */}
+            <Route path="/" element={<Navigate to="/user-selection" replace />} />
+            <Route path="/user-selection" element={<User />} />
+            
+            <Route path="/login/admin" element={<Login userType="admin" />} />
+            <Route path="/login/farmer" element={<Login userType="farmer" />} />
+            <Route path="/login/finance" element={<Login userType="finance" />} />
 
-          {/* ============================================ */}
-          {/* DASHBOARD ROUTES (ROLE-BASED) */}
-          {/* ============================================ */}
-          <Route 
-            path="/dashboard/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <AdminDashboard userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/dashboard/farmer" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <FarmerDashboard userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/dashboard/finance" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Finance">
-                <FinanceDashboard userType="finance" user={user} />
-              </ProtectedRoute>
-            } 
-          />
+            {/* ============================================ */}
+            {/* DASHBOARD ROUTES (ROLE-BASED) */}
+            {/* ============================================ */}
+            <Route 
+              path="/dashboard/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <AdminDashboard userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/farmer" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <FarmerDashboard userType="farmer" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/finance" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Finance">
+                  <FinanceDashboard userType="finance" user={user} />
+                </ProtectedRoute>
+              } 
+            />
 
-          {/* ============================================ */}
-          {/* ADMIN ROUTES */}
-          {/* ============================================ */}
-          <Route 
-            path="/overview/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <AdminDashboard userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/admindashboard" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <AdminDashboard userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          
-          {/* Inventory */}
-          <Route 
-            path="/inventory/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Inventory userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/inventory" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Inventory userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          
-          {/* Costing - Shared between Admin and Finance */}
-          <Route 
-            path="/costing/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
-                <Costing userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/costing" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
-                <Costing 
-                  userType={user?.role?.toLowerCase() === 'finance' ? 'finance' : 'admin'} 
-                  user={user} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-          
-          {/* Planting */}
-          <Route 
-            path="/planting/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Planting userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/planting" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Planting userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          
-          {/* Settings */}
-          <Route 
-            path="/settings/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Settings userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/settings" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Settings userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
+            {/* ============================================ */}
+            {/* ADMIN ROUTES */}
+            {/* ============================================ */}
+            <Route 
+              path="/overview/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <AdminDashboard userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admindashboard" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <AdminDashboard userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Inventory */}
+            <Route 
+              path="/inventory/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <Inventory userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/inventory" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <Inventory userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Costing - Shared between Admin and Finance */}
+            <Route 
+              path="/costing/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                  <Costing userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/costing" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                  <Costing 
+                    userType={user?.role?.toLowerCase() === 'finance' ? 'finance' : 'admin'} 
+                    user={user} 
+                  />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Planting */}
+            <Route 
+              path="/planting/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <Planting userType="admin"/>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/planting" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <Planting userType="admin"/>
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Settings */}
+            <Route 
+              path="/settings/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <Settings userType="admin"/>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <Settings userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
 
-          {/* Calendar */}
-          <Route 
-            path="/admincalendar" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <AdminCalendar userType="admin" userId={user?.uid} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/admincalendar/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <AdminCalendar userType="admin" userId={user?.uid} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/farmercalendar" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <FarmerCalendar userType="farmer" userId={user?.uid} />
-              </ProtectedRoute>
-            } 
-          />
-
-          
-          {/* Greenhouse - Shared between Admin and Farmer (FIXED) */}
-
-          {/* Admin Specific Greenhouse Route */}
-          <Route 
-            path="/greenhousecontrols/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Greenhouse userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* Farmer Specific Greenhouse Route */}
-          <Route 
-            path="/greenhousecontrols/farmer" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <Greenhouse userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/farmer/greenhouse" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <Greenhouse userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* Generic Greenhouse Route (Determines userType based on role) */}
-          <Route 
-            path="/greenhousecontrols" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Greenhouse 
-                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
-                  user={user} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-          
-          {/* Plant List */}
-          <Route 
-            path='/plantList/admin' 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <PlantMasterList userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path='/plantList' 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <PlantMasterList userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* ============================================ */}
-          {/* PRODUCTION ROUTES (ADMIN & FINANCE) */}
-          {/* ============================================ */}
-          <Route 
-            path="/production/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
-                <PlantProduction userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/production/finance" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
-                <PlantProduction userType="finance" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/production" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
-                <PlantProduction 
-                  userType={user?.role?.toLowerCase() === 'finance' ? 'finance' : 'admin'} 
-                  user={user} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* ============================================ */}
-          {/* SENSORS ROUTES (ADMIN & FARMER) */}
-          {/* ============================================ */}
-          <Route 
-            path="/sensors/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Admin">
-                <Sensors userType="admin" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/farmer/sensors" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <Sensors userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/sensors" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                <Sensors 
-                  userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
-                  user={user} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* ============================================ */}
-          {/* CALENDAR ROUTES (ADMIN & FARMER) - Consolidated */}
-          {/* ============================================ */}
-          <Route 
-            path="/calendar/admin" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={"Admin"}>
-                <AdminCalendar userType="admin" userId={user?.uid} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/calendar/farmer" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <FarmerCalendar userType="farmer" userId={user?.uid} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/calendar" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
-                {user?.role?.toLowerCase() === 'farmer' ? (
-                  <FarmerCalendar userType="farmer" userId={user?.uid} />
-                ) : (
+            {/* Calendar */}
+            <Route 
+              path="/admincalendar" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
                   <AdminCalendar userType="admin" userId={user?.uid} />
-                )}
-              </ProtectedRoute>
-            } 
-          />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admincalendar/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <AdminCalendar userType="admin" userId={user?.uid} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/farmercalendar" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <FarmerCalendar userType="farmer" userId={user?.uid} />
+                </ProtectedRoute>
+              } 
+            />
 
-          {/* ============================================ */}
-          {/* FARMER ROUTES */}
-          {/* ============================================ */}
-          <Route 
-            path="/farmer/overview" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <FarmerDashboard userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/farmer/plants" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <FarmerPlants userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/farmer/calendar" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <FarmerCalendar userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/farmer/inventory" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Farmer">
-                <FarmerInventory userType="farmer" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          {/* /farmer/sensors is already defined above */}
+            
+            {/* Greenhouse - Shared between Admin and Farmer */}
+            <Route 
+              path="/greenhousecontrols/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <Greenhouse userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
 
-          {/* ============================================ */}
-          {/* FINANCE ROUTES */}
-          {/* ============================================ */}
-          <Route 
-            path="/finance/overview" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Finance">
-                <FinanceDashboard userType="finance" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/finance/inventory" 
-            element={
-              <ProtectedRoute user={user} allowedRoles="Finance">
-                <FinanceInventory userType="finance" user={user} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/finance/production" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
-                <PlantProduction userType="finance" user={user} />
-              </ProtectedRoute>
-            }
-          />
-          {/* Finance Costing - Uses shared Costing component */}
-          <Route 
-            path="/finance/costing-pricing" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
-                <Costing userType="finance" user={user} />
-              </ProtectedRoute>
-            } 
-          />
+            <Route 
+              path="/greenhousecontrols/farmer" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <Greenhouse userType="farmer" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/farmer/greenhouse" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <Greenhouse userType="farmer" user={user} />
+                </ProtectedRoute>
+              } 
+            />
 
-          {/* ============================================ */}
-          {/* CATCH-ALL ROUTE */}
-          {/* ============================================ */}
-          <Route path="*" element={<Navigate to="/user-selection" replace />} />
-        </Routes>
-      </div>
-    </Router>
+            <Route 
+              path="/greenhousecontrols" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+                  <Greenhouse 
+                    userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
+                    user={user} 
+                  />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Plant List */}
+            <Route 
+              path='/plantList/admin' 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <PlantMasterList userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path='/plantList' 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <PlantMasterList userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* ============================================ */}
+            {/* PRODUCTION ROUTES (ADMIN & FINANCE) */}
+            {/* ============================================ */}
+            <Route 
+              path="/production/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                  <PlantProduction userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/production/finance" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                  <PlantProduction userType="finance" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/production" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                  <PlantProduction 
+                    userType={user?.role?.toLowerCase() === 'finance' ? 'finance' : 'admin'} 
+                    user={user} 
+                  />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* ============================================ */}
+            {/* SENSORS ROUTES (ADMIN & FARMER) */}
+            {/* ============================================ */}
+            <Route 
+              path="/sensors/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Admin">
+                  <Sensors userType="admin" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/farmer/sensors" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <Sensors userType="farmer" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/sensors" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+                  <Sensors 
+                    userType={user?.role?.toLowerCase() === 'farmer' ? 'farmer' : 'admin'} 
+                    user={user} 
+                  />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* ============================================ */}
+            {/* CALENDAR ROUTES (ADMIN & FARMER) - Consolidated */}
+            {/* ============================================ */}
+            <Route 
+              path="/calendar/admin" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={"Admin"}>
+                  <AdminCalendar userType="admin" userId={user?.uid} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/calendar/farmer" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <FarmerCalendar userType="farmer" userId={user?.uid} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/calendar" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Farmer"]}>
+                  {user?.role?.toLowerCase() === 'farmer' ? (
+                    <FarmerCalendar userType="farmer" userId={user?.uid} />
+                  ) : (
+                    <AdminCalendar userType="admin" userId={user?.uid} />
+                  )}
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* ============================================ */}
+            {/* FARMER ROUTES */}
+            {/* ============================================ */}
+            <Route 
+              path="/farmer/overview" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <FarmerDashboard userType="farmer" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/farmer/plants" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <FarmerPlants userType="farmer" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/farmer/calendar" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <FarmerCalendar userType="farmer" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/farmer/inventory" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Farmer">
+                  <FarmerInventory userType="farmer" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* ============================================ */}
+            {/* FINANCE ROUTES */}
+            {/* ============================================ */}
+            <Route 
+              path="/finance/overview" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Finance">
+                  <FinanceDashboard userType="finance" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/finance/inventory" 
+              element={
+                <ProtectedRoute user={user} allowedRoles="Finance">
+                  <FinanceInventory userType="finance" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/finance/production" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                  <PlantProduction userType="finance" user={user} />
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path="/finance/costing-pricing" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                  <Costing userType="finance" user={user} />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* ============================================ */}
+            {/* CATCH-ALL ROUTE */}
+            {/* ============================================ */}
+            <Route path="*" element={<Navigate to="/user-selection" replace />} />
+          </Routes>
+        </div>
+      </Router>
+    </UserProvider>
   )
 }
 

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import "./EditItemModal.css";
 import inventoryLogger from "../functions/inventoryLogger";
+import { useUser } from "../contexts/UserContext";
 
 const EditItemModal = ({ item, onClose, onItemUpdated }) => {
+  const { userId, userName } = useUser();
+  
   const [formData, setFormData] = useState({
     name: "",
     stock: "",
@@ -17,8 +20,10 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
     // Fertilizer specific fields
     n_percentage: "",
     p_percentage: "",
-    k_percentage: ""
+    k_percentage: "",
+    weightPerBag: ""
   });
+  
   const [originalData, setOriginalData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -28,8 +33,8 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
     if (item) {
       const initData = {
         name: item.name || "",
-        stock: item.stock || "",
-        pricePerUnit: item.pricePerUnit || "",
+        stock: item.stock || item.packs || "",
+        pricePerUnit: item.pricePerUnit || item.pricePerPack || "",
         unit: item.unit || "",
         lowStockThreshold: item.lowStockThreshold || "",
         // Handle expiration date for seeds
@@ -42,13 +47,36 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
         // Fertilizer specific fields
         n_percentage: item.n_percentage || "",
         p_percentage: item.p_percentage || "",
-        k_percentage: item.k_percentage || ""
+        k_percentage: item.k_percentage || "",
+        weightPerBag: item.weightPerBagKg || item.packageSizeKg || "50"
       };
       
       setFormData(initData);
       setOriginalData(initData);
     }
   }, [item]);
+
+  // Auto-calculate NPK ratio for fertilizers
+  useEffect(() => {
+    if (item?.category === "fertilizers" && 
+        formData.n_percentage !== "" && 
+        formData.p_percentage !== "" && 
+        formData.k_percentage !== "") {
+      
+      const n = Math.round(Number(formData.n_percentage));
+      const p = Math.round(Number(formData.p_percentage));
+      const k = Math.round(Number(formData.k_percentage));
+      
+      const ratio = `${n}-${p}-${k}`;
+      const key = ratio.toLowerCase().replace(/\s/g, '');
+      
+      setFormData(prev => ({
+        ...prev,
+        npkRatio: ratio,
+        npkKey: key
+      }));
+    }
+  }, [formData.n_percentage, formData.p_percentage, formData.k_percentage, item?.category]);
 
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
@@ -60,7 +88,11 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
 
   const getChanges = () => {
     const changes = [];
-    const fieldsToCheck = ['name', 'stock', 'pricePerUnit', 'unit', 'lowStockThreshold', 'expirationDate', 'seedsPerPack', 'n_percentage', 'p_percentage', 'k_percentage'];
+    const fieldsToCheck = [
+      'name', 'stock', 'pricePerUnit', 'unit', 'lowStockThreshold', 
+      'expirationDate', 'seedsPerPack', 'n_percentage', 'p_percentage', 
+      'k_percentage', 'weightPerBag'
+    ];
     
     fieldsToCheck.forEach(field => {
       if (formData[field] !== originalData[field] && (formData[field] !== "" || originalData[field] !== "")) {
@@ -130,11 +162,15 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
         pricePerUnit: Number(formData.pricePerUnit),
         unit: formData.unit,
         lowStockThreshold: Number(formData.lowStockThreshold),
-        lastUpdated: serverTimestamp()
+        lastUpdated: serverTimestamp(),
+        lastModifiedBy: userId,
+        lastModifiedByName: userName
       };
 
       // Add category-specific fields
       if (item.category === "seed") {
+        updateData.packs = Number(formData.stock);
+        updateData.pricePerPack = Number(formData.pricePerUnit);
         updateData.expirationDate = new Date(formData.expirationDate);
         updateData.seedsPerPack = Number(formData.seedsPerPack);
         updateData.totalSeeds = Number(formData.stock) * Number(formData.seedsPerPack);
@@ -142,18 +178,36 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
         updateData.n_percentage = Number(formData.n_percentage);
         updateData.p_percentage = Number(formData.p_percentage);
         updateData.k_percentage = Number(formData.k_percentage);
+        
+        // Calculate and update NPK ratio
+        const n = Math.round(Number(formData.n_percentage));
+        const p = Math.round(Number(formData.p_percentage));
+        const k = Math.round(Number(formData.k_percentage));
+        const npkRatio = `${n}-${p}-${k}`;
+        const npkKey = npkRatio.toLowerCase().replace(/\s/g, '');
+        
+        updateData.npkRatio = npkRatio;
+        updateData.npkKey = npkKey;
+        updateData.weightPerBagKg = Number(formData.weightPerBag) || 50;
+        updateData.packageSizeKg = Number(formData.weightPerBag) || 50;
+        
+        // Update name to include NPK ratio
+        updateData.name = `${formData.name.trim()} (NPK ${npkRatio})`;
       }
 
       // Update the inventory item
       const itemRef = doc(db, "inventory", item.id);
       await updateDoc(itemRef, updateData);
-      console.log("Item updated in inventory with ID:", item.id);
+      console.log("✅ Item updated in inventory with ID:", item.id);
 
+      // Get specific changes for logging
       const stockChange = changes.find(c => c.field === 'stock');
       const priceChange = changes.find(c => c.field === 'pricePerUnit');
       const nameChange = changes.find(c => c.field === 'name');
       const seedsPerPackChange = changes.find(c => c.field === 'seedsPerPack');
-
+      const npkChanges = changes.filter(c => 
+        ['n_percentage', 'p_percentage', 'k_percentage'].includes(c.field)
+      );
 
       // Create log entries for changes
       if (stockChange) {
@@ -199,8 +253,10 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
             userName
           );
         }
-      } else if (priceChange || nameChange || seedsPerPackChange || changes.length > 0) {
-        // Info update only (no stock change)
+      }
+      
+      // Log non-stock changes (info updates)
+      if (!stockChange && (priceChange || nameChange || seedsPerPackChange || npkChanges.length > 0 || changes.length > 0)) {
         const updateNotes = [];
         
         if (priceChange) {
@@ -212,9 +268,17 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
         if (seedsPerPackChange) {
           updateNotes.push(`Seeds/pack: ${seedsPerPackChange.oldValue} → ${seedsPerPackChange.newValue}`);
         }
+        if (npkChanges.length > 0) {
+          npkChanges.forEach(change => {
+            const label = change.field === 'n_percentage' ? 'N' : 
+                         change.field === 'p_percentage' ? 'P' : 'K';
+            updateNotes.push(`${label}: ${change.oldValue}% → ${change.newValue}%`);
+          });
+        }
         
+        // Add other changes
         changes.forEach(change => {
-          if (!['stock', 'pricePerUnit', 'name', 'seedsPerPack'].includes(change.field)) {
+          if (!['stock', 'pricePerUnit', 'name', 'seedsPerPack', 'n_percentage', 'p_percentage', 'k_percentage'].includes(change.field)) {
             updateNotes.push(`${change.field}: ${change.oldValue} → ${change.newValue}`);
           }
         });
@@ -246,6 +310,9 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
       // Call success callback
       onItemUpdated();
       
+      // Show success message
+      alert(`✅ Item updated successfully!\n${changes.length} change(s) made by ${userName}`);
+      
     } catch (err) {
       console.error("Error updating item:", err);
       setError(err.message || "Failed to update item. Please try again.");
@@ -274,6 +341,18 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
 
         <form onSubmit={handleSubmit} className="modal-form">
           {error && <div className="error-message">{error}</div>}
+          
+          {/* Current user info */}
+          <div style={{
+            padding: '8px 12px',
+            background: '#f0f9ff',
+            borderRadius: '6px',
+            fontSize: '0.875rem',
+            color: '#0369a1',
+            marginBottom: '16px'
+          }}>
+            Editing as: <strong>{userName}</strong>
+          </div>
           
           <div className="form-group">
             <label htmlFor="name">Item Name *</label>
@@ -357,7 +436,9 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="pricePerUnit">Price per Unit *</label>
+              <label htmlFor="pricePerUnit">
+                Price per {item.category === "seed" ? "Pack" : "Unit"} *
+              </label>
               <input
                 type="number"
                 id="pricePerUnit"
@@ -454,6 +535,50 @@ const EditItemModal = ({ item, onClose, onItemUpdated }) => {
                     required
                   />
                 </div>
+              </div>
+
+              {/* NPK Ratio Preview */}
+              {formData.npkRatio && (
+                <div className="form-group">
+                  <div style={{
+                    padding: '12px',
+                    background: '#f0f9ff',
+                    border: '2px solid #0ea5e9',
+                    borderRadius: '8px',
+                    marginTop: '10px'
+                  }}>
+                    <strong style={{ color: '#0369a1' }}>NPK Ratio:</strong>
+                    <span style={{ 
+                      fontSize: '1.2em', 
+                      fontWeight: 'bold', 
+                      marginLeft: '10px',
+                      color: '#0c4a6e'
+                    }}>
+                      {formData.npkRatio}
+                    </span>
+                    <div style={{ fontSize: '0.85em', color: '#64748b', marginTop: '4px' }}>
+                      This ratio will be used for job order matching
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Weight per bag */}
+              <div className="form-group">
+                <label htmlFor="weightPerBag">Weight per Bag (kg) *</label>
+                <input
+                  type="number"
+                  id="weightPerBag"
+                  name="weightPerBag"
+                  value={formData.weightPerBag}
+                  onChange={handleInputChange}
+                  placeholder="50"
+                  min="1"
+                  step="0.1"
+                />
+                <small className="form-hint">
+                  Standard fertilizer bag weight (default: 50kg)
+                </small>
               </div>
             </>
           )}

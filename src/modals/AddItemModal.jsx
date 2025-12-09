@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { collection, addDoc, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import "./AddItemModal.css";
@@ -6,53 +6,53 @@ import inventoryLogger from "../functions/inventoryLogger";
 
 const AddItemModal = ({ activeTab, onClose, onItemAdded, userId = "default-user" }) => {
   const [formData, setFormData] = useState({
-  name: "",
-  stock: "",
-  pricePerUnit: "",
-  unit: activeTab === "Seed" ? "packs" : "kg",
-  expirationDate: "", // Only for seeds
-  lowStockThreshold: "",
-  // Seed-specific custom fields
-  seedsPerPack: "", // Seeds per pack
-  // Fertilizer specific fields
-  n_percentage: "",
-  p_percentage: "",
-  k_percentage: "",
-  weightPerBag: "50", // NEW: weight per bag in kg
-  npkRatio: "", // AUTO-GENERATED: e.g., "14-60-0"
-  npkKey: "", // AUTO-GENERATED: normalized key for matching
-  // NEW: Expense tracking fields
-  vendor: "",
-  receiptNumber: "",
-  paymentMethod: "Cash",
-  notes: ""
-});
+    name: "",
+    stock: "",
+    pricePerUnit: "",
+    unit: activeTab === "Seed" ? "packs" : "kg",
+    expirationDate: "",
+    lowStockThreshold: "",
+    // Seed-specific custom fields
+    seedsPerPack: "",
+    // Fertilizer specific fields
+    n_percentage: "",
+    p_percentage: "",
+    k_percentage: "",
+    weightPerBag: "50",
+    npkRatio: "",
+    npkKey: "",
+    // Expense tracking fields
+    vendor: "",
+    receiptNumber: "",
+    paymentMethod: "Cash",
+    notes: ""
+  });
 
-// Auto-calculate NPK ratio whenever N, P, or K percentages change
-useEffect(() => {
-  if (activeTab === "Fertilizers" && 
-      formData.n_percentage !== "" && 
-      formData.p_percentage !== "" && 
-      formData.k_percentage !== "") {
-    
-    // Convert percentages to whole numbers for NPK ratio
-    const n = Math.round(Number(formData.n_percentage));
-    const p = Math.round(Number(formData.p_percentage));
-    const k = Math.round(Number(formData.k_percentage));
-    
-    const ratio = `${n}-${p}-${k}`;
-    const key = ratio.toLowerCase().replace(/\s/g, '');
-    
-    setFormData(prev => ({
-      ...prev,
-      npkRatio: ratio,
-      npkKey: key
-    }));
-  }
-}, [formData.n_percentage, formData.p_percentage, formData.k_percentage, activeTab]);
-  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Auto-calculate NPK ratio whenever N, P, or K percentages change
+  useEffect(() => {
+    if (activeTab === "Fertilizers" && 
+        formData.n_percentage !== "" && 
+        formData.p_percentage !== "" && 
+        formData.k_percentage !== "") {
+      
+      // Convert percentages to whole numbers for NPK ratio
+      const n = Math.round(Number(formData.n_percentage));
+      const p = Math.round(Number(formData.p_percentage));
+      const k = Math.round(Number(formData.k_percentage));
+      
+      const ratio = `${n}-${p}-${k}`;
+      const key = ratio.toLowerCase().replace(/\s/g, '');
+      
+      setFormData(prev => ({
+        ...prev,
+        npkRatio: ratio,
+        npkKey: key
+      }));
+    }
+  }, [formData.n_percentage, formData.p_percentage, formData.k_percentage, activeTab]);
 
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
@@ -62,8 +62,6 @@ useEffect(() => {
     }));
   };
 
-  
-
   // Function to record inventory purchase expense to plantExpenses collection
   const recordInventoryPurchaseExpense = async (itemData, itemId) => {
     try {
@@ -72,13 +70,13 @@ useEffect(() => {
       const totalCost = quantity * pricePerUnit;
 
       const isSeed = activeTab === "Seed";
-      const category = isSeed ? "Seeds" : "Fertilizer"; // Must match production.jsx EXPENSE_CATEGORIES
+      const category = isSeed ? "Seeds" : "Fertilizer";
 
       const expenseData = {
-        // REQUIRED FIELDS for plantExpenses collection (matching production.jsx structure)
+        // REQUIRED FIELDS for plantExpenses collection
         plantId: 'INVENTORY_PURCHASE',
         plantName: 'Inventory Stock',
-        category: category, // 'Seeds' or 'Fertilizer'
+        category: category,
         description: `Purchased ${quantity} ${itemData.unit} of ${itemData.name}`,
         amount: totalCost,
         date: serverTimestamp(),
@@ -105,18 +103,18 @@ useEffect(() => {
             expirationDate: itemData.expirationDate
           }),
           ...(!isSeed && {
-              npk: formData.npkRatio, // Use the calculated ratio instead of manual string
-              npkRatio: formData.npkRatio,
-              nitrogen: Number(formData.n_percentage),
-              phosphorus: Number(formData.p_percentage),
-              potassium: Number(formData.k_percentage)
-            })
+            npk: formData.npkRatio,
+            npkRatio: formData.npkRatio,
+            nitrogen: Number(formData.n_percentage),
+            phosphorus: Number(formData.p_percentage),
+            potassium: Number(formData.k_percentage)
+          })
         }
       };
 
       // Add to plantExpenses collection
       const expenseRef = await addDoc(collection(db, 'plantExpenses'), expenseData);
-      console.log(`💰 Purchase expense recorded: ₱${totalCost.toFixed(2)} for ${itemData.name}`);
+      console.log(`Purchase expense recorded: ₱${totalCost.toFixed(2)} for ${itemData.name}`);
       
       return expenseRef.id;
     } catch (error) {
@@ -154,11 +152,10 @@ useEffect(() => {
           throw new Error("Expiration date is required for seeds");
         }
         if (!formData.seedsPerPack || formData.seedsPerPack <= 0) {
-          throw new Error("Seeds per pack is required");
+          throw new Error("Seeds per unit is required");
         }
       }
 
-      // Fertilizer specific validation
       // Fertilizer specific validation
       if (activeTab === "Fertilizers") {
         if (formData.n_percentage === "" || formData.n_percentage < 0) {
@@ -212,26 +209,25 @@ useEffect(() => {
       if (isSeed) {
         itemData = {
           ...baseItemData,
-          packs: Number(formData.stock), // Store as packs for seeds
-          pricePerPack: Number(formData.pricePerUnit), // Store price per pack
+          packs: Number(formData.stock),
+          pricePerPack: Number(formData.pricePerUnit),
           expirationDate: new Date(formData.expirationDate),
           seedsPerPack: Number(formData.seedsPerPack),
           totalSeeds: Number(formData.stock) * Number(formData.seedsPerPack)
         };
-      } else { // Fertilizers
-          itemData = {
-            ...baseItemData,
-            n_percentage: Number(formData.n_percentage),
-            p_percentage: Number(formData.p_percentage),
-            k_percentage: Number(formData.k_percentage),
-            npkRatio: formData.npkRatio, // "14-60-0"
-            npkKey: formData.npkKey, // "14-60-0"
-            weightPerBagKg: Number(formData.weightPerBag) || 50,
-            packageSizeKg: Number(formData.weightPerBag) || 50,
-            // For backwards compatibility, also store as name component
-            name: `${formData.name.trim()} (NPK ${formData.npkRatio})`
-          };
-        }
+      } else {
+        itemData = {
+          ...baseItemData,
+          n_percentage: Number(formData.n_percentage),
+          p_percentage: Number(formData.p_percentage),
+          k_percentage: Number(formData.k_percentage),
+          npkRatio: formData.npkRatio,
+          npkKey: formData.npkKey,
+          weightPerBagKg: Number(formData.weightPerBag) || 50,
+          packageSizeKg: Number(formData.weightPerBag) || 50,
+          name: `${formData.name.trim()} (NPK ${formData.npkRatio})`
+        };
+      }
 
       // 1. Add to inventory collection
       const docRef = await addDoc(collection(db, "inventory"), itemData);
@@ -243,7 +239,7 @@ useEffect(() => {
       try {
         expenseId = await recordInventoryPurchaseExpense(formData, docRef.id);
         expenseRecorded = true;
-        console.log("💰 Purchase expense recorded successfully with ID:", expenseId);
+        console.log("Purchase expense recorded successfully with ID:", expenseId);
         
         // 3. Update inventory item with expense reference
         await updateDoc(doc(db, "inventory", docRef.id), {
@@ -251,7 +247,7 @@ useEffect(() => {
           hasExpenseRecord: true
         });
       } catch (expenseError) {
-        console.error("⚠️ Failed to record expense:", expenseError);
+        console.error("Failed to record expense:", expenseError);
         // Continue even if expense recording fails
       }
       
@@ -273,7 +269,6 @@ useEffect(() => {
             notes: isSeed 
               ? `New seed item added. ${formData.seedsPerPack} seeds/pack. Total: ${Number(formData.stock) * Number(formData.seedsPerPack)} seeds. Expires: ${formData.expirationDate}`
               : `New fertilizer added. NPK: ${formData.n_percentage}-${formData.p_percentage}-${formData.k_percentage}`,
-            // Include expense info in log
             ...(expenseRecorded && { expenseRecordId: expenseId })
           },
           userId,
@@ -289,8 +284,8 @@ useEffect(() => {
       // Show success message with expense info
       const totalCost = Number(formData.stock) * Number(formData.pricePerUnit);
       const successMessage = expenseRecorded 
-        ? `✅ ${activeTab} item added successfully!\n💰 Purchase expense of ₱${totalCost.toFixed(2)} recorded in Production Expenses.`
-        : `✅ ${activeTab} item added successfully!\n⚠️ Note: Expense recording failed, but item was added.`;
+        ? ` ${activeTab} item added successfully!\n Purchase expense of ₱${totalCost.toFixed(2)} recorded in Production Expenses.`
+        : ` ${activeTab} item added successfully!\n Note: Expense recording failed, but item was added.`;
       
       alert(successMessage);
       
@@ -322,7 +317,7 @@ useEffect(() => {
           {error && <div className="error-message">{error}</div>}
           
           <div className="form-group">
-            <label htmlFor="name">Item Name *</label>
+            <label htmlFor="name">Item Name</label>
             <input
               type="text"
               id="name"
@@ -336,7 +331,7 @@ useEffect(() => {
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="stock">Stock Quantity *</label>
+              <label htmlFor="stock">Stock Quantity</label>
               <input
                 type="number"
                 id="stock"
@@ -351,7 +346,7 @@ useEffect(() => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="unit">Unit *</label>
+              <label htmlFor="unit">Unit</label>
               <select
                 id="unit"
                 name="unit"
@@ -381,7 +376,7 @@ useEffect(() => {
           {/* Seed-specific: Seeds per pack */}
           {activeTab === "Seed" && (
             <div className="form-group">
-              <label htmlFor="seedsPerPack">Seeds per Pack *</label>
+              <label htmlFor="seedsPerPack">Seeds per Unit</label>
               <input
                 type="number"
                 id="seedsPerPack"
@@ -396,7 +391,7 @@ useEffect(() => {
               <small className="form-hint">
                 {formData.stock && formData.seedsPerPack 
                   ? `Total seeds: ${Number(formData.stock) * Number(formData.seedsPerPack)}`
-                  : "Enter stock and seeds per pack to see total"}
+                  : "Enter stock and seeds per unit to see total"}
               </small>
             </div>
           )}
@@ -417,16 +412,15 @@ useEffect(() => {
                 step="0.01"
                 required
               />
-              {/* Show total purchase cost preview */}
               {formData.stock && formData.pricePerUnit && (
                 <small className="form-hint" style={{ color: '#10b981', fontWeight: 'bold' }}>
-                  💰 Total cost: ₱{(Number(formData.stock) * Number(formData.pricePerUnit)).toFixed(2)}
+                   Total cost: ₱{(Number(formData.stock) * Number(formData.pricePerUnit)).toFixed(2)}
                 </small>
               )}
             </div>
 
             <div className="form-group">
-              <label htmlFor="lowStockThreshold">Low Stock Threshold *</label>
+              <label htmlFor="lowStockThreshold">Low Stock Threshold</label>
               <input
                 type="number"
                 id="lowStockThreshold"
@@ -444,7 +438,7 @@ useEffect(() => {
           {/* Seed-specific fields */}
           {activeTab === "Seed" && (
             <div className="form-group">
-              <label htmlFor="expirationDate">Expiration Date *</label>
+              <label htmlFor="expirationDate">Expiration Date</label>
               <input
                 type="date"
                 id="expirationDate"
@@ -457,113 +451,112 @@ useEffect(() => {
           )}
 
           {/* Fertilizer-specific fields */}
-          {/* Fertilizer-specific fields */}
-{activeTab === "Fertilizers" && (
-  <>
-    <div className="form-section-title">Nutrient Content (%)</div>
-    <div className="form-row">
-      <div className="form-group">
-        <label htmlFor="n_percentage">Nitrogen (N) % *</label>
-        <input
-          type="number"
-          id="n_percentage"
-          name="n_percentage"
-          value={formData.n_percentage}
-          onChange={handleInputChange}
-          placeholder="0.0"
-          min="0"
-          max="100"
-          step="0.1"
-          required
-        />
-      </div>
+          {activeTab === "Fertilizers" && (
+            <>
+              <div className="form-section-title">Nutrient Content (%)</div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="n_percentage">Nitrogen (N) %</label>
+                  <input
+                    type="number"
+                    id="n_percentage"
+                    name="n_percentage"
+                    value={formData.n_percentage}
+                    onChange={handleInputChange}
+                    placeholder="0.0"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    required
+                  />
+                </div>
 
-      <div className="form-group">
-        <label htmlFor="p_percentage">Phosphorus (P) % *</label>
-        <input
-          type="number"
-          id="p_percentage"
-          name="p_percentage"
-          value={formData.p_percentage}
-          onChange={handleInputChange}
-          placeholder="0.0"
-          min="0"
-          max="100"
-          step="0.1"
-          required
-        />
-      </div>
+                <div className="form-group">
+                  <label htmlFor="p_percentage">Phosphorus (P) %</label>
+                  <input
+                    type="number"
+                    id="p_percentage"
+                    name="p_percentage"
+                    value={formData.p_percentage}
+                    onChange={handleInputChange}
+                    placeholder="0.0"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    required
+                  />
+                </div>
 
-      <div className="form-group">
-        <label htmlFor="k_percentage">Potassium (K) % *</label>
-        <input
-          type="number"
-          id="k_percentage"
-          name="k_percentage"
-          value={formData.k_percentage}
-          onChange={handleInputChange}
-          placeholder="0.0"
-          min="0"
-          max="100"
-          step="0.1"
-          required
-        />
-      </div>
-    </div>
-    
-    {/* NPK Ratio Preview */}
-    {formData.npkRatio && (
-      <div className="form-group">
-        <div style={{
-          padding: '12px',
-          background: '#f0f9ff',
-          border: '2px solid #0ea5e9',
-          borderRadius: '8px',
-          marginTop: '10px'
-        }}>
-          <strong style={{ color: '#0369a1' }}>NPK Ratio:</strong>
-          <span style={{ 
-            fontSize: '1.2em', 
-            fontWeight: 'bold', 
-            marginLeft: '10px',
-            color: '#0c4a6e'
-          }}>
-            {formData.npkRatio}
-          </span>
-          <div style={{ fontSize: '0.85em', color: '#64748b', marginTop: '4px' }}>
-            This ratio will be used for job order matching
-          </div>
-        </div>
-      </div>
-    )}
-    
-    {/* Weight per bag configuration */}
-    <div className="form-group">
-      <label htmlFor="weightPerBag">Weight per Bag (kg) *</label>
-      <input
-        type="number"
-        id="weightPerBag"
-        name="weightPerBag"
-        value={formData.weightPerBag || 50}
-        onChange={handleInputChange}
-        placeholder="50"
-        min="1"
-        step="0.1"
-      />
-      <small className="form-hint">
-        Standard fertilizer bag weight (default: 50kg)
-      </small>
-    </div>
-  </>
-)}
+                <div className="form-group">
+                  <label htmlFor="k_percentage">Potassium (K) %</label>
+                  <input
+                    type="number"
+                    id="k_percentage"
+                    name="k_percentage"
+                    value={formData.k_percentage}
+                    onChange={handleInputChange}
+                    placeholder="0.0"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    required
+                  />
+                </div>
+              </div>
+              
+              {/* NPK Ratio Preview */}
+              {formData.npkRatio && (
+                <div className="form-group">
+                  <div style={{
+                    padding: '12px',
+                    background: '#f0f9ff',
+                    border: '2px solid #0ea5e9',
+                    borderRadius: '8px',
+                    marginTop: '10px'
+                  }}>
+                    <strong style={{ color: '#0369a1' }}>NPK Ratio:</strong>
+                    <span style={{ 
+                      fontSize: '1.2em', 
+                      fontWeight: 'bold', 
+                      marginLeft: '10px',
+                      color: '#0c4a6e'
+                    }}>
+                      {formData.npkRatio}
+                    </span>
+                    <div style={{ fontSize: '0.85em', color: '#64748b', marginTop: '4px' }}>
+                      This ratio will be used for job order matching
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Weight per bag configuration */}
+              <div className="form-group">
+                <label htmlFor="weightPerBag">Weight per Bag (kg)</label>
+                <input
+                  type="number"
+                  id="weightPerBag"
+                  name="weightPerBag"
+                  value={formData.weightPerBag}
+                  onChange={handleInputChange}
+                  placeholder="50"
+                  min="1"
+                  step="0.1"
+                />
+                <small className="form-hint">
+                  Standard fertilizer bag weight (default: 50kg)
+                </small>
+              </div>
+            </>
+          )}
 
-          {/* NEW: Expense Tracking Fields */}
+          {/* Expense Tracking Fields */}
           <div className="form-section">
             <div className="form-section-title">Purchase Details (For Expense Tracking)</div>
             
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="vendor">Vendor/Supplier *</label>
+                <label htmlFor="vendor">Vendor/Supplier</label>
                 <input
                   type="text"
                   id="vendor"
@@ -576,7 +569,7 @@ useEffect(() => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="paymentMethod">Payment Method *</label>
+                <label htmlFor="paymentMethod">Payment Method</label>
                 <select
                   id="paymentMethod"
                   name="paymentMethod"

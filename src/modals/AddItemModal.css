@@ -359,7 +359,7 @@
 }
 
 .form-section-title::before {
-  content: "💰";
+  content: "";
   font-size: 18px;
 }
 
@@ -524,7 +524,7 @@
 }
 
 .submit-button::before {
-  content: "💰";
+  content: "";
   font-size: 16px;
 }
 
@@ -660,15 +660,15 @@
 
 /* Icon for different sections */
 .field-group-title[data-section="seed"]::before {
-  content: "🌱";
+  content: "";
 }
 
 .field-group-title[data-section="fertilizer"]::before {
-  content: "🧪";
+  content: "";
 }
 
 .field-group-title[data-section="expense"]::before {
-  content: "💰";
+  content: "";
 }
 
 /* Responsive improvements for very small screens */

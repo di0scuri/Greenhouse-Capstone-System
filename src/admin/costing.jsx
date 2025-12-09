@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Sidebar from './sidebar'
 import './costing.css'
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
+import { collection, getDocs, query, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
 import { 
   FaSearch, 
@@ -16,7 +16,6 @@ import {
   FaSeedling,
   FaMoneyBillWave
 } from 'react-icons/fa'
-
 
 // Costing Component
 const Costing = ({ userType = 'admin' }) => {
@@ -35,10 +34,36 @@ const Costing = ({ userType = 'admin' }) => {
     totalProductionCost: 0,
     totalLaborCost: 0,
     totalSeedCost: 0,
-    totalFertilizer: 0
+    totalFertilizer: 0,
+    totalHarvestRevenue: 0,
+    totalHarvestProfit: 0,
+    averageROI: 0
   })
   const [chartData, setChartData] = useState([])
   const [viewMode, setViewMode] = useState('Monthly View')
+
+  // --- ADDED: DEFINING MISSING CONSTANTS ---
+  const SVG_WIDTH = 500
+  const SVG_HEIGHT = 220 
+  const PADDING_X = 20   
+  const PADDING_TOP = 20
+  const GRAPH_HEIGHT = 180
+
+  // Helper Functions (Defined before usage)
+  const getX = (index, totalLength) => {
+    if (totalLength <= 1) return SVG_WIDTH / 2
+    return PADDING_X + (index * (SVG_WIDTH - (PADDING_X * 2))) / (totalLength - 1)
+  }
+
+  const getY = (value, maxValue) => {
+    if (maxValue === 0) return PADDING_TOP + GRAPH_HEIGHT
+    return (PADDING_TOP + GRAPH_HEIGHT) - ((value / maxValue) * GRAPH_HEIGHT)
+  }
+
+  const getLabelPosition = (index, totalLength) => {
+    const xPixel = getX(index, totalLength)
+    return (xPixel / SVG_WIDTH) * 100
+  }
 
   // Fetch production costs, plant expenses, and inventory logs from Firebase
   const fetchData = async () => {
@@ -87,7 +112,7 @@ const Costing = ({ userType = 'admin' }) => {
       
       setInventoryLogs(logs)
       
-      // ADDED: Wrap harvest fetching with try-catch (Point 5)
+      // Fetch Harvests
       let harvestsData = []
       try {
         const harvestsQuery = query(
@@ -98,7 +123,7 @@ const Costing = ({ userType = 'admin' }) => {
         const harvestsSnapshot = await getDocs(harvestsQuery)
         harvestsData = harvestsSnapshot.docs.map(doc => {
           const data = doc.data()
-          // harvestDate is stored as string (ISO format)
+          // harvestDate is stored as string (ISO format) or timestamp
           let harvestDate = new Date()
           if (data.harvestDate) {
             harvestDate = typeof data.harvestDate === 'string' 
@@ -116,11 +141,17 @@ const Costing = ({ userType = 'admin' }) => {
         setHarvests(harvestsData)
       } catch (harvestError) {
         console.error('Error fetching harvests:', harvestError)
-        setHarvests([]) // Set empty array on error
+        setHarvests([]) 
       }
 
       calculateFinancialData(costs, logs, expenses, harvestsData)
-      generateChartData(costs, logs, expenses, harvestsData)
+      // Call generateChartData directly here with fetched data
+      // Note: We need to define generateChartData before calling it if it wasn't hoisted, 
+      // but since we are inside a functional component, we can just call the logic or 
+      // rely on the useEffect below to handle the chart generation once state is set.
+      // However, to avoid "stale state" on first render, passing data directly is better.
+      generateChartDataLogic(costs, logs, expenses, harvestsData)
+
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -128,22 +159,18 @@ const Costing = ({ userType = 'admin' }) => {
     }
   }
 
-  
-
-  
-
-  // Calculate financial metrics from production costs, inventory logs, and plant expenses
+  // Calculate financial metrics
   const calculateFinancialData = (costs, logs, expenses, harvests) => {
-  let totalRevenue = 0
-  let totalExpenses = 0
-  let totalProductionCost = 0
-  let totalLaborCost = 0
-  let totalSeedCost = 0
-  let totalFertilizer = 0
-  let totalHarvestRevenue = 0
-  let totalHarvestProfit = 0
-  let totalROI = 0
-  let harvestCount = 0
+    let totalRevenue = 0
+    let totalExpenses = 0
+    let totalProductionCost = 0
+    let totalLaborCost = 0
+    let totalSeedCost = 0
+    let totalFertilizer = 0
+    let totalHarvestRevenue = 0
+    let totalHarvestProfit = 0
+    let totalROI = 0
+    let harvestCount = 0
 
     // Calculate production costs
     costs.forEach(cost => {
@@ -162,12 +189,11 @@ const Costing = ({ userType = 'admin' }) => {
       }
     })
 
-    // Calculate expenses from plant expenses (Labor, Seeds, Fertilizer, etc.)
+    // Calculate expenses from plant expenses
     expenses.forEach(expense => {
       const amount = expense.amount || 0
       totalExpenses += amount
 
-      // Add to specific cost categories
       const category = expense.category?.toLowerCase()
       if (category === 'labor') {
         totalLaborCost += amount
@@ -179,130 +205,148 @@ const Costing = ({ userType = 'admin' }) => {
     })
 
     // Calculate expenses from inventory logs
-    // Inventory logs track usage/consumption, which are expenses
     logs.forEach(log => {
-      const quantityChange = Math.abs(log.quantityChange || 0)
       const cost = log.cost || 0
-      
-      // Expenses: Items added to inventory (purchases) or used
       if (['ADD', 'RESTOCK', 'USE', 'REMOVE'].includes(log.action)) {
         if (cost > 0) {
           totalExpenses += cost
         }
       }
-
     })
 
     harvests.forEach(harvest => {
-    // Add harvest revenue to total revenue
-    const harvestRevenue = harvest.totalRevenue || 0
-    const productionCost = harvest.productionCost || 0
-    const profit = harvest.profit || 0
-    const roi = harvest.roi || 0
-    
-    totalHarvestRevenue += harvestRevenue
-    totalHarvestProfit += profit
-    totalROI += roi
-    harvestCount++
-    
-    totalRevenue += harvestRevenue
-    
-    // Note: productionCost from harvests might already be counted in production costs
-    // If you want to avoid double counting, you may need additional logic
-  })
+      const harvestRevenue = harvest.totalRevenue || 0
+      const profit = harvest.profit || 0
+      const roi = harvest.roi || 0
+      
+      totalHarvestRevenue += harvestRevenue
+      totalHarvestProfit += profit
+      totalROI += roi
+      harvestCount++
+      
+      totalRevenue += harvestRevenue
+    })
 
-  const averageROI = harvestCount > 0 ? (totalROI / harvestCount) : 0
-
-
+    const averageROI = harvestCount > 0 ? (totalROI / harvestCount) : 0
     const netProfit = totalRevenue - totalExpenses
     const roi = totalExpenses > 0 ? ((netProfit / totalExpenses) * 100) : 0
 
     setFinancialData({
-    revenue: totalRevenue,
-    expenses: totalExpenses,
-    netProfit: netProfit,
-    roi: roi,
-    totalProductionCost: totalProductionCost,
-    totalLaborCost: totalLaborCost,
-    totalSeedCost: totalSeedCost,
-    totalFertilizer: totalFertilizer,
-    totalHarvestRevenue: totalHarvestRevenue,
-    totalHarvestProfit: totalHarvestProfit,
-    averageROI: averageROI
-  })
+      revenue: totalRevenue,
+      expenses: totalExpenses,
+      netProfit: netProfit,
+      roi: roi,
+      totalProductionCost: totalProductionCost,
+      totalLaborCost: totalLaborCost,
+      totalSeedCost: totalSeedCost,
+      totalFertilizer: totalFertilizer,
+      totalHarvestRevenue: totalHarvestRevenue,
+      totalHarvestProfit: totalHarvestProfit,
+      averageROI: averageROI
+    })
   }
 
-  // Generate chart data based on view mode
-  const generateChartData = (costs, logs, expenses, harvests = []) => {
-  const now = new Date()
-  const monthlyData = Array.from({ length: 12 }, (_, i) => {
-    const month = new Date(now.getFullYear(), i, 1)
-    return {
-      month: month.toLocaleDateString('en-US', { month: 'short' }),
-      revenue: 0,
-      expenses: 0,
-      productionCosts: 0,
-      harvestRevenue: 0
-    }
-  })
-
-  // Add production costs to chart
-  costs.forEach(cost => {
-    const costDate = cost.createdAt
-    if (costDate.getFullYear() === now.getFullYear()) {
-      const monthIndex = costDate.getMonth()
-      monthlyData[monthIndex].expenses += cost.totalCost || 0
-      monthlyData[monthIndex].productionCosts += cost.totalCost || 0
-    }
-  })
-
-  // Add plant expenses to chart
-  expenses.forEach(expense => {
-    const expenseDate = expense.date
-    const monthIndex = expenseDate.getMonth()
-
-    if (expenseDate.getFullYear() === now.getFullYear()) {
-      monthlyData[monthIndex].expenses += expense.amount || 0
-    }
-  })
-
-  // Add inventory logs to chart
-  logs.forEach(log => {
-    const logDate = log.timestamp
-    const monthIndex = logDate.getMonth()
-    const cost = log.cost || 0
-
-    if (logDate.getFullYear() === now.getFullYear()) {
-      if (['ADD', 'RESTOCK', 'USE', 'REMOVE'].includes(log.action) && cost > 0) {
-        monthlyData[monthIndex].expenses += cost
+  // Separated logic so it can be called by fetchData AND useEffect
+  const generateChartDataLogic = (costs, logs, expenses, harvests = []) => {
+    const now = new Date()
+    let dataMap = new Map() 
+    
+    // --- Define the time range ---
+    if (viewMode === 'Monthly View') {
+      for (let i = 0; i < 12; i++) {
+        const month = new Date(now.getFullYear(), i, 1)
+        const key = month.toLocaleDateString('en-US', { month: 'short' })
+        dataMap.set(key, { month: key, revenue: 0, expenses: 0, productionCosts: 0, harvestRevenue: 0 })
+      }
+    } else if (viewMode === 'Yearly View') {
+      for (let i = 4; i >= 0; i--) {
+        const year = now.getFullYear() - i
+        const key = String(year)
+        dataMap.set(key, { year: key, revenue: 0, expenses: 0, productionCosts: 0, harvestRevenue: 0 })
+      }
+    } else if (viewMode === 'Weekly View') {
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000)
+        const dayOfWeek = (date.getDay() + 6) % 7 
+        const startOfWeek = new Date(date)
+        startOfWeek.setDate(date.getDate() - dayOfWeek)
+        
+        const endOfWeek = new Date(startOfWeek)
+        endOfWeek.setDate(startOfWeek.getDate() + 6)
+        
+        const startLabel = startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const endLabel = endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const key = `${startLabel}-${endLabel}`
+        
+        dataMap.set(key, { week: key, revenue: 0, expenses: 0, productionCosts: 0, harvestRevenue: 0, startDate: startOfWeek, endDate: endOfWeek })
       }
     }
-  })
-
-  // **ADD THIS: Add harvests to chart**
-  harvests.forEach(harvest => {
-    let harvestDate = harvest.harvestDate
     
-    // Convert string to Date if needed
-    if (typeof harvestDate === 'string') {
-      harvestDate = new Date(harvestDate)
+    const getKeyForDate = (date) => {
+      if (viewMode === 'Monthly View') {
+        if (date.getFullYear() === now.getFullYear()) {
+          return date.toLocaleDateString('en-US', { month: 'short' })
+        }
+      } else if (viewMode === 'Yearly View') {
+        return String(date.getFullYear())
+      } else if (viewMode === 'Weekly View') {
+        for (const item of dataMap.values()) {
+            if (date >= item.startDate && date <= item.endDate) {
+                return item.week
+            }
+        }
+      }
+      return null
+    }
+
+    const processData = (dataArray, dateKey, expenseProp, revenueProp = null) => {
+      dataArray.forEach(item => {
+        const date = item[dateKey]
+        if (date && !isNaN(date.getTime())) {
+          const key = getKeyForDate(date)
+          if (key && dataMap.has(key)) {
+            const entry = dataMap.get(key)
+            if (expenseProp) {
+              entry.expenses += item[expenseProp] || 0
+              if (dateKey === 'createdAt' && item.totalCost !== undefined) {
+                 entry.productionCosts += item.totalCost || 0
+              }
+            }
+            if (revenueProp) {
+              entry.revenue += item[revenueProp] || 0
+              entry.harvestRevenue += item[revenueProp] || 0
+            }
+          }
+        }
+      })
     }
     
-    // Validate date before processing
-    if (harvestDate && !isNaN(harvestDate.getTime()) && 
-        harvestDate.getFullYear() === now.getFullYear()) {
-      const monthIndex = harvestDate.getMonth()
-      monthlyData[monthIndex].revenue += harvest.totalRevenue || 0
-      monthlyData[monthIndex].harvestRevenue += harvest.totalRevenue || 0
+    const processedHarvests = harvests.map(h => ({
+        ...h,
+        harvestDate: typeof h.harvestDate === 'string' ? new Date(h.harvestDate) : h.harvestDate
+    }))
+    
+    const inventoryCosts = logs.filter(log => ['ADD', 'RESTOCK', 'USE', 'REMOVE'].includes(log.action) && (log.cost || 0) > 0)
+                               .map(log => ({ timestamp: log.timestamp, amount: log.cost || 0 }))
+
+    processData(costs, 'createdAt', 'totalCost') 
+    processData(expenses, 'date', 'amount')
+    processData(inventoryCosts, 'timestamp', 'amount')
+    processData(processedHarvests, 'harvestDate', 'productionCost', 'totalRevenue')
+    
+    let finalChartData = Array.from(dataMap.values())
+    
+    if (viewMode === 'Yearly View') {
+      finalChartData.sort((a, b) => parseInt(a.year) - parseInt(b.year))
+    } else if (viewMode === 'Weekly View') {
+      finalChartData.sort((a, b) => a.startDate - b.startDate)
     }
-  })
 
-  setChartData(monthlyData)
-}
+    setChartData(finalChartData)
+  }
 
-  // Get combined recent transactions (production costs + plant expenses + inventory)
+  // Get combined recent transactions
   const getRecentTransactions = () => {
-    // Map inventory log actions to readable types
     const actionToType = {
       'ADD': 'New Stock',
       'RESTOCK': 'Restock',
@@ -315,7 +359,6 @@ const Costing = ({ userType = 'admin' }) => {
       'DAMAGE': 'Damaged'
     }
 
-    // Map inventory log actions to status
     const actionToStatus = {
       'ADD': 'expense',
       'RESTOCK': 'expense',
@@ -328,9 +371,6 @@ const Costing = ({ userType = 'admin' }) => {
       'DAMAGE': 'expense'
     }
 
-    const harvestToType = 'Harvest Sale'
-
-    // Combine production costs, plant expenses, and inventory logs
     const allTransactions = [
     ...productionCosts.map(cost => ({
       id: cost.id,
@@ -365,14 +405,12 @@ const Costing = ({ userType = 'admin' }) => {
       status: actionToStatus[log.action] || 'neutral',
       details: log
     })),
-    // Add harvests transactions
     ...harvests.map(harvest => {
       let harvestDate = harvest.harvestDate
       if (typeof harvestDate === 'string') {
         harvestDate = new Date(harvestDate)
       }
-      
-          return {
+      return {
         id: harvest.id,
         date: harvestDate,
         itemName: harvest.plantName || 'Harvest',
@@ -388,56 +426,62 @@ const Costing = ({ userType = 'admin' }) => {
     })
   ]
 
-    // Sort by date and filter by search term
     return allTransactions
       .filter(t => 
         t.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.type?.toLowerCase().includes(searchTerm.toLowerCase())
       )
       .sort((a, b) => b.date - a.date)
-      .slice(0, 15) // Show recent 15 transactions
+      .slice(0, 15) 
   }
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-PH', {
-      style: 'currency',
-      currency: 'PHP'
-    }).format(amount || 0)
-  }
-
-const formatPercentage = (value) => {
-  // Try to parse the value as a float. If 'value' is undefined, this returns NaN.
-  const numValue = parseFloat(value);
-  
-  // If parsing resulted in NaN (Not a Number), use 0, otherwise use the parsed value.
-  // This handles undefined, null, and non-numeric strings safely.
-  const finalValue = isNaN(numValue) ? 0 : numValue;
-
-  // Apply formatting to the guaranteed-numeric value
-  return `${finalValue >= 0 ? '+' : ''}${finalValue.toFixed(1)}%`;
-}
-
-
-  // Generate SVG path for chart line
-  const generatePath = (data, key, maxValue) => {
-    const width = 480
-    const height = 220
-    const padding = 20
-    
-    const points = data.map((item, index) => {
-      const x = padding + (index * (width - 2 * padding)) / (data.length - 1)
-      const y = height - padding - ((item[key] / maxValue) * (height - 2 * padding))
-      return `${x},${y}`
-    })
-    
-    return `M ${points.join(' L ')}`
-  }
+  // Update chart when ViewMode changes
+  useEffect(() => {
+    if (!loading) { 
+        generateChartDataLogic(productionCosts, inventoryLogs, plantExpenses, harvests);
+    }
+  }, [viewMode, loading]) // Keep dependencies as is, or add the data arrays if you want auto-refresh on data change
 
   useEffect(() => {
     fetchData()
   }, [])
 
+  // Format currency
+  const formatCurrency = (amount) => {
+    if (amount !== 0 && Math.abs(amount) < 1000) {
+      return new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(amount || 0).replace('₱', '₱') 
+    }
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount || 0).replace('₱', '₱')
+  }
+
+  const formatPercentage = (value) => {
+    const numValue = parseFloat(value);
+    const finalValue = isNaN(numValue) ? 0 : numValue;
+    return `${finalValue >= 0 ? '+' : ''}${finalValue.toFixed(1)}%`;
+  }
+
+  // Generate SVG path for chart line
+  const generatePath = (data, key, maxValue) => {
+    if (data.length === 0) return ""
+    const points = data.map((item, index) => {
+      const x = getX(index, data.length)
+      const y = getY(item[key], maxValue)
+      return `${x},${y}`
+    })
+    return `M ${points.join(' L ')}`
+  }
+
+  // --- Financial Cards Data ---
   const financialCards = [
     {
       icon: <FaDollarSign />,
@@ -476,64 +520,46 @@ const formatPercentage = (value) => {
       changeIcon: <FaArrowUp />
     },
     {
-    icon: <FaSeedling />, // Add import for FaSeedling at top
-    title: 'Harvest Revenue',
-    amount: formatCurrency(financialData.totalHarvestRevenue),
-    since: 'From harvest sales',
-    change: formatPercentage(12.3), // You can calculate real change
-    changeType: 'positive',
-    changeIcon: <FaArrowUp />
-  },{
-    icon: <FaMoneyBillWave />, // Add import for FaMoneyBillWave at top
-    title: 'Harvest Profit',
-    amount: formatCurrency(financialData.totalHarvestProfit),
-    since: 'Harvest revenue - cost',
-    change: formatPercentage(financialData.averageROI),
-    changeType: financialData.totalHarvestProfit >= 0 ? 'positive' : 'negative',
-    changeIcon: financialData.totalHarvestProfit >= 0 ? <FaArrowUp /> : <FaArrowDown />
-  } 
+      icon: <FaSeedling />, 
+      title: 'Harvest Revenue',
+      amount: formatCurrency(financialData.totalHarvestRevenue),
+      since: 'From harvest sales',
+      change: formatPercentage(12.3), 
+      changeType: 'positive',
+      changeIcon: <FaArrowUp />
+    },
+    {
+      icon: <FaMoneyBillWave />, 
+      title: 'Harvest Profit',
+      amount: formatCurrency(financialData.totalHarvestProfit),
+      since: 'Harvest revenue - cost',
+      change: formatPercentage(financialData.averageROI),
+      changeType: financialData.totalHarvestProfit >= 0 ? 'positive' : 'negative',
+      changeIcon: financialData.totalHarvestProfit >= 0 ? <FaArrowUp /> : <FaArrowDown />
+    } 
   ]
 
   const recentTransactions = getRecentTransactions()
   const maxChartValue = Math.max(
     ...chartData.map(d => Math.max(d.revenue, d.expenses)),
-    1000 // minimum scale
+    1000 
   )
 
   return (
     <div className="dashboard-container">
-      {/* Sidebar */}
       <Sidebar 
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
         userType={userType}
       />
 
-      {/* Main Content */}
       <div className="costing-main">
-        {/* Header */}
+        {/* Header - You might want to uncomment or add back your header code here if it was removed in the snippet */}
         <div className="costing-header">
-          <h1 className="costing-title">Financial Report</h1>
-          <div className="costing-header-actions">
-            <div className="costing-search-box">
-              <input
-                type="text"
-                placeholder="Search transactions..."
-                className="costing-search"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <span className="costing-search-icon">
-                <FaSearch />
-              </span>
-            </div>
-            <div className="costing-bell">
-              <FaBell />
-            </div>
-          </div>
+           <div className="costing-title">Costing & Pricing</div>
+           {/* Add other header elements like search if needed */}
         </div>
 
-        {/* Content */}
         <div className="costing-body">
           {loading ? (
             <div className="costing-loading">
@@ -543,24 +569,153 @@ const formatPercentage = (value) => {
             <>
               {/* Top Section */}
               <div className="costing-top">
-                {/* Financial Cards */}
-                <div className="costing-cards">
-                  {financialCards.map((card, index) => (
-                    <div key={index} className="costing-card">
-                      <div className="costing-card-header">
-                        <span className="costing-card-icon">{card.icon}</span>
-                        <span className="costing-card-title">{card.title}</span>
+                {financialCards.map((card, index) => (
+                  <div key={index} className="costing-card">
+                    <div className="costing-card-header">
+                      <span className="costing-card-icon">{card.icon}</span>
+                      <span className="costing-card-title">{card.title}</span>
+                    </div>
+                    <div className="costing-card-amount">{card.amount}</div>
+                    <div className="costing-card-footer">
+                      <span className="costing-card-since">{card.since}</span>
+                      <span className={`costing-card-change ${card.changeType}`}>
+                        <span className="change-icon">{card.changeIcon}</span>
+                        {card.change}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Middle Section */}
+              <div className="costing-middle">
+                {/* Chart */}
+                <div className="costing-chart">
+                  <div className="costing-chart-header">
+                    <h3>Financial Overview</h3>
+                    <div className="costing-chart-controls">
+                      <div className="costing-legend">
+                        <div className="costing-legend-item">
+                          <span className="costing-legend-dot blue"></span>
+                          <span>Revenue</span>
+                        </div>
+                        <div className="costing-legend-item">
+                          <span className="costing-legend-dot red"></span>
+                          <span>Expenses</span>
+                        </div>
+                        <div className="costing-legend-item">
+                          <span className="costing-legend-dot green"></span>
+                          <span>Harvest Revenue</span>
+                        </div>
                       </div>
-                      <div className="costing-card-amount">{card.amount}</div>
-                      <div className="costing-card-footer">
-                        <span className="costing-card-since">{card.since}</span>
-                        <span className={`costing-card-change ${card.changeType}`}>
-                          <span className="change-icon">{card.changeIcon}</span>
-                          {card.change}
-                        </span>
+                      <select 
+                        className="costing-view-select"
+                        value={viewMode}
+                        onChange={(e) => setViewMode(e.target.value)}
+                      >
+                        <option>Monthly View</option>
+                        <option>Weekly View</option>
+                        <option>Yearly View</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="costing-chart-area">
+                    <div className="costing-chart-y-axis">
+                      <span>{formatCurrency(maxChartValue)}</span>
+                      <span>{formatCurrency(maxChartValue * 0.75)}</span>
+                      <span>{formatCurrency(maxChartValue * 0.5)}</span>
+                      <span>{formatCurrency(maxChartValue * 0.25)}</span>
+                      <span>₱0</span>
+                    </div>
+                    
+                    <div className="costing-chart-canvas">
+                      <svg viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`} className="costing-svg" preserveAspectRatio="none">
+                         <defs>
+                          <pattern id="costingGrid" width="100%" height="25%" patternUnits="userSpaceOnUse">
+                            <line x1="0" y1="0" x2="100%" y2="0" stroke="#f0f0f0" strokeWidth="1"/>
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height={PADDING_TOP + GRAPH_HEIGHT} fill="url(#costingGrid)" />
+
+                        {chartData.length > 0 && (
+                          <>
+                            {/* Revenue Line */}
+                            <path
+                              d={generatePath(chartData, 'revenue', maxChartValue)}
+                              fill="none"
+                              stroke="#4A90E2"
+                              strokeWidth="3"
+                              vectorEffect="non-scaling-stroke" 
+                            />
+                            <path
+                              d={`${generatePath(chartData, 'revenue', maxChartValue)} L ${getX(chartData.length-1, chartData.length)} ${PADDING_TOP + GRAPH_HEIGHT} L ${getX(0, chartData.length)} ${PADDING_TOP + GRAPH_HEIGHT} Z`}
+                              fill="rgba(74, 144, 226, 0.1)"
+                            />
+                            {/* Expenses Line */}
+                            <path
+                              d={generatePath(chartData, 'expenses', maxChartValue)}
+                              fill="none"
+                              stroke="#E94B3C"
+                              strokeWidth="3"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                             {/* Harvest Revenue Line */}
+                             <path
+                                d={generatePath(chartData, 'harvestRevenue', maxChartValue)}
+                                fill="none"
+                                stroke="#4CAF50"
+                                strokeWidth="3"
+                                strokeDasharray="5,5"
+                                vectorEffect="non-scaling-stroke"
+                              />
+
+                            {/* Dots */}
+                            {chartData.map((data, index) => (
+                              <g key={index}>
+                                <circle 
+                                  cx={getX(index, chartData.length)} 
+                                  cy={getY(data.revenue, maxChartValue)}
+                                  r="4" 
+                                  fill="#4A90E2" 
+                                  stroke="white"
+                                  strokeWidth="2"
+                                />
+                                <circle 
+                                  cx={getX(index, chartData.length)} 
+                                  cy={getY(data.expenses, maxChartValue)}
+                                  r="4" 
+                                  fill="#E94B3C" 
+                                  stroke="white"
+                                  strokeWidth="2"
+                                />
+                              </g>
+                            ))}
+                          </>
+                        )}
+                      </svg>
+
+                      {/* HTML LABELS OVERLAY */}
+                      <div className="costing-labels-overlay">
+                        {chartData.map((data, index) => (
+                          <div 
+                            key={index} 
+                            className="costing-label-item"
+                            style={{ 
+                              left: `${getLabelPosition(index, chartData.length)}%` 
+                            }}
+                          >
+                            {viewMode === 'Monthly View' 
+                              ? data.month 
+                              : viewMode === 'Yearly View' 
+                                ? data.year 
+                                : data.week?.split('-')[0]
+                            }
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
 
                 {/* Production Cost Breakdown */}
@@ -616,118 +771,9 @@ const formatPercentage = (value) => {
                     </div>
                   </div>
                 </div>
-
-                {/* Chart */}
-                <div className="costing-chart">
-                  <div className="costing-chart-header">
-                    <h3>Financial Overview</h3>
-                    <div className="costing-chart-controls">
-                      <div className="costing-legend">
-                        <div className="costing-legend-item">
-                          <span className="costing-legend-dot blue"></span>
-                          <span>Revenue</span>
-                        </div>
-                        <div className="costing-legend-item">
-                          <span className="costing-legend-dot red"></span>
-                          <span>Expenses</span>
-                        </div>
-                        <div className="costing-legend-item">
-                          <span className="costing-legend-dot green"></span>
-                          <span>Harvest Revenue</span>
-                        </div>
-                      </div>
-                      <select 
-                        className="costing-view-select"
-                        value={viewMode}
-                        onChange={(e) => setViewMode(e.target.value)}
-                      >
-                        <option>Monthly View</option>
-                        <option>Weekly View</option>
-                        <option>Yearly View</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div className="costing-chart-area">
-                    <div className="costing-chart-y-axis">
-                      <span>{formatCurrency(maxChartValue)}</span>
-                      <span>{formatCurrency(maxChartValue * 0.75)}</span>
-                      <span>{formatCurrency(maxChartValue * 0.5)}</span>
-                      <span>{formatCurrency(maxChartValue * 0.25)}</span>
-                      <span>₱0</span>
-                    </div>
-                    
-                    <div className="costing-chart-canvas">
-                      <svg viewBox="0 0 500 250" className="costing-svg">
-                        {/* Background grid */}
-                        <defs>
-                          <pattern id="costingGrid" width="25" height="25" patternUnits="userSpaceOnUse">
-                            <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#f5f5f5" strokeWidth="1"/>
-                          </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#costingGrid)" />
-                        
-                        {chartData.length > 0 && (
-                          <>
-                            {/* Revenue line (blue) with area fill */}
-                            <path
-                              d={generatePath(chartData, 'revenue', maxChartValue)}
-                              fill="none"
-                              stroke="#4A90E2"
-                              strokeWidth="3"
-                            />
-                            <path
-                              d={`${generatePath(chartData, 'revenue', maxChartValue)} L 480 220 L 20 220 Z`}
-                              fill="rgba(74, 144, 226, 0.2)"
-                            />
-                            
-                            {/* Expenses line (red) */}
-                            <path
-                              d={generatePath(chartData, 'expenses', maxChartValue)}
-                              fill="none"
-                              stroke="#E94B3C"
-                              strokeWidth="3"
-                            />
-                            <path
-                                d={generatePath(chartData, 'harvestRevenue', maxChartValue)}
-                                fill="none"
-                                stroke="#4CAF50"
-                                strokeWidth="3"
-                                strokeDasharray="5,5"
-                              />
-                            
-                            {/* Data points for current values */}
-                            {chartData.map((data, index) => (
-                              <g key={index}>
-                                <circle 
-                                  cx={20 + (index * 460) / (chartData.length - 1)} 
-                                  cy={220 - 20 - ((data.revenue / maxChartValue) * 180)}
-                                  r="3" 
-                                  fill="#4A90E2" 
-                                />
-                                <circle 
-                                  cx={20 + (index * 460) / (chartData.length - 1)} 
-                                  cy={220 - 20 - ((data.expenses / maxChartValue) * 180)}
-                                  r="3" 
-                                  fill="#E94B3C" 
-                                />
-                              </g>
-                            ))}
-                          </>
-                        )}
-                      </svg>
-                    </div>
-                    
-                    <div className="costing-chart-x-axis">
-                      {chartData.map((data, index) => (
-                        <span key={index}>{data.month}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
               </div>
 
-              {/* Recent Transactions */}
+              {/* Transactions */}
               <div className="costing-transactions">
                 <div className="costing-transactions-header">
                   <h3>Recent Transactions</h3>
@@ -780,7 +826,7 @@ const formatPercentage = (value) => {
                               transaction.status === 'expense' ? 'pending' : 'neutral'
                             }`}>
                               {transaction.status === 'revenue' ? 'Revenue' : 
-                               transaction.status === 'expense' ? 'Expense' : 'Neutral'}
+                              transaction.status === 'expense' ? 'Expense' : 'Neutral'}
                             </span>
                           </div>
                         </div>

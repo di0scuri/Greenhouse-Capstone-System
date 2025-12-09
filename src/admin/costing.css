@@ -24,6 +24,27 @@
   background-color: #4CAF50;
 }
 
+.costing-top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 equal columns */
+  gap: 20px;
+}
+
+.costing-middle {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Two equal columns */
+  gap: 30px;
+}
+
+/* ============ FINANCIAL CARDS - 3x2 grid ============ */
+.costing-cards {
+  grid-column: 1 / -1; /* Span all columns */
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 equal columns */
+  grid-template-rows: repeat(2, 1fr); /* 2 equal rows */
+  gap: 20px;
+}
+
 
 .costing-title {
   font-size: 26px;
@@ -124,12 +145,6 @@
   font-style: italic;
 }
 
-/* ============ TOP SECTION - Match admindashboard-top structure ============ */
-.costing-top {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr; /* Match main content grid structure */
-  gap: 30px; /* Match dashboard gap */
-}
 
 /* ============ FINANCIAL CARDS - Fits into the 1fr column ============ */
 .costing-cards {
@@ -389,32 +404,36 @@
 /* ============ CHART AREA ============ */
 .costing-chart-area {
   position: relative;
-  height: 250px;
+  height: 260px; /* Increased slightly to fit labels */
+  margin-top: 10px;
 }
 
 .costing-chart-y-axis {
   position: absolute;
   left: 0;
   top: 0;
-  height: 220px;
+  height: 200px; /* Match graph height (PADDING_TOP + GRAPH_HEIGHT) */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   font-size: 11px;
   color: #9ca3af;
   padding-right: 12px;
-  font-family: 'Courier New', monospace;
+  font-family: 'Inter', sans-serif;
+  z-index: 2;
 }
 
 .costing-chart-canvas {
-  margin-left: 60px;
-  margin-bottom: 20px;
+  margin-left: 50px; /* Make space for Y-axis */
+  position: relative;
   height: 220px;
+  width: calc(100% - 50px); /* Fill remaining width */
 }
 
 .costing-svg {
   width: 100%;
   height: 100%;
+  overflow: visible; /* Important: lets dots at the edge show */
 }
 
 .costing-chart-x-axis {
@@ -424,6 +443,24 @@
   font-size: 12px;
   color: #6b7280;
   font-weight: 500;
+}
+
+.costing-labels-overlay {
+  position: absolute;
+  bottom: -30px; /* Push labels below chart */
+  left: 0;
+  width: 100%;
+  height: 20px;
+  pointer-events: none; /* Let clicks pass through to chart if needed */
+}
+
+.costing-label-item {
+  position: absolute;
+  transform: translateX(-50%); /* Centers text exactly on the point */
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 /* ============ TRANSACTIONS SECTION (Full Width/Main Content) ============ */
@@ -640,6 +677,10 @@
 
   .costing-card-amount {
     font-size: 24px;
+  }
+
+  .costing-label-item {
+    font-size: 10px;
   }
   
   .costing-search {
