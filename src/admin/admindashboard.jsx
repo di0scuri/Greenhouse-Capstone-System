@@ -548,30 +548,19 @@ useEffect(() => {
               </h3>
               <div className="chart-legend">
                 <div className="legend-status">
-                  <span 
-                    className="status-indicator" 
-                    style={{ backgroundColor: '#10b981' }}
-                  ></span>
+                  <span className="status-indicator" style={{ backgroundColor: '#10b981' }}></span>
                   <span>Optimal</span>
-                  <span 
-                    className="status-indicator" 
-                    style={{ backgroundColor: '#f59e0b' }}
-                  ></span>
+                  <span className="status-indicator" style={{ backgroundColor: '#f59e0b' }}></span>
                   <span>Warning</span>
-                  <span 
-                    className="status-indicator" 
-                    style={{ backgroundColor: '#ef4444' }}
-                  ></span>
+                  <span className="status-indicator" style={{ backgroundColor: '#ef4444' }}></span>
                   <span>Critical</span>
                 </div>
               </div>
               <div className="last-update">
-                Last updated: {sensorData.length > 0 ? 
-                  sensorData[0].timestamp.toLocaleTimeString() : 
-                  'No data'
-                }
+                Last updated: {sensorData.length > 0 ? sensorData[0].timestamp.toLocaleTimeString() : 'No data'}
               </div>
             </div>
+            
             <div className="chart-container">
               {loading ? (
                 <div className="chart-loading">Loading sensor data...</div>
@@ -580,24 +569,23 @@ useEffect(() => {
               ) : (
                 <>
                   <div className="chart-y-axis">
+                    <span className="y-axis-label">300</span>
+                    <span className="y-axis-label">250</span>
                     <span className="y-axis-label">200</span>
-                    <span className="y-axis-label">175</span>
                     <span className="y-axis-label">150</span>
-                    <span className="y-axis-label">125</span>
                     <span className="y-axis-label">100</span>
-                    <span className="y-axis-label">75</span>
                     <span className="y-axis-label">50</span>
-                    <span className="y-axis-label">25</span>
                     <span className="y-axis-label">0</span>
                   </div>
+
                   <div className="chart-bars">
-                    {sensorData.map((data, index) => (
+                    {sensorData.map((data) => (
                       <div key={data.id} className="bar-group">
                         <div className="bars">
                           <div 
                             className="bar nitrogen-bar" 
                             style={{ 
-                              height: `${Math.min((data.nitrogen / 200) * 100, 100)}%`,
+                              height: `${Math.min((data.nitrogen / 300) * 100, 100)}%`,
                               backgroundColor: getNPKStatus('nitrogen', data.nitrogen)
                             }}
                             title={`Nitrogen: ${data.nitrogen || 0} ppm`}
@@ -607,7 +595,7 @@ useEffect(() => {
                           <div 
                             className="bar phosphorus-bar" 
                             style={{ 
-                              height: `${Math.min((data.phosphorus / 200) * 100, 100)}%`,
+                              height: `${Math.min((data.phosphorus / 300) * 100, 100)}%`,
                               backgroundColor: getNPKStatus('phosphorus', data.phosphorus)
                             }}
                             title={`Phosphorus: ${data.phosphorus || 0} ppm`}
@@ -617,7 +605,7 @@ useEffect(() => {
                           <div 
                             className="bar potassium-bar" 
                             style={{ 
-                              height: `${Math.min((data.potassium / 200) * 100, 100)}%`,
+                              height: `${Math.min((data.potassium / 300) * 100, 100)}%`,
                               backgroundColor: getNPKStatus('potassium', data.potassium)
                             }}
                             title={`Potassium: ${data.potassium || 0} ppm`}
@@ -635,6 +623,7 @@ useEffect(() => {
                             <span className="bar-value-hover">{data.ph?.toFixed(1) || 0}</span>
                           </div>
                         </div>
+                        {/* Label is now absolutely positioned via CSS to sit below the line */}
                         <span className="bar-label">
                           {getSensorDisplayName(data.plantId)}
                           <br />

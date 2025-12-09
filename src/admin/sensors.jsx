@@ -240,20 +240,20 @@ const fetchSensors = async () => {
   // Get sensor status color
   const getSensorStatusColor = (sensor) => {
     const timeDiff = new Date() - sensor.lastReading
-    const minutesDiff = timeDiff / (1000 * 60)
+    const secondsDiff = timeDiff / 1000
     
-    if (minutesDiff > 60) return '#ef4444'
-    if (minutesDiff > 30) return '#f59e0b'
+    if (secondsDiff > 60) return '#ef4444'
+    if (secondsDiff > 10) return '#f59e0b'
     return '#10b981'
   }
 
   // Get sensor status text
   const getSensorStatusText = (sensor) => {
     const timeDiff = new Date() - sensor.lastReading
-    const minutesDiff = timeDiff / (1000 * 60)
+    const secondsDiff = timeDiff / 1000
     
-    if (minutesDiff > 60) return 'Offline'
-    if (minutesDiff > 30) return 'Warning'
+    if (secondsDiff > 60) return 'Offline'
+    if (secondsDiff > 10) return 'Warning'
     return 'Online'
   }
 

@@ -679,7 +679,7 @@
   align-items: flex-end;
   justify-content: center;
   padding: 20px 0;
-  min-height: 350px;
+  min-height: 550px; /* Increased total container height */
   position: relative;
 }
 
@@ -687,23 +687,29 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 280px;
-  padding-right: 12px;
-  padding-left: 8px;
-  margin-right: 16px;
+  height: 450px; /* TALLER: Extends the visual graph area */
+  padding-right: 15px;
+  padding-left: 0;
+  margin-right: 10px;
   border-right: 2px solid #e5e7eb;
   flex-shrink: 0;
-  padding-bottom: 60px;
+  /* CRITICAL: Matches the bottom position of the line + space for labels */
+  padding-bottom: 80px; 
 }
 
 .y-axis-label {
-  font-size: 12px;
-  color: #6b7280;
-  font-weight: 600;
+  font-size: 14px;
+  color: #4b5563;
+  font-weight: 700;
   text-align: right;
-  min-width: 35px;
-  line-height: 1;
+  min-width: 40px;
   padding-right: 8px;
+  
+  /* CRITICAL: Centers the text exactly on the grid line */
+  height: 0; 
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .chart-bars-wrapper {
@@ -711,25 +717,27 @@
   flex-direction: column;
   align-items: center;
   flex: 1;
-  max-width: 800px;
+  max-width: 100%; /* Allow full width */
 }
-
 .chart-bars {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-end;
-  gap: 32px;
-  height: 280px;
-  padding-bottom: 60px;
+  gap: 50px; /* Slightly wider gap for better readability */
+  height: 450px; /* TALLER: Must match chart-y-axis height */
+  /* CRITICAL: Reserves space for the text below the line */
+  padding-bottom: 80px; 
   flex: 1;
-  max-width: 800px;
   position: relative;
+  overflow-x: auto;
+  padding-left: 20px;
 }
 
 .chart-bars::after {
   content: '';
   position: absolute;
-  bottom: 60px;
+  /* CRITICAL: Moves the line UP to sit above the labels */
+  bottom: 80px; 
   left: 0;
   right: 0;
   height: 2px;
@@ -744,14 +752,19 @@
   gap: 0;
   position: relative;
   z-index: 1;
+  flex-shrink: 0;
+  height: 100%; /* Important for absolute positioning of label */
 }
 
 .bars {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  height: 220px;
+  gap: 8px;
+  height: 100%; 
   position: relative;
+  z-index: 1;
+  /* Ensures bars start exactly from the bottom line */
+  border-bottom: 1px solid transparent; 
 }
 
 .bar {
