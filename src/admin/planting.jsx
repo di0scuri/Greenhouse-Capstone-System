@@ -3,7 +3,7 @@ import Sidebar from './sidebar'
 import './planting.css'
 import './planting-ranking.css'
 import './custom-alert.css'
-import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore'
+import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where, Timestamp } from 'firebase/firestore'
 import { db, realtimeDb } from '../firebase'
 import { useNavigate } from 'react-router-dom'
 import { ref, get } from 'firebase/database'
@@ -1745,6 +1745,77 @@ const handleConfirmPlanting = async () => {
       return
     }
 
+    if (plantInfo.stages && plantInfo.stages.length > 0) {
+      const plantedDate = new Date(currentDate.getTime() - (plantAge * 24 * 60 * 60 * 1000))
+      
+      for (const stage of plantInfo.stages) {
+        // Calculate the date for this stage
+        const stageMidpoint = (stage.startDuration + stage.endDuration) / 2
+        const stageDate = new Date(plantedDate.getTime() + (stageMidpoint * 24 * 60 * 60 * 1000))
+        
+        // Determine event status
+        let eventStatus = 'scheduled'
+        let eventMessage = `Scheduled to reach ${stage.stage} stage`
+        
+        if (plantAge >= stage.startDuration && plantAge <= stage.endDuration) {
+          // Current stage
+          eventStatus = 'info'
+          eventMessage = `Currently in ${stage.stage} stage`
+        } else if (plantAge > stage.endDuration) {
+          // Past stage
+          eventStatus = 'completed'
+          eventMessage = `Completed ${stage.stage} stage`
+        }
+        
+        await addDoc(collection(db, 'events'), {
+          plantId: docRef.id,
+          type: 'LIFECYCLE_STAGE',
+          status: eventStatus,
+          message: eventMessage,
+          timestamp: Timestamp.fromDate(stageDate),
+          createdAt: serverTimestamp(),
+          userId: userId,
+          details: {
+            stage: stage.stage,
+            startDay: stage.startDuration,
+            endDay: stage.endDuration,
+            duration: `${stage.endDuration - stage.startDuration + 1} days`,
+            notes: stage.notes,
+            watering: stage.watering,
+            scheduledDate: stageDate.toLocaleDateString(),
+            requirements: {
+              nitrogen: `${stage.lowN} - ${stage.highN} ppm`,
+              phosphorus: `${stage.lowP} - ${stage.highP} ppm`,
+              potassium: `${stage.lowK} - ${stage.highK} ppm`,
+              ph: `${stage.lowpH} - ${stage.highpH}`,
+              temperature: `${stage.lowTemp} - ${stage.highTemp}°C`,
+              moisture: `${stage.lowHum} - ${stage.highHum}%`
+            }
+          }
+        })
+      }
+    }
+
+    await addDoc(collection(db, 'events'), {
+      plantId: docRef.id,
+      type: 'PLANTING',
+      status: 'success',
+      message: `Plant added: ${plantInfo.name} planted in Plot ${selectedPlotNumber}`,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      userId: userId,
+      details: {
+        plantType: plantInfo.name,
+        plotNumber: selectedPlotNumber,
+        plotSize: displaySize,
+        seedlingsPlanted: recommendedSeedlings,
+        plantedDate: plantedDate.toLocaleDateString(),
+        expectedHarvest: expectedHarvestDate.toLocaleDateString(),
+        age: plantAge,
+        currentStage: currentStage
+      }
+    })
+
     // NEW: Fetch seed inventory to check availability
     const inventorySnapshot = await getDocs(collection(db, 'inventory'))
     const inventoryItems = inventorySnapshot.docs.map(doc => ({
@@ -2086,11 +2157,6 @@ const handleOpenFertilizerModal = async (plant) => {
         unit: plantInfo.pricingUnit || 'per kilo',
         qualityScore: 85,
         priceStrategy: 'Market Rate (Default)',
-        factors: [
-          'Market Average',
-          'Plant Type Standard',
-          'Quality Assessment'
-        ],
         source: 'plantsList_fallback',
         warning: 'No production costing data available. Using default market rates.'
       })
@@ -2433,22 +2499,22 @@ const handleOpenFertilizerModal = async (plant) => {
     }
 
     const plantInfo = plantsList[plant.plantType]
-      const currentStage = getCurrentStage(plant, plantInfo)
-      const plantStatus = currentStage?.stage || plant.status
+    const currentStage = getCurrentStage(plant, plantInfo)
+    const plantStatus = currentStage?.stage || plant.status
 
-      if (filters.status === 'Active') {
-        // SCENARIO 1: The new 'Active' default is selected
-        // Exclude all plants that are marked as 'Harvested'
-        if (plantStatus === 'Harvested') {
-          return false
-        }
-      } else if (filters.status !== 'all') {
-        // SCENARIO 2: A specific status (e.g., 'Germination') is selected
-        // Only show plants that match the selected status
-        if (plantStatus !== filters.status) {
-          return false
-        }
+    if (filters.status === 'Active') {
+      // SCENARIO 1: The new 'Active' default is selected
+      // Exclude all plants that are marked as 'Harvested' (check both plantStatus and plant.status)
+      if (plantStatus === 'Harvested' || plant.status === 'Harvested') {
+        return false
       }
+    } else if (filters.status !== 'all') {
+      // SCENARIO 2: A specific status (e.g., 'Germination') is selected
+      // Only show plants that match the selected status
+      if (plantStatus !== filters.status) {
+        return false
+      }
+    }
 
     if (filters.plotNumber !== 'all' && plant.plotNumber !== filters.plotNumber) {
       return false
@@ -4163,19 +4229,6 @@ const handleOpenFertilizerModal = async (plant) => {
                   </div>
                 </div>
 
-                <div className="price-section">
-                  <h3 className="section-title">Key Pricing Factors</h3>
-                  <div className="factors-list">
-                    {priceRecommendation.factors?.map((factor, index) => (
-                      <div key={index} className="factor-item">
-                        <span className="factor-icon">
-                          <MdCheckCircle />
-                        </span>
-                        <span className="factor-text">{factor}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
 
                 {/* Call to action if no production costing */}
                 {priceRecommendation.source === 'plantsList_fallback' && (
