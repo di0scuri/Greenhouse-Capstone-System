@@ -26,7 +26,7 @@
   align-items: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border-bottom: 1px solid #e5e7eb;
-  position: sticky; /* Makes header stay at top while scrolling */
+  position: sticky;
   top: 0;
   z-index: 10;
 }
@@ -100,19 +100,7 @@
   pointer-events: none;
 }
 
-/* ============ NOTIFICATION & SETTINGS ICONS ============ */
-.notification-btn {
-  position: relative;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 6px;
-  transition: background 0.2s ease;
-}
-
-.notification-btn:hover {
-  background: #f3f4f6;
-}
-
+/* ============ NOTIFICATION ICONS ============ */
 .notification-icon {
   font-size: 20px;
   color: #6b7280;
@@ -130,40 +118,10 @@
   color: #1f2937;
 }
 
-.notification-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  background: #e74c3c;
-  color: white;
-  font-size: 10px;
-  font-weight: 600;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.settings-icon {
-  font-size: 20px;
-  color: #7f8c8d;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-}
-
-.settings-icon:hover {
-  background: #f1f3f4;
-  transform: rotate(90deg);
-}
-
 /* ============ DASHBOARD BODY (Content Area) ============ */
 .admindashboard-body {
   flex: 1;
-  padding: 30px; /* This padding will apply to everything including stats */
+  padding: 30px;
   display: flex;
   flex-direction: column;
   gap: 30px;
@@ -205,22 +163,6 @@
   font-weight: 500;
 }
 
-/* Specific icon colors for harvest cards */
-.stat-icon.harvest-revenue {
-  background-color: #ecfdf5;
-  color: #059669;
-}
-
-.stat-icon.harvest-profit {
-  background-color: #f0fdf4;
-  color: #16a34a;
-}
-
-.stat-icon.harvest-count {
-  background-color: #fef3c7;
-  color: #d97706;
-}
-
 .stat-content-ad {
   flex: 1;
 }
@@ -246,54 +188,6 @@
   color: #95a5a6;
   margin-top: 4px;
   font-style: italic;
-}
-
-/* ============ HARVEST SUMMARY CARD ============ */
-.harvest-summary-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 24px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.harvest-summary-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-}
-
-.harvest-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.harvest-card-title {
-  font-size: 14px;
-  font-weight: 500;
-  opacity: 0.9;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.harvest-card-icon {
-  font-size: 24px;
-  opacity: 0.9;
-}
-
-.harvest-card-amount {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  font-family: 'Inter', -apple-system, sans-serif;
-}
-
-.harvest-card-subtitle {
-  font-size: 13px;
-  opacity: 0.8;
-  font-weight: 400;
 }
 
 /* ============ HARVEST LIST SECTION ============ */
@@ -355,15 +249,6 @@
   color: #991b1b;
 }
 
-.harvest-status-badge.neutral {
-  background: #e0e7ff;
-  color: #3730a3;
-}
-
-.harvest-status-icon {
-  font-size: 10px;
-}
-
 .harvest-item-details {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -399,126 +284,11 @@
   color: #6b7280;
 }
 
-.harvest-roi-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.roi-label {
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.roi-value {
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.roi-value.positive {
-  color: #10b981;
-}
-
-.roi-value.negative {
-  color: #ef4444;
-}
-
-/* ============ HARVEST MINI TRENDS ============ */
-.harvest-trends {
-  margin-top: 16px;
-  padding: 16px;
-  background: #f9fafb;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-}
-
-.harvest-trends-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.harvest-trends-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.harvest-trends-period {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.harvest-trends-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  height: 60px;
-  padding: 0 4px;
-}
-
-.harvest-trend-bar {
-  flex: 1;
-  background: linear-gradient(to top, #10b981, #34d399);
-  border-radius: 3px 3px 0 0;
-  min-height: 4px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  position: relative;
-}
-
-.harvest-trend-bar:hover {
-  opacity: 0.8;
-  transform: scaleY(1.05);
-}
-
-.harvest-trend-bar::after {
-  content: attr(data-value);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.85);
-  color: white;
-  padding: 4px 6px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-  margin-bottom: 4px;
-}
-
-.harvest-trend-bar:hover::after {
-  opacity: 1;
-}
-
 /* ============ CONTENT GRID (Main Layout) ============ */
 .content-grid {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: 30px;
-}
-
-.content-grid-extended {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 30px;
-  padding: 0 30px 30px;
-  flex: 1;
-  overflow: auto;
-  min-height: 0;
 }
 
 .content-card {
@@ -605,243 +375,139 @@
   font-size: 13px;
 }
 
-/* ============ CHART CARD ============ */
-.chart-card {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+/* ============ NEW SENSOR CARDS SECTION (REPLACES CHART) ============ */
+.sensor-cards-wrapper {
   padding: 24px;
+  background: white;
+}
+
+.sensor-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 10px 0;
+}
+
+.sensor-mini-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.sensor-mini-card:hover {
+  border-color: #2E7D32;
+  background: #f0fdf4;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.1);
+}
+
+.sensor-mini-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sensor-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e8f5e9;
+  color: #2E7D32;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.sensor-title-info {
+  flex: 1;
+}
+
+.sensor-title-info h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.sensor-status-dot {
+  font-size: 11px;
+  color: #10b981;
+  position: relative;
+  padding-left: 10px;
+  font-weight: 500;
+}
+
+.sensor-status-dot::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  background: #10b981;
+  border-radius: 50%;
+}
+
+.sensor-readings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.reading-mini-item {
+  background: white;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #f3f4f6;
+}
+
+.reading-label {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+}
+
+.reading-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.reading-value.text-default {
+  color: #374151;
+}
+
+.reading-unit {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-left: 2px;
+  font-weight: 400;
 }
 
 .chart-header {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
-}
-
-.chart-legend {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 12px 16px;
-  background: #f9fafb;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #374151;
-  font-weight: 500;
-}
-
-.legend-color {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.legend-status {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: 13px;
-  color: #475569;
-  font-weight: 500;
-}
-
-.status-indicator {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  display: inline-block;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .last-update {
   font-size: 12px;
   color: #95a5a6;
   font-style: italic;
-  text-align: center;
 }
 
-/* ============ CHART CONTAINER ============ */
-.chart-container {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 20px 0;
-  min-height: 550px; /* Increased total container height */
-  position: relative;
-}
-
-.chart-y-axis {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 450px; /* TALLER: Extends the visual graph area */
-  padding-right: 15px;
-  padding-left: 0;
-  margin-right: 10px;
-  border-right: 2px solid #e5e7eb;
-  flex-shrink: 0;
-  /* CRITICAL: Matches the bottom position of the line + space for labels */
-  padding-bottom: 80px; 
-}
-
-.y-axis-label {
-  font-size: 14px;
-  color: #4b5563;
-  font-weight: 700;
-  text-align: right;
-  min-width: 40px;
-  padding-right: 8px;
-  
-  /* CRITICAL: Centers the text exactly on the grid line */
-  height: 0; 
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.chart-bars-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  max-width: 100%; /* Allow full width */
-}
-.chart-bars {
-  display: flex;
-  justify-content: flex-start;
-  align-items: flex-end;
-  gap: 50px; /* Slightly wider gap for better readability */
-  height: 450px; /* TALLER: Must match chart-y-axis height */
-  /* CRITICAL: Reserves space for the text below the line */
-  padding-bottom: 80px; 
-  flex: 1;
-  position: relative;
-  overflow-x: auto;
-  padding-left: 20px;
-}
-
-.chart-bars::after {
-  content: '';
-  position: absolute;
-  /* CRITICAL: Moves the line UP to sit above the labels */
-  bottom: 80px; 
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #e5e7eb;
-  z-index: 0;
-}
-
-.bar-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
-  height: 100%; /* Important for absolute positioning of label */
-}
-
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  height: 100%; 
-  position: relative;
-  z-index: 1;
-  /* Ensures bars start exactly from the bottom line */
-  border-bottom: 1px solid transparent; 
-}
-
-.bar {
-  position: relative;
-  width: 22px;
-  border-radius: 4px 4px 0 0;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  min-height: 3px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.bar:hover {
-  opacity: 0.85;
-  transform: scale(1.05);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.bar-value-hover {
-  position: absolute;
-  top: -28px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.85);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-  z-index: 10;
-}
-
-.bar:hover .bar-value-hover {
-  opacity: 1;
-}
-
-.bar-label {
-  font-size: 13px;
-  color: #374151;
-  font-weight: 600;
-  text-align: center;
-  line-height: 1.4;
-  margin-top: 12px;
-  width: 100%;
-  word-wrap: break-word;
-  white-space: nowrap;
-}
-
-.bar-label small {
-  font-size: 11px;
-  color: #6b7280;
-  font-weight: 500;
-  display: block;
-  margin-top: 4px;
-  white-space: nowrap;
-}
-
-.chart-loading {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #95a5a6;
-  font-size: 14px;
-  font-style: italic;
-  min-height: 300px;
-}
-
-/* ============ LOADING & EMPTY STATES ============ */
+.chart-loading,
 .harvest-loading,
 .harvest-empty {
   padding: 24px;
@@ -858,22 +524,6 @@
   .content-grid {
     grid-template-columns: 1fr;
     gap: 20px;
-  }
-  
-  .chart-bars {
-    gap: 24px;
-  }
-  
-  .bar {
-    width: 20px;
-  }
-
-  .legend-status {
-    margin-left: 0;
-    padding-left: 0;
-    border-left: none;
-    margin-top: 8px;
-    width: 100%;
   }
 }
 
@@ -898,97 +548,23 @@
   }
   
   .stats-grid {
-  grid-template-columns: repeat(2, 1fr);
-  gap: 15px;
-  padding: 20px;
-}
-  
-  .harvest-card-amount {
-    font-size: 22px;
-  }
-  
-  .harvest-trends-bars {
-    height: 50px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    padding: 20px;
   }
 
-  .chart-y-axis {
-    height: 240px;
-    padding-bottom: 55px;
+  .sensor-cards-grid {
+    grid-template-columns: 1fr;
   }
 
-  .chart-bars {
-    height: 240px;
-    gap: 20px;
-    padding-bottom: 55px;
-  }
-
-  .chart-bars::after {
-    bottom: 55px;
-  }
-
-  .bars {
-    height: 185px;
-    gap: 4px;
-  }
-
-  .y-axis-label {
-    font-size: 11px;
-    min-width: 30px;
-  }
-  
   .content-grid {
     padding: 0 20px 20px;
-  }
-
-  .bar {
-    width: 18px;
-  }
-
-  .bar-label {
-    font-size: 11px;
-  }
-
-  .bar-label small {
-    font-size: 10px;
-  }
-
-  .chart-legend {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
   }
 }
 
 @media (max-width: 480px) {
-  .costing-header {
-    padding: 16px 20px;
-  }
-
-  .header-left h1 {
-    font-size: 20px;
-  }
-
   .stats-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 15px;
-  }
-  
-  .harvest-summary-card {
-    padding: 18px;
-  }
-  
-  .harvest-card-amount {
-    font-size: 20px;
-  }
-  
-  .harvest-trends {
-    padding: 12px;
-  }
-  
-  .harvest-trends-bars {
-    height: 40px;
-    gap: 6px;
   }
   
   .content-grid {
@@ -998,52 +574,6 @@
   
   .search-input-ad {
     width: 150px;
-  }
-
-  .stat-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 20px;
-  }
-
-  .stat-title {
-    font-size: 12px;
-  }
-
-  .stat-amount-10 {
-    font-size: 16px;
-  }
-
-  .chart-y-axis {
-    height: 220px;
-    padding-bottom: 50px;
-  }
-
-  .chart-bars {
-    height: 220px;
-    gap: 16px;
-    overflow-x: auto;
-    padding: 0 12px 50px 12px;
-  }
-
-  .chart-bars::after {
-    bottom: 50px;
-  }
-
-  .bars {
-    height: 170px;
-  }
-
-  .bar {
-    width: 16px;
-  }
-
-  .bar-label {
-    font-size: 10px;
-  }
-
-  .bar-label small {
-    font-size: 9px;
   }
 }
 
@@ -1064,10 +594,3 @@
 .harvest-summary-section {
   animation: dashboardFadeIn 0.4s ease-out;
 }
-
-.stat-card:nth-child(1) { animation-delay: 0.05s; }
-.stat-card:nth-child(2) { animation-delay: 0.1s; }
-.stat-card:nth-child(3) { animation-delay: 0.15s; }
-.stat-card:nth-child(4) { animation-delay: 0.2s; }
-.stat-card:nth-child(5) { animation-delay: 0.25s; }
-.stat-card:nth-child(6) { animation-delay: 0.3s; }

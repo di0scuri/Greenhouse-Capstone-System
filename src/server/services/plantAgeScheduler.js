@@ -122,6 +122,50 @@ async function updatePlantAge(db, plantDoc) {
   }
 }
 
+// Inside your update logic (e.g., likely within a cron.schedule function)
+
+const updatePlantStages = async () => {
+  try {
+    const plantsSnapshot = await db.collection('plants').get();
+    
+    plantsSnapshot.forEach(async (doc) => {
+      const plant = doc.data();
+      let newAge = plant.age; 
+      
+      // ... (your existing age increment logic usually goes here) ...
+      
+      // LOGIC TO DETERMINE NEW STAGE
+      let newStage = plant.currentStage; // Default to old
+      if (plant.stages && plant.stages.length > 0) {
+        const foundStage = plant.stages.find(
+          (s) => newAge >= s.startDuration && newAge <= s.endDuration
+        );
+        
+        if (foundStage) {
+          newStage = foundStage.stage;
+        } else {
+            // Check if passed last stage
+            const lastStage = plant.stages[plant.stages.length - 1];
+            if (newAge > lastStage.endDuration) {
+                newStage = "Harvest Ready"; 
+            }
+        }
+      }
+
+      // Only update if the stage or age has changed
+      if (newStage !== plant.currentStage) {
+        await db.collection('plants').doc(doc.id).update({
+          age: newAge,
+          currentStage: newStage
+        });
+        console.log(`Updated plant ${doc.id}: Age ${newAge}, Stage ${newStage}`);
+      }
+    });
+  } catch (error) {
+    console.error("Error updating plant stages:", error);
+  }
+};
+
 /**
  * Create an event in the events collection for stage changes
  */
@@ -190,7 +234,6 @@ export async function updateAllPlantAges(db) {
       }
     }
 
-    // Print summary
     console.log('\n╔═══════════════════════════════════════════════╗');
     console.log('║   📊 UPDATE SUMMARY                           ║');
     console.log('╚═══════════════════════════════════════════════╝');

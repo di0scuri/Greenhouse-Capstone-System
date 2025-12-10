@@ -6,9 +6,9 @@ import { db, realtimeDb } from '../firebase'
 import {ref, get} from 'firebase/database'
 import { 
   FaDollarSign, FaFileInvoiceDollar, FaChartLine, FaPercentage,
-  FaSearch, FaBell, FaRegSquare, FaSeedling
+  FaSearch, FaBell, FaSeedling, FaThermometerHalf, FaTint
 } from 'react-icons/fa'
-import { MdCheckBoxOutlineBlank } from 'react-icons/md'
+import { MdCheckBoxOutlineBlank, MdScience, MdWaterDrop } from 'react-icons/md'
 
 const AdminDashboard = ({ userType = 'admin', user = null }) => {
   const [activeMenu, setActiveMenu] = useState('Overview')
@@ -40,12 +40,12 @@ const fetchFinancialData = async () => {
       logsSnapshot,
       costsSnapshot,
       expensesSnapshot,
-      harvestsSnapshot // ADD THIS
+      harvestsSnapshot
     ] = await Promise.all([
       getDocs(collection(db, 'inventory_log')),
       getDocs(collection(db, 'productionCosts')),
       getDocs(collection(db, 'plantExpenses')),
-      getDocs(collection(db, 'harvests')) // ADD THIS
+      getDocs(collection(db, 'harvests'))
     ])
 
     // 2. Process Inventory Logs (Revenue & Inventory Expenses)
@@ -86,7 +86,7 @@ const fetchFinancialData = async () => {
       plantExpensesExpenses += data.amount || 0
     })
 
-    // 5. Process Harvests (NEW)
+    // 5. Process Harvests
     let harvestRevenue = 0
     harvestsSnapshot.docs.forEach(doc => {
       const data = doc.data()
@@ -94,7 +94,7 @@ const fetchFinancialData = async () => {
     })
 
     // 6. Aggregate totals
-    totalRevenue += harvestRevenue // ADD harvest revenue to total
+    totalRevenue += harvestRevenue
     const totalExpenses = inventoryExpenses + productionCostsExpenses + plantExpensesExpenses
     
     // 7. Calculate Net Profit and ROI
@@ -107,8 +107,8 @@ const fetchFinancialData = async () => {
       totalExpenses,
       netProfit,
       simpleROI,
-      harvestRevenue, // ADD THIS
-    harvestCount: harvestsSnapshot.docs.length 
+      harvestRevenue,
+      harvestCount: harvestsSnapshot.docs.length 
     })
   } catch (error) {
     console.error('Error fetching financial data:', error)
@@ -233,10 +233,10 @@ useEffect(() => {
     setLoading(true)
     try {
       await Promise.all([
-        fetchFinancialData(), // This now includes harvests internally
+        fetchFinancialData(),
         fetchEvents(),
         fetchSensorData(),
-        fetchHarvests() // ADD THIS if you need harvest data separately
+        fetchHarvests()
       ])
     } catch (error) {
       console.error('Error loading dashboard data:', error)
@@ -251,7 +251,7 @@ useEffect(() => {
   const interval = setInterval(() => {
     fetchSensorData()
     fetchEvents()
-    fetchHarvests() // ADD THIS
+    fetchHarvests()
   }, 30000)
   
   return () => clearInterval(interval)
@@ -388,10 +388,9 @@ useEffect(() => {
 
   // Get plant name from plantId (you might want to fetch this from plants collection)
   const getSensorDisplayName = (plantId) => {
-  // Extract number from SoilSensor1, SoilSensor2, etc.
-  const match = plantId.match(/\d+/)
-  return match ? `Sensor ${match[0]}` : 'Unknown Sensor'
-}
+    const match = plantId.match(/\d+/)
+    return match ? `Sensor ${match[0]}` : 'Unknown Sensor'
+  }
 
   const tasks = generateTasks()
 
@@ -539,106 +538,98 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* NPK Chart */}
-          <div className="content-card chart-card chart-full-width">
+          {/* Real-time Plant Cards (Replaced Chart) */}
+          <div className="content-card chart-full-width sensor-cards-wrapper">
             <div className="chart-header">
               <h3 className="card-title">
-                NPK & pH Level For Each Plant
-                {loading && <span className="loading-indicator"> (Loading...)</span>}
+                Real-time Plant Status & Soil Analysis
               </h3>
-              <div className="chart-legend">
-                <div className="legend-status">
-                  <span className="status-indicator" style={{ backgroundColor: '#10b981' }}></span>
-                  <span>Optimal</span>
-                  <span className="status-indicator" style={{ backgroundColor: '#f59e0b' }}></span>
-                  <span>Warning</span>
-                  <span className="status-indicator" style={{ backgroundColor: '#ef4444' }}></span>
-                  <span>Critical</span>
-                </div>
-              </div>
               <div className="last-update">
                 Last updated: {sensorData.length > 0 ? sensorData[0].timestamp.toLocaleTimeString() : 'No data'}
               </div>
             </div>
             
-            <div className="chart-container">
+            <div className="sensor-cards-grid">
               {loading ? (
                 <div className="chart-loading">Loading sensor data...</div>
               ) : sensorData.length === 0 ? (
                 <div className="chart-loading">No sensor data available</div>
               ) : (
-                <>
-                  <div className="chart-y-axis">
-                    <span className="y-axis-label">300</span>
-                    <span className="y-axis-label">250</span>
-                    <span className="y-axis-label">200</span>
-                    <span className="y-axis-label">150</span>
-                    <span className="y-axis-label">100</span>
-                    <span className="y-axis-label">50</span>
-                    <span className="y-axis-label">0</span>
-                  </div>
-
-                  <div className="chart-bars">
-                    {sensorData.map((data) => (
-                      <div key={data.id} className="bar-group">
-                        <div className="bars">
-                          <div 
-                            className="bar nitrogen-bar" 
-                            style={{ 
-                              height: `${Math.min((data.nitrogen / 300) * 100, 100)}%`,
-                              backgroundColor: getNPKStatus('nitrogen', data.nitrogen)
-                            }}
-                            title={`Nitrogen: ${data.nitrogen || 0} ppm`}
-                          >
-                            <span className="bar-value-hover">{data.nitrogen || 0}</span>
-                          </div>
-                          <div 
-                            className="bar phosphorus-bar" 
-                            style={{ 
-                              height: `${Math.min((data.phosphorus / 300) * 100, 100)}%`,
-                              backgroundColor: getNPKStatus('phosphorus', data.phosphorus)
-                            }}
-                            title={`Phosphorus: ${data.phosphorus || 0} ppm`}
-                          >
-                            <span className="bar-value-hover">{data.phosphorus || 0}</span>
-                          </div>
-                          <div 
-                            className="bar potassium-bar" 
-                            style={{ 
-                              height: `${Math.min((data.potassium / 300) * 100, 100)}%`,
-                              backgroundColor: getNPKStatus('potassium', data.potassium)
-                            }}
-                            title={`Potassium: ${data.potassium || 0} ppm`}
-                          >
-                            <span className="bar-value-hover">{data.potassium || 0}</span>
-                          </div>
-                          <div 
-                            className="bar ph-bar" 
-                            style={{ 
-                              height: `${Math.min(((data.ph || 0) / 14) * 100, 100)}%`,
-                              backgroundColor: getNPKStatus('ph', data.ph)
-                            }}
-                            title={`pH: ${data.ph || 0}`}
-                          >
-                            <span className="bar-value-hover">{data.ph?.toFixed(1) || 0}</span>
-                          </div>
-                        </div>
-                        {/* Label is now absolutely positioned via CSS to sit below the line */}
-                        <span className="bar-label">
-                          {getSensorDisplayName(data.plantId)}
-                          <br />
-                          <small>
-                            T: {data.temperature || 0}°C | H: {data.humidity || data.moisture || 0}%
-                          </small>
-                        </span>
+                sensorData.map((data) => (
+                  <div key={data.id} className="sensor-mini-card">
+                    <div className="sensor-mini-header">
+                      <div className="sensor-icon-wrapper">
+                        <FaSeedling />
                       </div>
-                    ))}
+                      <div className="sensor-title-info">
+                        <h4>{getSensorDisplayName(data.plantId)}</h4>
+                        <span className="sensor-status-dot online">Active</span>
+                      </div>
+                    </div>
+
+                    <div className="sensor-readings-grid">
+                      {/* Nitrogen */}
+                      <div className="reading-mini-item">
+                        <div className="reading-label">Nitrogen</div>
+                        <div className="reading-value" style={{ color: getNPKStatus('nitrogen', data.nitrogen) }}>
+                          {data.nitrogen || 0}
+                          <span className="reading-unit">ppm</span>
+                        </div>
+                      </div>
+
+                      {/* Phosphorus */}
+                      <div className="reading-mini-item">
+                        <div className="reading-label">Phosphorus</div>
+                        <div className="reading-value" style={{ color: getNPKStatus('phosphorus', data.phosphorus) }}>
+                          {data.phosphorus || 0}
+                          <span className="reading-unit">ppm</span>
+                        </div>
+                      </div>
+
+                      {/* Potassium */}
+                      <div className="reading-mini-item">
+                        <div className="reading-label">Potassium</div>
+                        <div className="reading-value" style={{ color: getNPKStatus('potassium', data.potassium) }}>
+                          {data.potassium || 0}
+                          <span className="reading-unit">ppm</span>
+                        </div>
+                      </div>
+
+                      {/* pH */}
+                      <div className="reading-mini-item">
+                        <div className="reading-label">pH Level</div>
+                        <div className="reading-value" style={{ color: getNPKStatus('ph', data.ph) }}>
+                          {data.ph?.toFixed(1) || 7.0}
+                        </div>
+                      </div>
+
+                      {/* Temperature */}
+                      <div className="reading-mini-item">
+                        <div className="reading-label">
+                          <FaThermometerHalf style={{ fontSize: '10px', marginRight: '2px' }} /> Temp
+                        </div>
+                        <div className="reading-value text-default">
+                          {data.temperature || 0}
+                          <span className="reading-unit">°C</span>
+                        </div>
+                      </div>
+
+                      {/* Moisture */}
+                      <div className="reading-mini-item">
+                        <div className="reading-label">
+                          <FaTint style={{ fontSize: '10px', marginRight: '2px' }} /> Moisture
+                        </div>
+                        <div className="reading-value text-default">
+                          {data.moisture || 0}
+                          <span className="reading-unit">%</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </>
+                ))
               )}
             </div>
           </div>
-
         </div>
       </div>
     </div>

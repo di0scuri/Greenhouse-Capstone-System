@@ -420,6 +420,24 @@ const calculateNutrientPercentages = (sensorData, plantInfo) => {
     return 'Critical'
   }
 
+  const calculateAge = (plantedDateInput) => {
+  if (!plantedDateInput) return 0;
+  
+  let plantedDate;
+  // Handle Firestore Timestamp or String safely
+  if (plantedDateInput.toDate) {
+    plantedDate = plantedDateInput.toDate();
+  } else {
+    plantedDate = new Date(plantedDateInput);
+  }
+
+  if (isNaN(plantedDate.getTime())) return 0;
+
+  const now = new Date();
+  const diffTime = Math.abs(now - plantedDate);
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+};
+
   // Calculate sensor data percentage based on ideal range
   // Calculate sensor data percentage based on ideal range (exponential curve)
   const calculateSensorPercentage = (current, low, high) => {
@@ -763,6 +781,71 @@ const fetchRecommendedPriceFromProduction = async (plantId) => {
     throw error
   }
 }
+
+useEffect(() => {
+    const updatePlantStages = async () => {
+      // Wait until data is fully loaded
+      if (loading || plants.length === 0 || Object.keys(plantsList).length === 0) return;
+
+      const updates = [];
+      const localUpdates = []; 
+
+      plants.forEach(plant => {
+        // Skip already harvested/completed plants to preserve history
+        if (plant.status === 'Harvested' || plant.status === 'Completed') return;
+
+        const plantInfo = plantsList[plant.plantType];
+        if (!plantInfo) return;
+
+        // Use the FIXED getCurrentStage function
+        const calculatedStageInfo = getCurrentStage(plant, plantInfo);
+        
+        if (calculatedStageInfo) {
+          const correctStageName = calculatedStageInfo.stage;
+          const correctAge = calculateAge(plant.plantedDate);
+
+          // If the DB status doesn't match the calculated stage, queue an update
+          if (plant.status !== correctStageName) {
+            console.log(`Auto-correcting ${plant.plantName}: ${plant.status} -> ${correctStageName}`);
+            
+            // 1. Prepare Firestore Update
+            const plantRef = doc(db, 'plants', plant.id);
+            const updatePromise = updateDoc(plantRef, {
+              status: correctStageName,
+              age: correctAge,
+              updatedAt: serverTimestamp()
+            });
+            updates.push(updatePromise);
+
+            // 2. Prepare Local State Update
+            localUpdates.push({
+              id: plant.id,
+              status: correctStageName,
+              age: correctAge
+            });
+          }
+        }
+      });
+
+      // Execute all updates
+      if (updates.length > 0) {
+        try {
+          await Promise.all(updates);
+          
+          // 3. Update Local State immediately (Visually fixes the issue instantly)
+          setPlantsData(prev => prev.map(p => {
+            const update = localUpdates.find(u => u.id === p.id);
+            return update ? { ...p, status: update.status, age: update.age } : p;
+          }));
+          
+        } catch (error) {
+          console.error("Error auto-updating plant stages:", error);
+        }
+      }
+    };
+
+    updatePlantStages();
+  }, [plants.length, plantsList, loading]);
 
 const updatePlantSeedCount = async (plantId, newCount, reason = '') => {
   try {
@@ -1285,26 +1368,35 @@ const fetchPlantEvents = async (plantId) => {
   }
 }
 
-  // Get current stage based on plant age
-  const getCurrentStage = (plantData, plantInfo) => {
-  if (!plantData.plantedDate || !plantInfo?.stages) return null;
-  
-  const plantedDate = new Date(plantData.plantedDate);
-  const now = new Date();
-  const daysSincePlanted = Math.floor((now - plantedDate) / (1000 * 60 * 60 * 24));
+const getCurrentStage = (plantData, plantInfo) => {
+  // 1. Prioritize the plant's own saved stages, fall back to global info
+  const stages = plantData.stages || plantInfo?.stages;
 
-  // FIX: Day 0 should always be the first stage (Germination)
+  if (!plantData.plantedDate || !stages || stages.length === 0) return null;
+
+  // 2. Use the helper to get exact age
+  const daysSincePlanted = calculateAge(plantData.plantedDate);
+
+  // Default to first stage if just planted
   if (daysSincePlanted <= 0) {
-    return plantInfo.stages[0];
+    return stages[0];
   }
 
-  for (let stage of plantInfo.stages) {
+  // 3. Find the matching stage
+  for (let stage of stages) {
     if (daysSincePlanted >= stage.startDuration && daysSincePlanted <= stage.endDuration) {
       return stage;
     }
   }
 
-  return plantInfo.stages[plantInfo.stages.length - 1];
+  // 4. Only return 'Harvest' (last stage) if we have actually passed the end date
+  const lastStage = stages[stages.length - 1];
+  if (daysSincePlanted > lastStage.endDuration) {
+     return lastStage;
+  }
+  
+  // If we are in a 'gap' (rare), return null instead of defaulting to Harvest
+  return null; 
 };
 
 
