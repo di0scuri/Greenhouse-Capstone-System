@@ -1930,6 +1930,8 @@ const handleConfirmPlanting = async () => {
       }
     })
 
+    
+
     // NEW: Fetch seed inventory to check availability
     const inventorySnapshot = await getDocs(collection(db, 'inventory'))
     const inventoryItems = inventorySnapshot.docs.map(doc => ({
@@ -2058,6 +2060,24 @@ const handleConfirmPlanting = async () => {
       userId,
       userName
     )
+
+    const seedPricePerPack = parseFloat(matchingSeed.price || matchingSeed.pricePerUnit || matchingSeed.cost || 0);
+      const totalSeedCost = packsToDeduct * seedPricePerPack;
+
+      if (totalSeedCost > 0) {
+        await addDoc(collection(db, 'plantExpenses'), {
+          plantId: docRef.id,
+          plantName: generatedPlantName,
+          category: 'Seeds', // Matches Production module category
+          description: `Initial Planting: ${matchingSeed.name} (${packsToDeduct} packs @ ₱${seedPricePerPack}/pack)`,
+          amount: totalSeedCost,
+          date: serverTimestamp(),
+          paymentMethod: 'Inventory Usage',
+          vendor: 'Internal Inventory',
+          addedBy: userId,
+          type: 'INITIAL_PLANTING'
+        });
+      }
 
     // Create initial stage event
     await addDoc(collection(db, 'events'), {

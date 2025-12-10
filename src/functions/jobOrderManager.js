@@ -505,6 +505,9 @@ class JobOrderManager {
   // ==========================================================================
   // COMPLETE: Mark job order as completed and update inventory
   // ==========================================================================
+// ==========================================================================
+  // COMPLETE: Mark job order as completed and update inventory
+  // ==========================================================================
   async completeJobOrder(jobOrderId, notes = '', bagsUsedOverride = null) {
     try {
       const actualJobOrderId = normalizeJobOrderId(jobOrderId);
@@ -562,6 +565,7 @@ class JobOrderManager {
         inventoryLogId = logResult?.logId || null;
       }
 
+      // 1. Update the Job Order status
       await updateDoc(jobOrderRef, {
         status: 'completed',
         completedAt: serverTimestamp(),
@@ -573,6 +577,7 @@ class JobOrderManager {
         updatedAt: serverTimestamp()
       });
 
+      // 2. Create the Completion Event
       await addDoc(collection(db, 'events'), {
         plantId: jobOrderData.plantId,
         plantName: jobOrderData.plantName,
@@ -598,6 +603,23 @@ class JobOrderManager {
         }
       });
 
+      // 3. Log the Expense to plantExpenses (FIXED SYNTAX)
+      if (totalCost > 0) {
+        await addDoc(collection(db, 'plantExpenses'), {
+          plantId: jobOrderData.plantId,
+          plantName: jobOrderData.plantName,
+          category: 'Fertilizer',
+          description: `Fertilizer Application: ${jobOrderData.fertilizerName || 'NPK'} (${totalBagsUsed.toFixed(2)} bags)`,
+          amount: totalCost,
+          date: serverTimestamp(),
+          paymentMethod: 'Inventory Usage', // Added for clarity in reports
+          vendor: 'Internal Inventory',     // Added for clarity
+          addedBy: this.userId,
+          type: 'AUTOMATED_JOB_ORDER'
+        });
+      }
+
+      // 4. Update related events in the event history
       const eventsQuery = query(
         collection(db, 'events'),
         where('jobOrderId', '==', actualJobOrderId)
