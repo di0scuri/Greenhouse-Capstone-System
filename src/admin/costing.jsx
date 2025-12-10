@@ -145,11 +145,6 @@ const Costing = ({ userType = 'admin' }) => {
       }
 
       calculateFinancialData(costs, logs, expenses, harvestsData)
-      // Call generateChartData directly here with fetched data
-      // Note: We need to define generateChartData before calling it if it wasn't hoisted, 
-      // but since we are inside a functional component, we can just call the logic or 
-      // rely on the useEffect below to handle the chart generation once state is set.
-      // However, to avoid "stale state" on first render, passing data directly is better.
       generateChartDataLogic(costs, logs, expenses, harvestsData)
 
     } catch (error) {
@@ -158,6 +153,34 @@ const Costing = ({ userType = 'admin' }) => {
       setLoading(false)
     }
   }
+
+  const getAreaOccupied = (plant) => {
+  if (!plant) return 0;
+
+  // 1. Check for 'plotSizeM2' (Standard)
+  if (plant.plotSizeM2 !== undefined && plant.plotSizeM2 !== null) {
+    return Number(plant.plotSizeM2);
+  }
+
+  // 2. Check for 'plotSizem2' (Lowercase 'm' variant found in your data)
+  if (plant.plotSizem2 !== undefined && plant.plotSizem2 !== null) {
+    return Number(plant.plotSizem2);
+  }
+
+  // 3. Fallback: Calculate from "plotSize" string (e.g., "100x100cm")
+  if (typeof plant.plotSize === 'string') {
+    const matches = plant.plotSize.match(/(\d+)/g);
+    if (matches && matches.length >= 2) {
+      const length = parseInt(matches[0]);
+      const width = parseInt(matches[1]);
+      // Convert cm² to m²: (L * W) / 10,000
+      return (length * width) / 10000;
+    }
+  }
+
+  // 4. Safety Default
+  return 0;
+};
 
   // Calculate financial metrics
   const calculateFinancialData = (costs, logs, expenses, harvests) => {

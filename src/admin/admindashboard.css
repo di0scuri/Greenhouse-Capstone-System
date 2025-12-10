@@ -193,12 +193,29 @@
 /* ============ HARVEST LIST SECTION ============ */
 .harvest-summary-section {
   padding: 24px;
+  display: flex; /* Add flex to manage children (title, list) */
+  flex-direction: column;
 }
 
 .harvest-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 16px;  
+  overflow-y: auto; /* MODIFIED/ADDED */
+  height: 375px; /* ADDED */
+  padding-right: 10px; /* ADDED for scrollbar spacing */
+}
+
+/* Add custom scrollbar for harvest-list (optional, but good for aesthetics) */
+.harvest-list::-webkit-scrollbar {
+  width: 6px;
+}
+.harvest-list::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+.harvest-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
 }
 
 .harvest-item {
@@ -316,7 +333,9 @@
 /* ============ TASKS CARD ============ */
 .tasks-card {
   padding: 24px;
-  overflow: auto;
+  /* overflow: auto;  <-- REMOVE this from tasks-card */
+  display: flex; /* Add flex to manage children (title, list, summary) */
+  flex-direction: column;
 }
 
 .tasks-list {
@@ -373,6 +392,26 @@
   border-top: 1px solid #e1e8ed;
   color: #7f8c8d;
   font-size: 13px;
+}
+
+.tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 300px; /* <--- NEW: Set a fixed height for the scrollable list */
+  overflow-y: auto; /* <--- NEW: Make the list scrollable */
+  padding-right: 10px; /* NEW: Add padding for scrollbar visibility */
+}
+
+.tasks-list::-webkit-scrollbar {
+  width: 6px;
+}
+.tasks-list::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+.tasks-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
 }
 
 /* ============ NEW SENSOR CARDS SECTION (REPLACES CHART) ============ */

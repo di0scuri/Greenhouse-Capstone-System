@@ -438,6 +438,28 @@ const calculateNutrientPercentages = (sensorData, plantInfo) => {
   return Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
 };
 
+
+// Helper to safely format dates from Firestore Timestamps or Strings
+const formatDisplayDate = (dateInput) => {
+  if (!dateInput) return 'N/A';
+  
+  try {
+    // Check if it's a Firestore Timestamp (has toDate method)
+    if (dateInput.toDate && typeof dateInput.toDate === 'function') {
+      return dateInput.toDate().toLocaleDateString();
+    }
+    
+    // Handle standard Date object, ISO string, or number
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    
+    return date.toLocaleDateString();
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return 'Error';
+  }
+};
+
   // Calculate sensor data percentage based on ideal range
   // Calculate sensor data percentage based on ideal range (exponential curve)
   const calculateSensorPercentage = (current, low, high) => {
@@ -2937,7 +2959,7 @@ const handleOpenFertilizerModal = async (plant) => {
                   <div className="planting-card-footer" onClick={(e) => e.stopPropagation()}>
                     {plant.status === 'Harvested' ? (
                       <div className="harvested-badge">
-                        Harvested on {plant.harvestDate ? new Date(plant.harvestDate).toLocaleDateString() : 'N/A'}
+                        Harvested on {formatDisplayDate(plant.harvestDate)}
                       </div>
                     ) : isReadyForHarvest ? (
                       <>

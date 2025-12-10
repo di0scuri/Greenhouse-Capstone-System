@@ -72,11 +72,12 @@ const fetchFinancialData = async () => {
       }
     })
 
-    // 3. Process Production Costs
+    // 3. Process Production Costs [FIXED]
     let productionCostsExpenses = 0
     costsSnapshot.docs.forEach(doc => {
       const data = doc.data()
-      productionCostsExpenses += data.cost || data.amount || 0
+      // Fix: Check for 'totalCost' (used in production.jsx)
+      productionCostsExpenses += data.totalCost || data.cost || data.amount || 0
     })
 
     // 4. Process Plant Expenses
@@ -95,6 +96,10 @@ const fetchFinancialData = async () => {
 
     // 6. Aggregate totals
     totalRevenue += harvestRevenue
+    
+    // Total Expenses = Inventory Purchases + Production Costs + Direct Expenses
+    // Note: Depending on your workflow, this might double count if Production Costs include Inventory items.
+    // For a simple dashboard, summing them ensures no large costs are missed.
     const totalExpenses = inventoryExpenses + productionCostsExpenses + plantExpensesExpenses
     
     // 7. Calculate Net Profit and ROI

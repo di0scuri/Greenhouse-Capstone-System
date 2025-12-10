@@ -4,12 +4,12 @@ import {
   collection, 
   addDoc, 
   updateDoc, 
-  deleteDoc,
+  deleteDoc, 
   doc, 
-  getDocs,
-  query,
-  where,
-  serverTimestamp,
+  getDocs, 
+  query, 
+  where, 
+  serverTimestamp, 
   orderBy 
 } from 'firebase/firestore'
 import { db } from '../firebase'
@@ -33,6 +33,40 @@ import {
   MdTrendingUp,
   MdFileDownload 
 } from 'react-icons/md'
+
+// --- HELPER FUNCTION TO FIX THE "UNDEFINED" AREA ERROR ---
+const getAreaOccupied = (plant) => {
+  if (!plant) return 0;
+
+  // 1. Check for 'plotSizeM2' (Standard format seen in Tomato)
+  if (plant.plotSizeM2 !== undefined && plant.plotSizeM2 !== null) {
+    return Number(plant.plotSizeM2);
+  }
+
+  // 2. Check for 'plotSizem2' (Lowercase 'm' variant seen in Bokchoy)
+  if (plant.plotSizem2 !== undefined && plant.plotSizem2 !== null) {
+    return Number(plant.plotSizem2);
+  }
+
+  // 3. Check for 'areaOccupiedSqM' (Code originally looked for this)
+  if (plant.areaOccupiedSqM !== undefined && plant.areaOccupiedSqM !== null) {
+    return Number(plant.areaOccupiedSqM);
+  }
+
+  // 4. Fallback: Calculate from "plotSize" string (e.g., "100x100cm" seen in Cabbage)
+  if (typeof plant.plotSize === 'string') {
+    const matches = plant.plotSize.match(/(\d+)/g);
+    if (matches && matches.length >= 2) {
+      const length = parseInt(matches[0]);
+      const width = parseInt(matches[1]);
+      // Convert cm² to m²: (L * W) / 10,000
+      return (length * width) / 10000;
+    }
+  }
+
+  // 5. Safety Default
+  return 0;
+};
 
 
 const PlantProduction = ({ userType = 'admin' }) => {
@@ -128,8 +162,8 @@ const PlantProduction = ({ userType = 'admin' }) => {
 
   const [costs, setCosts] = useState({
     labor: 0,
-    seeds: 0, // Add this
-    fertilizer: 0 // Add this
+    seeds: 0, 
+    fertilizer: 0 
   })
 
   const addPlantExpense = async (plantId, expenseData) => {
@@ -173,12 +207,6 @@ const PlantProduction = ({ userType = 'admin' }) => {
         datePlanted: doc.data().datePlanted?.toDate ? doc.data().datePlanted.toDate() : new Date()
       }))
       
-      // Debug: Log first plant to see data structure
-      if (plantsData.length > 0) {
-        console.log('Sample plant data:', plantsData[0])
-        console.log('All plant fields:', Object.keys(plantsData[0]))
-      }
-      
       setPlants(plantsData)
     } catch (error) {
       console.error('Error fetching plants:', error)
@@ -191,14 +219,15 @@ const PlantProduction = ({ userType = 'admin' }) => {
     fetchPlants()
   }, [])
 
+  // FIX: Include seeds and fertilizer in the calculation
   const calculateGrandTotal = () => {
-    // Assumes 'totalTrackedExpenses' is available on the 'selectedPlant' object
     const manualLabor = parseFloat(costs.labor || 0)
+    const manualSeeds = parseFloat(costs.seeds || 0)
+    const manualFertilizer = parseFloat(costs.fertilizer || 0)
     const trackedExpenses = selectedPlant?.totalTrackedExpenses || 0
 
-    // This is the ideal aggregation logic: manual labor + other tracked expenses
-    return manualLabor + trackedExpenses 
-}
+    return manualLabor + manualSeeds + manualFertilizer + trackedExpenses 
+  }
     
 
   // Handle input change
@@ -245,20 +274,25 @@ const PlantProduction = ({ userType = 'admin' }) => {
           const existingData = snapshot.docs[0].data()
           
           // Load existing costs - handle both structures
-          // Load existing costs - handle both structures
           if (existingData.detailedCosts) {
             setCosts({
-              labor: existingData.detailedCosts.labor || 0
+              labor: existingData.detailedCosts.labor || 0,
+              seeds: existingData.detailedCosts.seeds || 0,
+              fertilizer: existingData.detailedCosts.fertilizer || 0
             })
           } else if (existingData.breakdown) {
             setCosts({
-              labor: existingData.breakdown.labor || 0
+              labor: existingData.breakdown.labor || 0,
+              seeds: existingData.breakdown.seeds || 0,
+              fertilizer: existingData.breakdown.fertilizer || 0
             })
           }
         } else {
           // No data found, reset to 0
           setCosts({
-            labor: 0
+            labor: 0,
+            seeds: 0,
+            fertilizer: 0
           })
         }
       } catch (error) {
@@ -266,16 +300,16 @@ const PlantProduction = ({ userType = 'admin' }) => {
         // Reset costs on error
         setCosts({
           labor: 0,
-          electricity: 0,
-          water: 0
+          seeds: 0,
+          fertilizer: 0
         })
       }
     } else {
       // New costing, reset costs
       setCosts({
         labor: 0,
-        electricity: 0,
-        water: 0
+        seeds: 0,
+        fertilizer: 0
       })
     }
     
@@ -1095,7 +1129,12 @@ const PricingCalculatorModal = ({
     const trackedExpenses = selectedPlant.totalTrackedExpenses || 0
     const grandTotal = calculateGrandTotal() 
     
-    const costPerSqm = grandTotal / (selectedPlant.areaOccupiedSqM || 1)
+    // FIX: Safely retrieve occupied area from various potential fields
+    const occupiedArea = getAreaOccupied(selectedPlant);
+    
+    // FIX: Prevent division by zero if area is missing or zero
+    const costPerSqm = occupiedArea > 0 ? grandTotal / occupiedArea : grandTotal;
+    
     const estimatedYield = selectedPlant.totalEstimatedYield || selectedPlant.initialSeedQuantity || 0
     const costPerUnit = estimatedYield > 0 ? grandTotal / estimatedYield : 0
 
@@ -1107,7 +1146,9 @@ const PricingCalculatorModal = ({
       plantType: selectedPlant.plantType || selectedPlant.type || 'N/A', 
       
       plotNumber: selectedPlant.plotNumber,
-      areaOccupied: selectedPlant.areaOccupiedSqM,
+      
+      // FIX 3: Use the helper-calculated area instead of the undefined field
+      areaOccupied: occupiedArea,
       
       // We should include the tracked expenses in detailedCosts for full breakdown
       detailedCosts: { 
@@ -1261,7 +1302,7 @@ const PricingCalculatorModal = ({
                         <td>{plant.name || plant.plantName || plant.cropName || 'Unnamed Plant'}</td>
                         <td>{plant.type || plant.plantType || plant.category || 'N/A'}</td>
                         <td><span className="plot-badge">{plant.plotNumber || plant.plot || 'N/A'}</span></td>
-                        <td>{plant.areaOccupiedSqM || plant.area || 0}</td>
+                        <td>{getAreaOccupied(plant).toFixed(2)}</td> {/* FIXED DISPLAY */}
                         <td>
                           <span className="status-badge" style={{ 
                             background: plant.status === 'Completed' ? '#10b981' : 
@@ -1365,7 +1406,7 @@ const PricingCalculatorModal = ({
                   </div>
                   <div className="info-row">
                     <span className="info-label">Area:</span>
-                    <span className="info-value">{selectedPlant.areaOccupiedSqM} m²</span>
+                    <span className="info-value">{getAreaOccupied(selectedPlant).toFixed(2)} m²</span> {/* FIXED DISPLAY */}
                   </div>
                   <div className="info-row">
                     <span className="info-label">Status:</span>
@@ -1436,7 +1477,7 @@ const PricingCalculatorModal = ({
                   </div>
                   <div className="summary-row">
                     <span className="summary-label">Cost per m²:</span>
-                    <span className="summary-value">₱{(calculateGrandTotal() / (selectedPlant.areaOccupiedSqM || 1)).toFixed(2)}</span>
+                    <span className="summary-value">₱{(getAreaOccupied(selectedPlant) > 0 ? calculateGrandTotal() / getAreaOccupied(selectedPlant) : 0).toFixed(2)}</span>
                   </div>
                   <div className="summary-row">
                     <span className="summary-label">Yield:</span>
@@ -1541,17 +1582,25 @@ const PricingCalculatorModal = ({
                 <div className="breakdown-section">
                   <h3 className="section-title">Cost Breakdown by Category</h3>
                   <div className="breakdown-list">
-                    {Object.entries(costingData.breakdown).map(([key, value]) => {
+                    {Object.entries(costingData.breakdown || costingData.detailedCosts || {}).map(([key, value]) => {
+                      if (key === 'trackedExpensesTotal' || typeof value !== 'number') return null; // Skip non-cost entries
+                      
                       const percentage = (value / costingData.totalCost * 100).toFixed(1)
-                      const labels = {
-                        labor: { icon: <MdPeople />, text: 'Labor Costs' },
-                      }
+                      
+                      // Dynamic labels
+                      let icon = <MdAttachMoney />;
+                      let text = key.charAt(0).toUpperCase() + key.slice(1);
+                      
+                      if (key === 'labor') { icon = <MdPeople />; text = 'Labor Costs'; }
+                      else if (key === 'seeds') { icon = <FaSeedling />; text = 'Seeds Costs'; }
+                      else if (key === 'fertilizer') { icon = <MdAgriculture />; text = 'Fertilizer Costs'; }
+                      
                       return (
                         <div key={key} className="breakdown-item">
                           <div className="breakdown-header">
                             <span className="breakdown-label">
-                              <span style={{ marginRight: '8px' }}>{labels[key].icon}</span>
-                              {labels[key].text}
+                              <span style={{ marginRight: '8px' }}>{icon}</span>
+                              {text}
                             </span>
                             <span className="breakdown-value">₱{value.toLocaleString()}</span>
                           </div>
