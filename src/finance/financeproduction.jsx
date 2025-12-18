@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import './financeproduction.css'
-import Sidebar from './sidebar'
+import Sidebar from './financesidebar'
 import { 
   collection, 
   addDoc, 
