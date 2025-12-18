@@ -4,7 +4,6 @@ import { auth, db } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { UserProvider } from './contexts/UserContext';
-import
 
 // ============================================
 // AUTH & USER PAGES
