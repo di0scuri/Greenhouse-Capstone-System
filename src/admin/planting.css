@@ -1681,6 +1681,15 @@
   gap: 1rem;
 }
 
+.early-warning {
+  background-color: #fff7ed; /* Light orange */
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
 .revenue-card,
 .competitor-card {
   background: #f8f8f8;

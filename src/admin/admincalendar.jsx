@@ -270,59 +270,64 @@ const AdminCalendar = ({ userType = 'admin', userId = 'default-user' }) => {
   }
 
   // Render calendar grid
-  const renderCalendarGrid = () => {
-    const daysInMonth = getDaysInMonth(currentDate)
-    const firstDayOfMonth = getFirstDayOfMonth(currentDate)
-    const days = []
+  // Replace your existing renderCalendarGrid with this:
+const renderCalendarGrid = () => {
+  const daysInMonth = getDaysInMonth(currentDate);
+  const firstDayOfMonth = getFirstDayOfMonth(currentDate); // 0=Sun, 1=Mon, etc.
+  const days = [];
 
-    // Empty cells for days before first day of month
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(<div key={`empty-${i}`} className="calendar-day empty" />)
-    }
-
-    // Days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dayEvents = getDayEvents(day)
-      const isTodayDate = isToday(day)
-
-      days.push(
-        <div
-          key={day}
-          className={`calendar-day ${isTodayDate ? 'today' : ''} ${dayEvents.length > 0 ? 'has-events' : ''}`}
-        >
-          <div className="day-number">{day}</div>
-          <div className="day-events">
-            {dayEvents.slice(0, 3).map((event, index) => {
-              const typeConfig = getEventTypeConfig(event.type)
-              return (
-                <div
-                  key={event.id}
-                  className="event-item"
-                  style={{ 
-                    background: statusColors[event.status] || statusColors.info,
-                    borderLeft: `4px solid ${typeConfig.color}`
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleEventClick(event)
-                  }}
-                  title={event.message}
-                >
-                  <span className="event-icon">{typeConfig.icon}</span>
-                  <span className="event-text">{event.message.substring(0, 20)}{event.message.length > 20 ? '...' : ''}</span>
-                </div>
-              )
-            })}
-            {dayEvents.length > 3 && (
-              <div className="more-events">+{dayEvents.length - 3} more</div>
-            )}
-          </div>
-        </div>
-      )
-    }
-
-    return days
+  // 1. Create empty cells for days before the 1st of the month
+  // This ensures if the 1st is a Monday (1), there is exactly 1 empty box for Sunday (0).
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    days.push(<div key={`empty-${i}`} className="calendar-day empty" />);
   }
+
+  // 2. Map the actual days of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayEvents = getDayEvents(day);
+    const isTodayDate = isToday(day);
+
+    days.push(
+      <div
+        key={day}
+        className={`calendar-day ${isTodayDate ? 'today' : ''} ${dayEvents.length > 0 ? 'has-events' : ''}`}
+      >
+        <div className="day-number">{day}</div>
+        <div className="day-events">
+          {dayEvents.slice(0, 3).map((event) => {
+            const typeConfig = getEventTypeConfig(event.type);
+            return (
+              <div
+                key={event.id}
+                className="event-item"
+                style={{ 
+                  background: statusColors[event.status] || statusColors.info,
+                  borderLeft: `4px solid ${typeConfig.color}`
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEventClick(event);
+                }}
+                title={event.message}
+              >
+                <span className="event-icon">{typeConfig.icon}</span>
+                <span className="event-text">
+                  {event.message.substring(0, 20)}
+                  {event.message.length > 20 ? '...' : ''}
+                </span>
+              </div>
+            );
+          })}
+          {dayEvents.length > 3 && (
+            <div className="more-events">+{dayEvents.length - 3} more</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return days;
+};
 
   // Render list view
   const renderListView = () => {

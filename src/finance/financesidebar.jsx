@@ -74,8 +74,7 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
     const routes = {
       'Overview': '/finance/overview',
       'Inventory': '/finance/inventory',
-      'Costing & Pricing': '/finance/costing-pricing',
-      'Production': '/finance/production'
+      'Production': '/finance/financeproduction'
     }
     
     const route = routes[menuName]
@@ -89,8 +88,7 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
     const path = location.pathname
     if (path.includes('/finance/overview')) return 'Overview'
     if (path.includes('/finance/inventory')) return 'Inventory'
-    if (path.includes('/finance/costing-pricing')) return 'Costing & Pricing'
-    if (path.includes('/finance/production')) return 'Production'
+    if (path.includes('/finance/financeproduction')) return 'Production'
     return activeMenu || 'Overview'
   }
 
@@ -99,7 +97,6 @@ const FinanceSidebar = ({ activeMenu, setActiveMenu }) => {
   const menuItems = [
     { name: 'Overview', icon: <MdDashboard /> },
     { name: 'Inventory', icon: <MdInventory /> },
-    { name: 'Costing & Pricing', icon: <MdAttachMoney /> },
     { name: 'Production', icon: <MdFactory /> },
   ]
 

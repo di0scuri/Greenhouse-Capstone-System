@@ -4,6 +4,7 @@ import { auth, db } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { UserProvider } from './contexts/UserContext';
+import
 
 // ============================================
 // AUTH & USER PAGES
@@ -39,6 +40,7 @@ import FinanceInventory from './finance/financeinventory'
 import PlantProduction from './admin/production'
 import './App.css'
 import PlantMasterList from './admin/plantlist'
+import FinanceProduction from './finance/financeproduction'
 
 // ============================================
 // PROTECTED ROUTE COMPONENT
@@ -426,7 +428,7 @@ function App() {
               } 
             />
             <Route 
-              path="/production/finance" 
+              path="/financeproduction/finance" 
               element={
                 <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
                   <PlantProduction userType="finance" user={user} />
@@ -435,6 +437,17 @@ function App() {
             />
             <Route 
               path="/production" 
+              element={
+                <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
+                  <PlantProduction 
+                    userType={user?.role?.toLowerCase() === 'finance' ? 'finance' : 'admin'} 
+                    user={user} 
+                  />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/financeproduction" 
               element={
                 <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
                   <PlantProduction 
@@ -564,12 +577,13 @@ function App() {
               } 
             />
             <Route 
-              path="/finance/production" 
+              path="/finance/financeproduction" 
               element={
                 <ProtectedRoute user={user} allowedRoles={["Admin", "Finance"]}>
-                  <PlantProduction userType="finance" user={user} />
+                  {/* Change PlantProduction to FinanceProduction */}
+                  <FinanceProduction userType="finance" user={user} /> 
                 </ProtectedRoute>
-              }
+              } 
             />
             <Route 
               path="/finance/costing-pricing" 

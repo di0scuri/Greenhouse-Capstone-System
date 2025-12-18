@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import './production.css'
 import Sidebar from './sidebar'
 import { 
   collection, 
@@ -34,37 +35,32 @@ import {
   MdFileDownload 
 } from 'react-icons/md'
 
+
 // --- HELPER FUNCTION TO FIX THE "UNDEFINED" AREA ERROR ---
 const getAreaOccupied = (plant) => {
   if (!plant) return 0;
 
-  // 1. Check for 'plotSizeM2' (Standard format seen in Tomato)
   if (plant.plotSizeM2 !== undefined && plant.plotSizeM2 !== null) {
     return Number(plant.plotSizeM2);
   }
 
-  // 2. Check for 'plotSizem2' (Lowercase 'm' variant seen in Bokchoy)
   if (plant.plotSizem2 !== undefined && plant.plotSizem2 !== null) {
     return Number(plant.plotSizem2);
   }
 
-  // 3. Check for 'areaOccupiedSqM' (Code originally looked for this)
   if (plant.areaOccupiedSqM !== undefined && plant.areaOccupiedSqM !== null) {
     return Number(plant.areaOccupiedSqM);
   }
 
-  // 4. Fallback: Calculate from "plotSize" string (e.g., "100x100cm" seen in Cabbage)
   if (typeof plant.plotSize === 'string') {
     const matches = plant.plotSize.match(/(\d+)/g);
     if (matches && matches.length >= 2) {
       const length = parseInt(matches[0]);
       const width = parseInt(matches[1]);
-      // Convert cm² to m²: (L * W) / 10,000
       return (length * width) / 10000;
     }
   }
 
-  // 5. Safety Default
   return 0;
 };
 
@@ -80,11 +76,24 @@ const PlantProduction = ({ userType = 'admin' }) => {
   const [showViewModal, setShowViewModal] = useState(false)
   const [loading, setLoading] = useState(true)
   const [costingData, setCostingData] = useState(null)
+  const [showCustomAlert, setShowCustomAlert] = useState(false)
+  const [alertConfig, setAlertConfig] = useState({
+    type: 'success', // 'success', 'error', 'warning', 'info'
+    title: '',
+    message: '',
+    details: null // optional array of {label, value} objects
+  })
+    
+  
+  // UPDATED: Added Water and Electricity
   const EXPENSE_CATEGORIES = [
     'Labor',
     'Seeds',
-    'Fertilizer'
+    'Fertilizer',
+    'Water',
+    'Electricity'
   ]
+  
   const [showExpenseTracker, setShowExpenseTracker] = useState(false)
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false)
   const [showEditExpenseModal, setShowEditExpenseModal] = useState(false)
@@ -119,7 +128,6 @@ const PlantProduction = ({ userType = 'admin' }) => {
     'Other'
   ]
 
-  // Check access before rendering
   if (!hasAccess) {
     return (
       <div className="dashboard-container">
@@ -160,43 +168,49 @@ const PlantProduction = ({ userType = 'admin' }) => {
     )
   }
 
+  // UPDATED: Added water and electricity to default state
   const [costs, setCosts] = useState({
     labor: 0,
     seeds: 0, 
-    fertilizer: 0 
+    fertilizer: 0,
+    water: 0,
+    electricity: 0
   })
+  const showAlert = (type, title, message, details = null) => {
+    setAlertConfig({ type, title, message, details })
+    setShowCustomAlert(true)
+  }
 
   const addPlantExpense = async (plantId, expenseData) => {
-  try {
-    const expense = {
-      plantId: plantId,
-      plantName: expenseData.plantName,
-      category: expenseData.category,
-      description: expenseData.description,
-      amount: parseFloat(expenseData.amount),
-      date: expenseData.date || serverTimestamp(),
-      paymentMethod: expenseData.paymentMethod || 'Cash',
-      receiptNumber: expenseData.receiptNumber || '',
-      vendor: expenseData.vendor || '',
-      notes: expenseData.notes || '',
-      addedBy: expenseData.addedBy || 'admin',
-      createdAt: serverTimestamp(),
-      lastModifiedAt: serverTimestamp()
+    try {
+      const expense = {
+        plantId: plantId,
+        plantName: expenseData.plantName,
+        category: expenseData.category,
+        description: expenseData.description,
+        amount: parseFloat(expenseData.amount),
+        date: expenseData.date || serverTimestamp(),
+        paymentMethod: expenseData.paymentMethod || 'Cash',
+        receiptNumber: expenseData.receiptNumber || '',
+        vendor: expenseData.vendor || '',
+        notes: expenseData.notes || '',
+        addedBy: expenseData.addedBy || 'admin',
+        createdAt: serverTimestamp(),
+        lastModifiedAt: serverTimestamp()
+      }
+
+      const docRef = await addDoc(collection(db, 'plantExpenses'), expense)
+      
+      await updatePlantTotalExpense(plantId)
+      
+      console.log('Expense added successfully:', docRef.id)
+      return docRef.id
+    } catch (error) {
+      console.error('Error adding expense:', error)
+      throw error
     }
-
-    const docRef = await addDoc(collection(db, 'plantExpenses'), expense)
-    
-    await updatePlantTotalExpense(plantId)
-    
-    console.log('Expense added successfully:', docRef.id)
-    return docRef.id
-  } catch (error) {
-    console.error('Error adding expense:', error)
-    throw error
   }
-}
 
-  // Fetch plants
   const fetchPlants = async () => {
     setLoading(true)
     try {
@@ -219,18 +233,18 @@ const PlantProduction = ({ userType = 'admin' }) => {
     fetchPlants()
   }, [])
 
-  // FIX: Include seeds and fertilizer in the calculation
+  // UPDATED: Calculation includes Water and Electricity
   const calculateGrandTotal = () => {
     const manualLabor = parseFloat(costs.labor || 0)
     const manualSeeds = parseFloat(costs.seeds || 0)
     const manualFertilizer = parseFloat(costs.fertilizer || 0)
+    const manualWater = parseFloat(costs.water || 0)
+    const manualElectricity = parseFloat(costs.electricity || 0)
     const trackedExpenses = selectedPlant?.totalTrackedExpenses || 0
 
-    return manualLabor + manualSeeds + manualFertilizer + trackedExpenses 
+    return manualLabor + manualSeeds + manualFertilizer + manualWater + manualElectricity + trackedExpenses 
   }
     
-
-  // Handle input change
   const handleCostChange = (category, value) => {
     setCosts(prev => ({
       ...prev,
@@ -260,11 +274,10 @@ const PlantProduction = ({ userType = 'admin' }) => {
     }
   }
 
-  // Open costing modal
+  // UPDATED: Load existing Water and Electricity costs
   const handleAddCosting = async (plant) => {
     setSelectedPlant(plant)
     
-    // If plant has existing costing, load it from database
     if (plant.hasCosting) {
       try {
         const q = query(collection(db, 'productionCosts'), where('plantId', '==', plant.id))
@@ -273,44 +286,32 @@ const PlantProduction = ({ userType = 'admin' }) => {
         if (!snapshot.empty) {
           const existingData = snapshot.docs[0].data()
           
-          // Load existing costs - handle both structures
           if (existingData.detailedCosts) {
             setCosts({
               labor: existingData.detailedCosts.labor || 0,
               seeds: existingData.detailedCosts.seeds || 0,
-              fertilizer: existingData.detailedCosts.fertilizer || 0
+              fertilizer: existingData.detailedCosts.fertilizer || 0,
+              water: existingData.detailedCosts.water || 0,
+              electricity: existingData.detailedCosts.electricity || 0
             })
           } else if (existingData.breakdown) {
             setCosts({
               labor: existingData.breakdown.labor || 0,
               seeds: existingData.breakdown.seeds || 0,
-              fertilizer: existingData.breakdown.fertilizer || 0
+              fertilizer: existingData.breakdown.fertilizer || 0,
+              water: existingData.breakdown.water || 0,
+              electricity: existingData.breakdown.electricity || 0
             })
           }
         } else {
-          // No data found, reset to 0
-          setCosts({
-            labor: 0,
-            seeds: 0,
-            fertilizer: 0
-          })
+          setCosts({ labor: 0, seeds: 0, fertilizer: 0, water: 0, electricity: 0 })
         }
       } catch (error) {
         console.error('Error loading existing costing:', error)
-        // Reset costs on error
-        setCosts({
-          labor: 0,
-          seeds: 0,
-          fertilizer: 0
-        })
+        setCosts({ labor: 0, seeds: 0, fertilizer: 0, water: 0, electricity: 0 })
       }
     } else {
-      // New costing, reset costs
-      setCosts({
-        labor: 0,
-        seeds: 0,
-        fertilizer: 0
-      })
+      setCosts({ labor: 0, seeds: 0, fertilizer: 0, water: 0, electricity: 0 })
     }
     
     setShowCostingModal(true)
@@ -348,7 +349,6 @@ const PlantProduction = ({ userType = 'admin' }) => {
         lastModifiedAt: serverTimestamp()
       })
       
-      // Get the expense to find plantId
       const expenseDoc = await getDocs(query(
         collection(db, 'plantExpenses'),
         where('__name__', '==', expenseId)
@@ -366,13 +366,10 @@ const PlantProduction = ({ userType = 'admin' }) => {
     }
   }
 
-const deletePlantExpense = async (expenseId, plantId) => {
+  const deletePlantExpense = async (expenseId, plantId) => {
     try {
       await deleteDoc(doc(db, 'plantExpenses', expenseId))
-      
-      // Update plant's total expense
       await updatePlantTotalExpense(plantId)
-      
       console.log('Expense deleted successfully')
     } catch (error) {
       console.error('Error deleting expense:', error)
@@ -380,21 +377,17 @@ const deletePlantExpense = async (expenseId, plantId) => {
     }
   }
 
-
   const updatePlantTotalExpense = async (plantId) => {
     try {
       const expenses = await getPlantExpenses(plantId)
-      
       const totalExpense = expenses.reduce((sum, expense) => sum + expense.amount, 0)
       
-      // Calculate breakdown by category
       const breakdown = expenses.reduce((acc, expense) => {
         const category = expense.category.toLowerCase()
         acc[category] = (acc[category] || 0) + expense.amount
         return acc
       }, {})
       
-      // Update plant document
       const plantRef = doc(db, 'plants', plantId)
       await updateDoc(plantRef, {
         totalExpenses: totalExpense,
@@ -408,7 +401,6 @@ const deletePlantExpense = async (expenseId, plantId) => {
       throw error
     }
   }
-
 
   const getExpenseSummary = async (plantId) => {
     try {
@@ -437,7 +429,6 @@ const deletePlantExpense = async (expenseId, plantId) => {
         summary.byCategory[category].count += 1
       })
       
-      // Calculate percentages
       Object.keys(summary.byCategory).forEach(category => {
         summary.byCategory[category].percentage = 
           (summary.byCategory[category].total / summary.totalExpenses) * 100
@@ -450,7 +441,6 @@ const deletePlantExpense = async (expenseId, plantId) => {
     }
   }
 
-  // Open expense tracker
   const handleOpenExpenseTracker = async (plant) => {
     setSelectedPlant(plant)
     setLoadingExpenses(true)
@@ -468,7 +458,6 @@ const deletePlantExpense = async (expenseId, plantId) => {
     }
   }
 
-  // Handle expense form input change
   const handleExpenseInputChange = (e) => {
     const { name, value } = e.target
     setExpenseFormData(prev => ({
@@ -477,7 +466,6 @@ const deletePlantExpense = async (expenseId, plantId) => {
     }))
   }
 
-  // Handle add expense submit
   const handleAddExpenseSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -487,23 +475,31 @@ const deletePlantExpense = async (expenseId, plantId) => {
         addedBy: userType
       })
       
-      alert('✅ Expense added successfully!')
+      showAlert(
+        'success',
+        'Production Costing Saved!',
+        'Your production costing has been successfully saved.',
+        [
+          { label: 'Total Cost', value: `₱${grandTotal.toLocaleString()}` },
+          { label: 'Cost per m²', value: `₱${costPerSqm.toFixed(2)}` },
+          { label: 'Cost per Unit', value: `₱${costPerUnit.toFixed(2)}` },
+          { label: 'Saved by', value: userType.toUpperCase() }
+        ]
+      )
       setShowAddExpenseModal(false)
       resetExpenseForm()
       
-      // Refresh expense data
       const expenses = await getPlantExpenses(selectedPlant.id)
       const summary = await getExpenseSummary(selectedPlant.id)
       setPlantExpenses(expenses)
       setExpenseSummary(summary)
-      fetchPlants() // Refresh plants table
+      fetchPlants() 
     } catch (error) {
-      alert('Error adding expense')
+      showAlert('error', 'Error Adding Expense', 'There was a problem adding the expense. Please try again.')
       console.error(error)
     }
   }
 
-  // Handle edit expense
   const handleEditExpense = (expense) => {
     setEditingExpense(expense)
     setExpenseFormData({
@@ -519,50 +515,48 @@ const deletePlantExpense = async (expenseId, plantId) => {
     setShowEditExpenseModal(true)
   }
 
-  // Handle edit expense submit
   const handleEditExpenseSubmit = async (e) => {
     e.preventDefault()
     try {
       await updatePlantExpense(editingExpense.id, expenseFormData)
       
-      alert('✅ Expense updated successfully!')
+      showAlert('success', 'Expense Updated!', 'The expense has been updated successfully.')
       setShowEditExpenseModal(false)
       setEditingExpense(null)
       resetExpenseForm()
       
-      // Refresh expense data
       const expenses = await getPlantExpenses(selectedPlant.id)
       const summary = await getExpenseSummary(selectedPlant.id)
       setPlantExpenses(expenses)
       setExpenseSummary(summary)
       fetchPlants()
     } catch (error) {
-      alert('Error updating expense')
+      showAlert('error', 'Error Adding Expense', 'There was a problem adding the expense. Please try again.')
+
       console.error(error)
     }
   }
 
-  // Handle delete expense
   const handleDeleteExpense = async (expenseId) => {
+    // Confirmation Popup for Deletion
     if (window.confirm('Are you sure you want to delete this expense?')) {
       try {
         await deletePlantExpense(expenseId, selectedPlant.id)
         alert('✅ Expense deleted successfully!')
         
-        // Refresh expense data
         const expenses = await getPlantExpenses(selectedPlant.id)
         const summary = await getExpenseSummary(selectedPlant.id)
         setPlantExpenses(expenses)
         setExpenseSummary(summary)
         fetchPlants()
       } catch (error) {
-        alert('Error deleting expense')
+        showAlert('success', 'Expense Deleted!', 'The expense has been removed from the tracker.')
+
         console.error(error)
       }
     }
   }
 
-  // Reset expense form
   const resetExpenseForm = () => {
     setExpenseFormData({
       category: 'Labor',
@@ -575,7 +569,6 @@ const deletePlantExpense = async (expenseId, plantId) => {
       notes: ''
     })
   }
-
 
   const bulkAddExpenses = async (plantId, expensesArray) => {
     try {
@@ -628,7 +621,6 @@ const deletePlantExpense = async (expenseId, plantId) => {
     }
   }
 
-
   const savePlantPricing = async (plantId, pricingData) => {
     try {
       const plantRef = doc(db, 'plants', plantId)
@@ -647,7 +639,6 @@ const deletePlantExpense = async (expenseId, plantId) => {
       throw error
     }
   }
-
 
   const calculateBreakEven = (totalCost, sellingPrice, fixedCosts = 0) => {
     const profitPerUnit = sellingPrice - totalCost
@@ -765,9 +756,9 @@ const deletePlantExpense = async (expenseId, plantId) => {
         a.click()
         document.body.removeChild(a)
         window.URL.revokeObjectURL(url)
-        alert('✅ Expenses exported successfully!')
+        showAlert('success', 'CSV Exported!', 'The expense has been exported successfully.')
       } catch (error) {
-        alert('Error exporting expenses')
+        showAlert('error', 'Error Exporting CSV', 'There was a problem exporting the CSV. Please try again.')
         console.error(error)
       }
     }
@@ -795,344 +786,309 @@ const deletePlantExpense = async (expenseId, plantId) => {
     )
   }
 
-  const PricingButton = ({ plant, onClick }) => (
-    <button 
-      className="action-btn pricing-btn"
-      onClick={onClick}
-      title="Calculate Pricing"
-      style={{
-        background: '#8b5cf6',
-        color: 'white',
-        padding: '8px 12px',
-        border: 'none',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '5px',
-        fontSize: '14px',
-        fontWeight: '500'
-      }}
-    >
-      <MdAttachMoney />
-      Pricing
-    </button>
-  )
+  const PricingCalculatorModal = ({ 
+    showPricingModal, 
+    setShowPricingModal, 
+    selectedPlant,
+    profitMargin,
+    setProfitMargin,
+    pricingResults,
+    setPricingResults,
+    pricingTiers,
+    setPricingTiers,
+    selectedTier,
+    setSelectedTier,
+    customPrice,
+    setCustomPrice,
+    customPriceAnalysis,
+    setCustomPriceAnalysis,
+    calculateRecommendedPrice,
+    getCompetitivePricingSuggestions,
+    calculateProfitMargin,
+    savePlantPricing,
+    userType
+  }) => {
+    if (!showPricingModal || !selectedPlant) return null
   
-
-
-  const getExpensesByDateRange = async (plantId, startDate, endDate) => {
-    try {
-      const allExpenses = await getPlantExpenses(plantId)
-      
-      const filtered = allExpenses.filter(expense => {
-        const expenseDate = expense.date
-        return expenseDate >= startDate && expenseDate <= endDate
-      })
-      
-      return filtered
-    } catch (error) {
-      console.error('Error fetching expenses by date range:', error)
-      throw error
+    const totalCost = selectedPlant.totalProductionCost || 0
+  
+    const handleCalculatePrice = () => {
+      const pricing = calculateRecommendedPrice(totalCost, profitMargin)
+      const tiers = getCompetitivePricingSuggestions(totalCost)
+      setPricingResults(pricing)
+      setPricingTiers(tiers)
     }
-  }
-const PricingCalculatorModal = ({ 
-  showPricingModal, 
-  setShowPricingModal, 
-  selectedPlant,
-  profitMargin,
-  setProfitMargin,
-  pricingResults,
-  setPricingResults,
-  pricingTiers,
-  setPricingTiers,
-  selectedTier,
-  setSelectedTier,
-  customPrice,
-  setCustomPrice,
-  customPriceAnalysis,
-  setCustomPriceAnalysis,
-  calculateRecommendedPrice,
-  getCompetitivePricingSuggestions,
-  calculateProfitMargin,
-  savePlantPricing,
-  userType
-}) => {
-  if (!showPricingModal || !selectedPlant) return null
-
-  const totalCost = selectedPlant.totalProductionCost || 0
-
-  const handleCalculatePrice = () => {
-    const pricing = calculateRecommendedPrice(totalCost, profitMargin)
-    const tiers = getCompetitivePricingSuggestions(totalCost)
-    setPricingResults(pricing)
-    setPricingTiers(tiers)
-  }
-
-  const handleTierSelect = (tierName) => {
-    setSelectedTier(tierName)
-    setProfitMargin(pricingTiers[tierName].margin)
-    setPricingResults(pricingTiers[tierName])
-  }
-
-  const handleCustomPriceAnalysis = () => {
-    const price = parseFloat(customPrice)
-    if (price > 0) {
-      const analysis = calculateProfitMargin(totalCost, price)
-      setCustomPriceAnalysis(analysis)
+  
+    const handleTierSelect = (tierName) => {
+      setSelectedTier(tierName)
+      setProfitMargin(pricingTiers[tierName].margin)
+      setPricingResults(pricingTiers[tierName])
     }
-  }
-
-  const handleSavePricing = async () => {
-    if (pricingResults) {
-      try {
-        await savePlantPricing(selectedPlant.id, {
-          ...pricingResults,
-          sellingPrice: customPrice || pricingResults.recommendedPrice,
-          updatedBy: userType
-        })
-        alert('✅ Pricing saved successfully!')
-        setShowPricingModal(false)
-      } catch (error) {
-        alert('Error saving pricing')
-        console.error(error)
+  
+    const handleCustomPriceAnalysis = () => {
+      const price = parseFloat(customPrice)
+      if (price > 0) {
+        const analysis = calculateProfitMargin(totalCost, price)
+        setCustomPriceAnalysis(analysis)
       }
     }
-  }
+  
+    const handleSavePricing = async () => {
+      // UPDATED: Confirmation Popup for Saving Pricing
+      if (!window.confirm("Are you sure you want to save this pricing configuration?")) {
+        return;
+      }
 
-  return (
-    <div className="production-modal-overlay" onClick={() => setShowPricingModal(false)}>
-      <div className="production-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '900px' }}>
-        <div className="production-modal-header">
-          <h2 className="production-modal-title">
-            <MdCalculate style={{ marginRight: '10px', verticalAlign: 'middle' }} />
-            Pricing Calculator - {selectedPlant.name}
-          </h2>
-          <button className="production-modal-close" onClick={() => setShowPricingModal(false)}>
-            <MdClose />
-          </button>
-        </div>
-
-        <div className="production-modal-body">
-          {/* Cost Info */}
-          <div style={{ background: '#f3f4f6', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '5px' }}>Total Production Cost</p>
-                <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#111' }}>₱{totalCost.toLocaleString()}</p>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: '14px', color: '#6b7280' }}>Cost per Unit</p>
-                <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#111' }}>
-                  ₱{(selectedPlant.costPerUnit || 0).toFixed(2)}
-                </p>
-              </div>
-            </div>
+      if (pricingResults) {
+        try {
+          await savePlantPricing(selectedPlant.id, {
+            ...pricingResults,
+            sellingPrice: customPrice || pricingResults.recommendedPrice,
+            updatedBy: userType
+          })
+          showAlert('success', 'Pricing Saved!', 'The pricing has been saved successfully.')
+          setShowPricingModal(false)
+        } catch (error) {
+          showAlert('error', 'Error Saving Pricing', 'There was a problem saving the pricing. Please try again.')
+          console.error(error)
+        }
+      }
+    }
+  
+    return (
+      <div className="production-modal-overlay" onClick={() => setShowPricingModal(false)}>
+        <div className="production-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '900px' }}>
+          <div className="production-modal-header">
+            <h2 className="production-modal-title">
+              <MdCalculate style={{ marginRight: '10px', verticalAlign: 'middle' }} />
+              Pricing Calculator - {selectedPlant.name}
+            </h2>
+            <button className="production-modal-close" onClick={() => setShowPricingModal(false)}>
+              <MdClose />
+            </button>
           </div>
-
-          {/* Profit Margin Input */}
-          <div style={{ marginBottom: '30px' }}>
-            <label style={{ display: 'block', marginBottom: '10px', fontWeight: '500' }}>
-              Target Profit Margin (%)
-            </label>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <input 
-                type="number"
-                value={profitMargin}
-                onChange={(e) => setProfitMargin(parseFloat(e.target.value) || 0)}
-                style={{ flex: 1, padding: '10px', fontSize: '16px', borderRadius: '8px', border: '1px solid #d1d5db' }}
-                min="0"
-                max="200"
-              />
-              <button 
-                onClick={handleCalculatePrice}
-                style={{
-                  padding: '10px 30px',
-                  background: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: '500',
-                  fontSize: '16px'
-                }}
-              >
-                Calculate
-              </button>
-            </div>
-          </div>
-
-          {/* Pricing Results */}
-          {pricingResults && (
-            <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ marginBottom: '15px', fontSize: '18px', fontWeight: '600' }}>Pricing Results</h3>
-              <div style={{ background: '#dbeafe', padding: '20px', borderRadius: '8px', border: '2px solid #3b82f6' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  <div>
-                    <p style={{ fontSize: '14px', color: '#1e40af', marginBottom: '5px' }}>Recommended Selling Price</p>
-                    <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#1e40af' }}>
-                      ₱{pricingResults.recommendedPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '14px', color: '#1e40af', marginBottom: '5px' }}>Profit Amount</p>
-                    <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#059669' }}>
-                      ₱{pricingResults.profitAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '14px', color: '#1e40af' }}>Cost Percentage</p>
-                    <p style={{ fontSize: '18px', fontWeight: '600', color: '#1e40af' }}>
-                      {pricingResults.costPercentage.toFixed(1)}%
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '14px', color: '#1e40af' }}>Profit Percentage</p>
-                    <p style={{ fontSize: '18px', fontWeight: '600', color: '#059669' }}>
-                      {pricingResults.profitPercentage.toFixed(1)}%
-                    </p>
-                  </div>
+  
+          <div className="production-modal-body">
+            {/* Cost Info */}
+            <div style={{ background: '#f3f4f6', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '5px' }}>Total Production Cost</p>
+                  <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#111' }}>₱{totalCost.toLocaleString()}</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: '14px', color: '#6b7280' }}>Cost per Unit</p>
+                  <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#111' }}>
+                    ₱{(selectedPlant.costPerUnit || 0).toFixed(2)}
+                  </p>
                 </div>
               </div>
-
-              {/* ADD BREAK-EVEN ANALYSIS HERE: */}
-              <BreakEvenAnalysis 
-                totalCost={totalCost}
-                sellingPrice={customPrice ? parseFloat(customPrice) : pricingResults.recommendedPrice}
-                fixedCosts={0}
-              />
             </div>
-          )}
-
-          {/* Pricing Tiers */}
-          {pricingTiers && (
+  
+            {/* Profit Margin Input */}
             <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ marginBottom: '15px', fontSize: '18px', fontWeight: '600' }}>Pricing Strategies</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
-                {Object.entries(pricingTiers).map(([key, tier]) => (
-                  <div 
-                    key={key}
-                    onClick={() => handleTierSelect(key)}
-                    style={{
-                      padding: '20px',
-                      border: selectedTier === key ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      background: selectedTier === key ? '#eff6ff' : 'white',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    <p style={{ fontSize: '16px', fontWeight: '600', marginBottom: '5px' }}>{tier.name}</p>
-                    <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '10px' }}>{tier.description}</p>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111', marginBottom: '5px' }}>
-                      ₱{tier.recommendedPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </p>
-                    <p style={{ fontSize: '14px', color: '#059669' }}>+{tier.margin}% profit</p>
-                  </div>
-                ))}
+              <label style={{ display: 'block', marginBottom: '10px', fontWeight: '500' }}>
+                Target Profit Margin (%)
+              </label>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <input 
+                  type="number"
+                  value={profitMargin}
+                  onChange={(e) => setProfitMargin(parseFloat(e.target.value) || 0)}
+                  style={{ flex: 1, padding: '10px', fontSize: '16px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                  min="0"
+                  max="200"
+                />
+                <button 
+                  onClick={handleCalculatePrice}
+                  style={{
+                    padding: '10px 30px',
+                    background: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    fontSize: '16px'
+                  }}
+                >
+                  Calculate
+                </button>
               </div>
             </div>
-          )}
-
-          {/* Custom Price Analysis */}
-          <div>
-            <h3 style={{ marginBottom: '15px', fontSize: '18px', fontWeight: '600' }}>Custom Price Analysis</h3>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-              <input 
-                type="number"
-                value={customPrice}
-                onChange={(e) => setCustomPrice(e.target.value)}
-                placeholder="Enter your selling price"
-                style={{ flex: 1, padding: '10px', fontSize: '16px', borderRadius: '8px', border: '1px solid #d1d5db' }}
-                step="0.01"
-              />
-              <button 
-                onClick={handleCustomPriceAnalysis}
-                style={{
-                  padding: '10px 30px',
-                  background: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: '500'
-                }}
-              >
-                Analyze
-              </button>
-            </div>
-
-            {customPriceAnalysis && (
-              <>
-                <div style={{ 
-                  padding: '20px', 
-                  borderRadius: '8px', 
-                  background: customPriceAnalysis.isProfit ? '#d1fae5' : '#fee2e2',
-                  border: customPriceAnalysis.isProfit ? '1px solid #10b981' : '1px solid #ef4444'
-                }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
+  
+            {/* Pricing Results */}
+            {pricingResults && (
+              <div style={{ marginBottom: '30px' }}>
+                <h3 style={{ marginBottom: '15px', fontSize: '18px', fontWeight: '600' }}>Pricing Results</h3>
+                <div style={{ background: '#dbeafe', padding: '20px', borderRadius: '8px', border: '2px solid #3b82f6' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                     <div>
-                      <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '5px' }}>Profit/Loss</p>
-                      <p style={{ fontSize: '20px', fontWeight: 'bold', color: customPriceAnalysis.isProfit ? '#059669' : '#dc2626' }}>
-                        {customPriceAnalysis.isProfit ? '+' : ''}₱{customPriceAnalysis.profitAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      <p style={{ fontSize: '14px', color: '#1e40af', marginBottom: '5px' }}>Recommended Selling Price</p>
+                      <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#1e40af' }}>
+                        ₱{pricingResults.recommendedPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>
                     </div>
                     <div>
-                      <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '5px' }}>Profit Margin</p>
-                      <p style={{ fontSize: '20px', fontWeight: 'bold' }}>
-                        {customPriceAnalysis.profitMarginPercent.toFixed(1)}%
+                      <p style={{ fontSize: '14px', color: '#1e40af', marginBottom: '5px' }}>Profit Amount</p>
+                      <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#059669' }}>
+                        ₱{pricingResults.profitAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>
                     </div>
                     <div>
-                      <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '5px' }}>Profit %</p>
-                      <p style={{ fontSize: '20px', fontWeight: 'bold' }}>
-                        {customPriceAnalysis.profitPercentage.toFixed(1)}%
+                      <p style={{ fontSize: '14px', color: '#1e40af' }}>Cost Percentage</p>
+                      <p style={{ fontSize: '18px', fontWeight: '600', color: '#1e40af' }}>
+                        {pricingResults.costPercentage.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '14px', color: '#1e40af' }}>Profit Percentage</p>
+                      <p style={{ fontSize: '18px', fontWeight: '600', color: '#059669' }}>
+                        {pricingResults.profitPercentage.toFixed(1)}%
                       </p>
                     </div>
                   </div>
                 </div>
-
-                {/* ADD BREAK-EVEN ANALYSIS FOR CUSTOM PRICE: */}
+  
                 <BreakEvenAnalysis 
                   totalCost={totalCost}
-                  sellingPrice={parseFloat(customPrice)}
+                  sellingPrice={customPrice ? parseFloat(customPrice) : pricingResults.recommendedPrice}
                   fixedCosts={0}
                 />
-              </>
+              </div>
             )}
+  
+            {/* Pricing Tiers */}
+            {pricingTiers && (
+              <div style={{ marginBottom: '30px' }}>
+                <h3 style={{ marginBottom: '15px', fontSize: '18px', fontWeight: '600' }}>Pricing Strategies</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
+                  {Object.entries(pricingTiers).map(([key, tier]) => (
+                    <div 
+                      key={key}
+                      onClick={() => handleTierSelect(key)}
+                      style={{
+                        padding: '20px',
+                        border: selectedTier === key ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        background: selectedTier === key ? '#eff6ff' : 'white',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <p style={{ fontSize: '16px', fontWeight: '600', marginBottom: '5px' }}>{tier.name}</p>
+                      <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '10px' }}>{tier.description}</p>
+                      <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111', marginBottom: '5px' }}>
+                        ₱{tier.recommendedPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                      <p style={{ fontSize: '14px', color: '#059669' }}>+{tier.margin}% profit</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+  
+            {/* Custom Price Analysis */}
+            <div>
+              <h3 style={{ marginBottom: '15px', fontSize: '18px', fontWeight: '600' }}>Custom Price Analysis</h3>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                <input 
+                  type="number"
+                  value={customPrice}
+                  onChange={(e) => setCustomPrice(e.target.value)}
+                  placeholder="Enter your selling price"
+                  style={{ flex: 1, padding: '10px', fontSize: '16px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                  step="0.01"
+                />
+                <button 
+                  onClick={handleCustomPriceAnalysis}
+                  style={{
+                    padding: '10px 30px',
+                    background: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '500'
+                  }}
+                >
+                  Analyze
+                </button>
+              </div>
+  
+              {customPriceAnalysis && (
+                <>
+                  <div style={{ 
+                    padding: '20px', 
+                    borderRadius: '8px', 
+                    background: customPriceAnalysis.isProfit ? '#d1fae5' : '#fee2e2',
+                    border: customPriceAnalysis.isProfit ? '1px solid #10b981' : '1px solid #ef4444'
+                  }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
+                      <div>
+                        <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '5px' }}>Profit/Loss</p>
+                        <p style={{ fontSize: '20px', fontWeight: 'bold', color: customPriceAnalysis.isProfit ? '#059669' : '#dc2626' }}>
+                          {customPriceAnalysis.isProfit ? '+' : ''}₱{customPriceAnalysis.profitAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '5px' }}>Profit Margin</p>
+                        <p style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                          {customPriceAnalysis.profitMarginPercent.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '5px' }}>Profit %</p>
+                        <p style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                          {customPriceAnalysis.profitPercentage.toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+  
+                  <BreakEvenAnalysis 
+                    totalCost={totalCost}
+                    sellingPrice={parseFloat(customPrice)}
+                    fixedCosts={0}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+  
+          <div className="production-modal-footer">
+            <button 
+              className="production-modal-btn cancel-btn"
+              onClick={() => setShowPricingModal(false)}
+            >
+              Cancel
+            </button>
+            <button 
+              className="production-modal-btn save-btn"
+              onClick={handleSavePricing}
+              disabled={!pricingResults}
+            >
+              Save Pricing
+            </button>
           </div>
         </div>
-
-        <div className="production-modal-footer">
-          <button 
-            className="production-modal-btn cancel-btn"
-            onClick={() => setShowPricingModal(false)}
-          >
-            Cancel
-          </button>
-          <button 
-            className="production-modal-btn save-btn"
-            onClick={handleSavePricing}
-            disabled={!pricingResults}
-          >
-            Save Pricing
-          </button>
-        </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
 
   // Save costing
   const handleSaveCosting = async () => {
+    // UPDATED: Confirmation Popup for Saving Costing
+    if (!window.confirm("Are you sure you want to save this costing data?")) {
+        return;
+    }
+
     if (!selectedPlant) return
     const trackedExpenses = selectedPlant.totalTrackedExpenses || 0
     const grandTotal = calculateGrandTotal() 
     
-    // FIX: Safely retrieve occupied area from various potential fields
     const occupiedArea = getAreaOccupied(selectedPlant);
     
-    // FIX: Prevent division by zero if area is missing or zero
     const costPerSqm = occupiedArea > 0 ? grandTotal / occupiedArea : grandTotal;
     
     const estimatedYield = selectedPlant.totalEstimatedYield || selectedPlant.initialSeedQuantity || 0
@@ -1140,20 +1096,16 @@ const PricingCalculatorModal = ({
 
     const costingRecord = {
       plantId: selectedPlant.id,
-      // FIX 1: Use the correct data field name (plantName) from the plants collection
       plantName: selectedPlant.plantName || selectedPlant.name || 'Unnamed Plant', 
-      // FIX 2: Use the correct data field name (plantType) from the plants collection
       plantType: selectedPlant.plantType || selectedPlant.type || 'N/A', 
       
       plotNumber: selectedPlant.plotNumber,
       
-      // FIX 3: Use the helper-calculated area instead of the undefined field
       areaOccupied: occupiedArea,
       
-      // We should include the tracked expenses in detailedCosts for full breakdown
       detailedCosts: { 
-          ...costs, // Manual inputs (e.g., labor)
-          trackedExpensesTotal: trackedExpenses, // Aggregated non-labor costs
+          ...costs, 
+          trackedExpensesTotal: trackedExpenses,
       }, 
       
       totalCost: grandTotal,
@@ -1170,22 +1122,39 @@ const PricingCalculatorModal = ({
       const snapshot = await getDocs(q)
       
       if (!snapshot.empty) {
-        // Update existing record
         const docId = snapshot.docs[0].id
         await updateDoc(doc(db, 'productionCosts', docId), costingRecord)
         
-        alert(`✅ Production costing updated!\n\nTotal Cost: ₱${grandTotal.toLocaleString()}\nCost per m²: ₱${costPerSqm.toFixed(2)}\nCost per unit: ₱${costPerUnit.toFixed(2)}\n\nUpdated by: ${userType.toUpperCase()}`)
+        showAlert(
+          'success',
+          'Production Costing Updated!',
+          'Your production costing has been successfully updated.',
+          [
+            { label: 'Total Cost', value: `₱${grandTotal.toLocaleString()}` },
+            { label: 'Cost per m²', value: `₱${costPerSqm.toFixed(2)}` },
+            { label: 'Cost per Unit', value: `₱${costPerUnit.toFixed(2)}` },
+            { label: 'Updated by', value: userType.toUpperCase() }
+          ]
+        )
       } else {
-        // Create new record
         costingRecord.createdAt = serverTimestamp()
         costingRecord.createdBy = userType
         
         await addDoc(collection(db, 'productionCosts'), costingRecord)
         
-        alert(`✅ Production costing saved!\n\nTotal Cost: ₱${grandTotal.toLocaleString()}\nCost per m²: ₱${costPerSqm.toFixed(2)}\nCost per unit: ₱${costPerUnit.toFixed(2)}\n\nSaved by: ${userType.toUpperCase()}`)
+        showAlert(
+          'success',
+          'Production Costing Saved!',
+          'Your production costing has been successfully saved.',
+          [
+            { label: 'Total Cost', value: `₱${grandTotal.toLocaleString()}` },
+            { label: 'Cost per m²', value: `₱${costPerSqm.toFixed(2)}` },
+            { label: 'Cost per Unit', value: `₱${costPerUnit.toFixed(2)}` },
+            { label: 'Saved by', value: userType.toUpperCase() }
+          ]
+        )
       }
       
-      // Update plant with costing info
       await updateDoc(doc(db, 'plants', selectedPlant.id), {
         hasCosting: true,
         totalProductionCost: grandTotal,
@@ -1198,11 +1167,63 @@ const PricingCalculatorModal = ({
       fetchPlants()
     } catch (error) {
       console.error('Error saving costing:', error)
-      alert(`Error saving costing data: ${error.message}`) // Enhanced error reporting
+      alert(`Error saving costing data: ${error.message}`) 
     }
+  }
+  const CustomAlert = ({ show, config, onClose }) => {
+  if (!show) return null
+
+  const getIcon = () => {
+    switch (config.type) {
+      case 'success':
+        return '✓'
+      case 'error':
+        return '✕'
+      case 'warning':
+        return '⚠'
+      case 'info':
+        return 'ℹ'
+      default:
+        return '✓'
+    }
+  }
+
+  return (
+    <div className="custom-alert-overlay" onClick={onClose}>
+      <div className="custom-alert-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="custom-alert-header">
+          <div className={`custom-alert-icon ${config.type}`}>
+            {getIcon()}
+          </div>
+          <div className="custom-alert-content">
+            <h3 className="custom-alert-title">{config.title}</h3>
+            <p className="custom-alert-message">{config.message}</p>
+          </div>
+        </div>
+        
+        {config.details && config.details.length > 0 && (
+          <div className="custom-alert-body">
+            <div className="custom-alert-details">
+              {config.details.map((detail, index) => (
+                <div key={index} className="custom-alert-detail-row">
+                  <span className="custom-alert-detail-label">{detail.label}:</span>
+                  <span className="custom-alert-detail-value">{detail.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className="custom-alert-footer">
+          <button className="custom-alert-btn custom-alert-btn-primary" onClick={onClose}>
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-  // View costing details
   const handleViewCosting = async (plant) => {
     setSelectedPlant(plant)
     try {
@@ -1247,7 +1268,6 @@ const PricingCalculatorModal = ({
       />
 
       <div className="production-main-ad">
-        {/* Header */}
         <div className="production-header">
           <div className="production-header-left">
             <h1 className="production-title">
@@ -1268,7 +1288,6 @@ const PricingCalculatorModal = ({
           </div>
         </div>
 
-        {/* Plants Table */}
         <div className="production-body">
           <h2 className="production-section-title">Plants Production Costs</h2>
           
@@ -1276,110 +1295,112 @@ const PricingCalculatorModal = ({
             <div className="production-loading">Loading plants...</div>
           ) : (
             <div className="production-table-container-ad">
-              <table className="production-table-ad">
-                <thead>
-                  <tr>
-                    <th>Plant Name</th>
-                    <th>Type</th>
-                    <th>Plot</th>
-                    <th>Area (m²)</th>
-                    <th>Status</th>
-                    <th>Total Cost</th>
-                    <th>Cost/Unit</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPlants.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
-                        No plants found
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredPlants.map(plant => (
-                      <tr key={plant.id}>
-                        <td>{plant.name || plant.plantName || plant.cropName || 'Unnamed Plant'}</td>
-                        <td>{plant.type || plant.plantType || plant.category || 'N/A'}</td>
-                        <td><span className="plot-badge">{plant.plotNumber || plant.plot || 'N/A'}</span></td>
-                        <td>{getAreaOccupied(plant).toFixed(2)}</td> {/* FIXED DISPLAY */}
-                        <td>
-                          <span className="status-badge" style={{ 
-                            background: plant.status === 'Completed' ? '#10b981' : 
-                                       plant.status === 'Growing' ? '#3b82f6' : '#f59e0b' 
-                          }}>
-                            {plant.status || 'Unknown'}
-                          </span>
-                        </td>
-                        <td>
-                          {plant.totalProductionCost ? (
-                            <span className="cost-value">₱{plant.totalProductionCost.toLocaleString()}</span>
-                          ) : (
-                            <span className="no-cost">—</span>
-                          )}
-                        </td>
-                        <td>
-                          {plant.costPerUnit ? (
-                            <span className="cost-value">₱{plant.costPerUnit.toFixed(2)}</span>
-                          ) : (
-                            <span className="no-cost">—</span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            {!plant.hasCosting ? (
-                              <button 
-                                className="action-btn add-btn"
-                                onClick={() => handleAddCosting(plant)}
-                              >
-                                Add Costing
-                              </button>
-                            ) : (
-                              <>
-                                <button 
-                                  className="action-btn view-btn"
-                                  onClick={() => handleViewCosting(plant)}
-                                >
-                                  View
-                                </button>
-                                <button 
-                                  className="action-btn edit-btn"
-                                  onClick={() => handleAddCosting(plant)}
-                                >
-                                  Update
-                                </button>
-                                <button 
-                                  className="action-btn expense-btn"
-                                  onClick={() => handleOpenExpenseTracker(plant)}
-                                  title="Track Expenses"
-                                >
-                                  <MdReceipt />
-                                </button>
+  <table className="production-table-ad">
+    <thead>
+      <tr>
+        <th style={{ width: '20%' }}>Plant Name</th>
+        <th style={{ width: '10%' }}>Type</th>
+        <th style={{ width: '10%' }}>Plot</th>
+        <th style={{ width: '10%' }}>Area (m²)</th>
+        <th style={{ width: '10%' }}>Status</th>
+        <th style={{ width: '12%' }}>Total Cost</th>
+        <th style={{ width: '10%' }}>Cost/Unit</th>
+        <th style={{ width: '18%' }}>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {filteredPlants.length === 0 ? (
+        <tr>
+          <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+            No plants found. Try a different search term.
+          </td>
+        </tr>
+      ) : (
+        filteredPlants.map(plant => (
+          <tr key={plant.id}>
+            <td>
+              <div style={{ fontWeight: '600' }}>{plant.name || plant.plantName || 'Unnamed'}</div>
+            </td>
+            <td>{plant.type || 'N/A'}</td>
+            <td>
+              <span className="plot-badge">{plant.plotNumber || 'N/A'}</span>
+            </td>
+            <td>{getAreaOccupied(plant).toFixed(2)}</td> 
+            <td>
+              <span className="status-badge" style={{ 
+                background: plant.status === 'Completed' ? '#10b981' : 
+                           plant.status === 'Growing' ? '#3b82f6' : '#f59e0b' 
+              }}>
+                {plant.status || 'Unknown'}
+              </span>
+            </td>
+            <td>
+              {plant.totalProductionCost > 0 ? (
+                <span className="cost-value">₱{plant.totalProductionCost.toLocaleString()}</span>
+              ) : (
+                <span style={{ color: '#9ca3af' }}>—</span>
+              )}
+            </td>
+            <td>
+              {plant.costPerUnit > 0 ? (
+                <span>₱{plant.costPerUnit.toFixed(2)}</span>
+              ) : (
+                <span style={{ color: '#9ca3af' }}>—</span>
+              )}
+            </td>
+            <td>
+              <div className="action-buttons">
+                {!plant.hasCosting ? (
+                  <button 
+                    className="action-btn add-btn"
+                    onClick={() => handleAddCosting(plant)}
+                  >
+                    <MdAdd size={16} /> Add Costing
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      className="action-btn view-btn"
+                      onClick={() => handleViewCosting(plant)}
+                      title="View Details"
+                    >
+                      View
+                    </button>
+                    <button 
+                      className="action-btn edit-btn"
+                      onClick={() => handleAddCosting(plant)}
+                      title="Update Costs"
+                    >
+                      Update
+                    </button>
+                    <button 
+                      className="action-btn expense-btn"
+                      onClick={() => handleOpenExpenseTracker(plant)}
+                      title="Track Expenses"
+                    >
+                      <MdReceipt />
+                    </button>
 
-                                <button 
-                                  className="action-btn pricing-btn"
-                                  onClick={() => {
-                                    setSelectedPlant(plant)
-                                    setShowPricingModal(true)
-                                  }}
-                                  title="Calculate Pricing"
-                                  style={{
-                                    background: '#8b5cf6',
-                                    color: 'white'
-                                  }}
-                                >
-                                  <MdAttachMoney />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    <button 
+                      className="action-btn pricing-btn"
+                      onClick={() => {
+                        setSelectedPlant(plant)
+                        setShowPricingModal(true)
+                      }}
+                      title="Calculate Pricing"
+                    >
+                      <MdAttachMoney />
+                    </button>
+                  </>
+                )}
+              </div>
+            </td>
+          </tr>
+        ))
+      )}
+    </tbody>
+  </table>
+</div>
           )}
         </div>
 
@@ -1406,7 +1427,7 @@ const PricingCalculatorModal = ({
                   </div>
                   <div className="info-row">
                     <span className="info-label">Area:</span>
-                    <span className="info-value">{getAreaOccupied(selectedPlant).toFixed(2)} m²</span> {/* FIXED DISPLAY */}
+                    <span className="info-value">{getAreaOccupied(selectedPlant).toFixed(2)} m²</span> 
                   </div>
                   <div className="info-row">
                     <span className="info-label">Status:</span>
@@ -1414,7 +1435,7 @@ const PricingCalculatorModal = ({
                   </div>
                 </div>
 
-                {/* Cost Categories - Only 3 categories with single input each */}
+                {/* Cost Categories - UPDATED with Water and Electricity */}
                 <div className="cost-categories">
                   {/* 1. Labor Costs */}
                   <div className="cost-category">
@@ -1433,6 +1454,8 @@ const PricingCalculatorModal = ({
                       />
                     </div>
                   </div>
+                  
+                  {/* 2. Seeds Costs */}
                   <div className="cost-category">
                     <div className="category-header">
                       <span className="category-icon"><FaSeedling /></span>
@@ -1450,7 +1473,7 @@ const PricingCalculatorModal = ({
                     </div>
                   </div>
 
-                  {/* 3. Fertilizer Costs - Missing Section */}
+                  {/* 3. Fertilizer Costs */}
                   <div className="cost-category">
                     <div className="category-header">
                       <span className="category-icon"><MdAgriculture /></span>
@@ -1463,6 +1486,42 @@ const PricingCalculatorModal = ({
                         placeholder="Enter total fertilizer costs" 
                         value={costs.fertilizer}
                         onChange={(e) => handleCostChange('fertilizer', e.target.value)} 
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4. Water Costs (New) */}
+                  <div className="cost-category">
+                    <div className="category-header">
+                      <span className="category-icon"><MdWaterDrop /></span>
+                      <h3 className="category-title">4. Water Costs</h3>
+                      <span className="category-total">₱{parseFloat(costs.water || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="category-inputs">
+                      <input 
+                        type="number" 
+                        placeholder="Enter total water costs" 
+                        value={costs.water}
+                        onChange={(e) => handleCostChange('water', e.target.value)} 
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 5. Electricity Costs (New) */}
+                  <div className="cost-category">
+                    <div className="category-header">
+                      <span className="category-icon"><MdBolt /></span>
+                      <h3 className="category-title">5. Electricity Costs</h3>
+                      <span className="category-total">₱{parseFloat(costs.electricity || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="category-inputs">
+                      <input 
+                        type="number" 
+                        placeholder="Enter total electricity costs" 
+                        value={costs.electricity}
+                        onChange={(e) => handleCostChange('electricity', e.target.value)} 
                         style={{ width: '100%' }}
                       />
                     </div>
@@ -1559,7 +1618,6 @@ const PricingCalculatorModal = ({
                   </div>
                 </div>
 
-                {/* Created/Modified By Info */}
                 {costingData.createdBy && (
                   <div style={{ 
                     background: '#f3f4f6', 
@@ -1578,22 +1636,23 @@ const PricingCalculatorModal = ({
                   </div>
                 )}
 
-                {/* Cost Breakdown */}
+                {/* Cost Breakdown - UPDATED with Water and Electricity Icons */}
                 <div className="breakdown-section">
                   <h3 className="section-title">Cost Breakdown by Category</h3>
                   <div className="breakdown-list">
                     {Object.entries(costingData.breakdown || costingData.detailedCosts || {}).map(([key, value]) => {
-                      if (key === 'trackedExpensesTotal' || typeof value !== 'number') return null; // Skip non-cost entries
+                      if (key === 'trackedExpensesTotal' || typeof value !== 'number') return null; 
                       
                       const percentage = (value / costingData.totalCost * 100).toFixed(1)
                       
-                      // Dynamic labels
                       let icon = <MdAttachMoney />;
                       let text = key.charAt(0).toUpperCase() + key.slice(1);
                       
                       if (key === 'labor') { icon = <MdPeople />; text = 'Labor Costs'; }
                       else if (key === 'seeds') { icon = <FaSeedling />; text = 'Seeds Costs'; }
                       else if (key === 'fertilizer') { icon = <MdAgriculture />; text = 'Fertilizer Costs'; }
+                      else if (key === 'water') { icon = <MdWaterDrop />; text = 'Water Costs'; }
+                      else if (key === 'electricity') { icon = <MdBolt />; text = 'Electricity Costs'; }
                       
                       return (
                         <div key={key} className="breakdown-item">
@@ -1663,7 +1722,6 @@ const PricingCalculatorModal = ({
               </div>
 
               <div className="production-modal-body">
-                {/* Summary Cards */}
                 {expenseSummary && (
                   <div className="expense-summary-cards">
                     <div className="expense-summary-card total">
@@ -1686,24 +1744,29 @@ const PricingCalculatorModal = ({
                       </div>
                     </div>
 
-                    {Object.entries(expenseSummary.byCategory).map(([category, data]) => (
-                      <div key={category} className="expense-summary-card category">
-                        <div className="card-icon">
-                          {category === 'Labor' && <MdPeople />}
-                          {category === 'Seeds' && <FaSeedling />}
-                          {category === 'Fertilizer' && <MdAgriculture />}
+                    {/* UPDATED: Dynamic Category Cards for Water/Electricity */}
+                    {Object.entries(expenseSummary.byCategory).map(([category, data]) => {
+                      const lowerCat = category.toLowerCase();
+                      return (
+                        <div key={category} className={`expense-summary-card category ${lowerCat}`}>
+                          <div className="card-icon">
+                            {category === 'Labor' && <MdPeople />}
+                            {category === 'Seeds' && <FaSeedling />}
+                            {category === 'Fertilizer' && <MdAgriculture />}
+                            {category === 'Water' && <MdWaterDrop />}
+                            {category === 'Electricity' && <MdBolt />}
+                          </div>
+                          <div className="card-content">
+                            <p className="card-label">{category}</p>
+                            <p className="card-value">₱{data.total.toLocaleString()}</p>
+                            <p className="card-percentage">{data.percentage.toFixed(1)}%</p>
+                          </div>
                         </div>
-                        <div className="card-content">
-                          <p className="card-label">{category}</p>
-                          <p className="card-value">₱{data.total.toLocaleString()}</p>
-                          <p className="card-percentage">{data.percentage.toFixed(1)}%</p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* Add Expense Button */}
                 <div className="expense-actions">
                   <button 
                     className="btn-add-expense"
@@ -1750,6 +1813,8 @@ const PricingCalculatorModal = ({
                                 {expense.category === 'Labor' && <MdPeople />}
                                 {expense.category === 'Seeds' && <FaSeedling />}
                                 {expense.category === 'Fertilizer' && <MdAgriculture />}
+                                {expense.category === 'Water' && <MdWaterDrop />}
+                                {expense.category === 'Electricity' && <MdBolt />}
                                 {expense.category}
                               </span>
                             </td>
@@ -1818,6 +1883,8 @@ const PricingCalculatorModal = ({
                       <option value="Labor">Labor</option>
                       <option value="Seeds">Seeds</option>
                       <option value="Fertilizer">Fertilizer</option>
+                      <option value="Water">Water</option>
+                      <option value="Electricity">Electricity</option>
                     </select>
                   </div>
 
@@ -1840,7 +1907,7 @@ const PricingCalculatorModal = ({
                     name="description"
                     value={expenseFormData.description}
                     onChange={handleExpenseInputChange}
-                    placeholder="e.g., Hired 3 workers for planting"
+                    placeholder="e.g., Irrigation pump fuel"
                     required
                   />
                 </div>
@@ -1949,6 +2016,8 @@ const PricingCalculatorModal = ({
                       <option value="Labor">Labor</option>
                       <option value="Seeds">Seeds</option>
                       <option value="Fertilizer">Fertilizer</option>
+                      <option value="Water">Water</option>
+                      <option value="Electricity">Electricity</option>
                     </select>
                   </div>
 
@@ -2077,6 +2146,11 @@ const PricingCalculatorModal = ({
           userType={userType}
         />
       </div>
+      <CustomAlert 
+        show={showCustomAlert}
+        config={alertConfig}
+        onClose={() => setShowCustomAlert(false)}
+      />
     </div>
   )
 }

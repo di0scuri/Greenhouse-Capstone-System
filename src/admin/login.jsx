@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './login.css';
-import { db, auth } from "../firebase";
-import { collection, query, where, getDoc, doc, getDocs, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "../firebase"; // Ensure this path is correct
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { HiOutlineArrowLeft, HiOutlineOfficeBuilding } from 'react-icons/hi';
 import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
@@ -26,128 +26,117 @@ const Login = ({ userType = 'admin' }) => {
     if (error) setError('');
   };
 
-  const updateLastLogin = async (userId) => {
-    try {
-      console.log('Updating lastLogin timestamp for user:', userId);
-      const userDocRef = doc(db, "users", userId);
-      await updateDoc(userDocRef, {
-        lastLogin: serverTimestamp()
-      });
-      console.log('LastLogin timestamp updated successfully');
-    } catch (error) {
-      console.error('Error updating lastLogin timestamp:', error);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      console.log('Attempting login with:', formData.username);
+      console.log('1. Attempting Auth for:', formData.username);
       
+      // 1. Authenticate with Firebase Auth
       const userCredential = await signInWithEmailAndPassword(
         auth,
         formData.username,
         formData.password
       );
       const user = userCredential.user;
-      console.log('Authentication successful for user:', user.uid);
+      console.log('2. Auth Successful. UID:', user.uid);
 
-      // Fetch complete user data from Firestore
+      // 2. Fetch User Data from Firestore (Using UID as Document ID)
       const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
-      
       let userData = {};
-      let role = userType;
-      let displayName = user.displayName || 'Unknown User';
-      
-      if (userDoc.exists()) {
-        userData = userDoc.data();
-        role = userData.role || userType;
-        displayName = userData.displayName || userData.name || user.displayName || user.email.split('@')[0];
-        
-        // Update last login
-        await updateLastLogin(user.uid);
-      } else {
-        // Try finding by email
-        console.log('No user document found, searching by email...');
-        const usersRef = collection(db, "users");
-        const emailQuery = query(usersRef, where("email", "==", user.email));
-        const querySnapshot = await getDocs(emailQuery);
-        
-        if (!querySnapshot.empty) {
-          const foundUserDoc = querySnapshot.docs[0];
-          userData = foundUserDoc.data();
-          role = userData.role || userType;
-          displayName = userData.displayName || userData.name || user.displayName || user.email.split('@')[0];
-          
-          await updateLastLogin(foundUserDoc.id);
-        } else {
-          console.log('No Firestore document found, using userType as fallback');
-          role = userType;
-          try {
-            await updateLastLogin(user.uid);
-          } catch (updateError) {
-            console.warn('Could not update lastLogin for user without Firestore document');
+      let role = userType; // Default to the prop passed
+      let displayName = user.displayName || user.email.split('@')[0];
+
+      try {
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (userDocSnap.exists()) {
+          userData = userDocSnap.data();
+          console.log("3. Firestore Data Found:", userData);
+
+          // Use role from DB if it exists, otherwise use the prop
+          if (userData.role) {
+            role = userData.role;
           }
+          
+          if (userData.displayName || userData.name) {
+            displayName = userData.displayName || userData.name;
+          }
+
+          // Update Last Login Timestamp
+          // We do this in the background so it doesn't block navigation
+          updateDoc(userDocRef, {
+            lastLogin: serverTimestamp()
+          }).catch(err => console.warn("Failed to update lastLogin:", err));
+
+        } else {
+          console.warn("3. User authenticated, but no Firestore document found with ID:", user.uid);
+          // If you want to force them to have a profile, you could throw an error here.
+          // For now, we allow login but they might see limited data.
+        }
+      } catch (firestoreError) {
+        console.error("Error fetching user profile:", firestoreError);
+        // This usually happens if Security Rules block the read
+        if (firestoreError.code === 'permission-denied') {
+             setError("Access denied. Please check your account permissions.");
+             setLoading(false);
+             return;
         }
       }
 
-      // Create comprehensive user object
+      // 3. Prepare User Object for LocalStorage
       const fullUserData = {
         uid: user.uid,
         email: user.email,
         displayName: displayName,
-        role: role,
+        role: role, // Keep original casing (e.g., "Farmer") for display
+        mobile: userData.mobile || userData.phoneNumber || null,
         photoURL: user.photoURL || userData.photoURL || null,
-        department: userData.department || null,
-        position: userData.position || null,
-        phoneNumber: userData.phoneNumber || null,
-        createdAt: userData.createdAt || null,
-        lastLogin: new Date().toISOString()
+        isAuthenticated: true
       };
 
-      // Store in localStorage
+      // 4. Save to LocalStorage
       localStorage.setItem('user', JSON.stringify(fullUserData));
-      localStorage.setItem('userRole', role.toLowerCase());
+      localStorage.setItem('userRole', role.toLowerCase()); 
       localStorage.setItem('userId', user.uid);
-      localStorage.setItem('userName', displayName);
       localStorage.setItem('isAuthenticated', 'true');
 
-      console.log('User data stored:', fullUserData);
-
-      // Navigate based on role
+      // 5. Navigate based on Role
       const normalizedRole = role.toLowerCase();
+      console.log(`4. Navigating to dashboard for role: ${normalizedRole}`);
+
       if (normalizedRole === 'admin') {
-        window.location.href = '/admindashboard';
+        navigate('/admindashboard');
       } else if (normalizedRole === 'farmer') {
-        window.location.href = '/farmer/overview';
+        navigate('/farmer/overview');
       } else if (normalizedRole === 'finance') {
-        window.location.href = '/finance/overview';
+        navigate('/finance/overview');
       } else {
-        window.location.href = `/dashboard/${normalizedRole}`;
+        // Fallback for custom roles or dashboard structure
+        navigate(`/dashboard/${normalizedRole}`);
       }
       
     } catch (authError) {
       console.error('Authentication error:', authError);
-      
-      if (authError.code === 'auth/user-not-found') {
-        setError("No account found with this email address.");
-      } else if (authError.code === 'auth/wrong-password') {
-        setError("Incorrect password. Please try again.");
-      } else if (authError.code === 'auth/invalid-email') {
-        setError("Invalid email address format.");
-      } else if (authError.code === 'auth/too-many-requests') {
-        setError("Too many failed attempts. Please try again later.");
-      } else if (authError.code === 'auth/invalid-credential') {
-        setError("Invalid credentials. Please check your email and password.");
-      } else {
-        setError("Login failed. Please check your credentials and try again.");
-      }
+      handleAuthErrors(authError);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAuthErrors = (authError) => {
+    if (authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-credential') {
+      setError("Invalid email or password.");
+    } else if (authError.code === 'auth/wrong-password') {
+      setError("Incorrect password.");
+    } else if (authError.code === 'auth/invalid-email') {
+      setError("Invalid email address format.");
+    } else if (authError.code === 'auth/too-many-requests') {
+      setError("Too many failed attempts. Try again later.");
+    } else {
+      setError("Login failed. Please check your connection.");
     }
   };
 
@@ -159,6 +148,7 @@ const Login = ({ userType = 'admin' }) => {
     setShowPassword(!showPassword);
   };
 
+  // Configuration for UI appearance based on selected user type
   const getUserConfig = () => {
     const configs = {
       admin: {
@@ -217,7 +207,9 @@ const Login = ({ userType = 'admin' }) => {
               padding: '12px', 
               borderRadius: '6px', 
               marginBottom: '16px',
-              border: '1px solid #ffcdd2'
+              border: '1px solid #ffcdd2',
+              fontSize: '14px',
+              textAlign: 'center'
             }}>
               {error}
             </div>
@@ -271,7 +263,7 @@ const Login = ({ userType = 'admin' }) => {
               }}
               disabled={loading}
             >
-              {loading ? 'Logging in...' : `Login as ${userType.charAt(0).toUpperCase() + userType.slice(1)}`}
+              {loading ? 'Logging in...' : `Login`}
             </button>
             
             <button type="button" className="switch-user-button" onClick={handleBackToUserSelection}>
@@ -283,6 +275,5 @@ const Login = ({ userType = 'admin' }) => {
     </div>
   );
 };
-
 
 export default Login;
