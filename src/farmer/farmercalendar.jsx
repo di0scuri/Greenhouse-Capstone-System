@@ -9,6 +9,7 @@ import JobOrderManager, {
   convertFertilizerToPlotSize 
 } from '../functions/jobOrderManager';
 import '../admin/custom-alert.css';
+import { useUser } from '../contexts/UserContext';
 
 import { 
   FaSeedling, FaLeaf, FaTint, FaBug, FaCut, FaCarrot, FaTools, FaEye, 
@@ -20,6 +21,7 @@ import { GiPlantSeed, GiWateringCan, GiFertilizerBag, GiGrass } from 'react-icon
 
 
 const FarmerCalendar = () => {
+  const { userId, userName, userRole, loading: userLoading } = useUser();
   const [activeMenu, setActiveMenu] = useState('Calendar');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('Week'); // Day, Week, Month, Year
@@ -28,9 +30,7 @@ const FarmerCalendar = () => {
   const [events, setEvents] = useState([]);
   const [plants, setPlants] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [jobOrderFilter, setJobOrderFilter] = useState('all'); // all, pending, in-progress, completed
-  const userId = 'farmer-user-id'; // Replace with actual user ID from auth
-  
+  const [jobOrderFilter, setJobOrderFilter] = useState('all');
   const [showEventModal, setShowEventModal] = useState();
 
   const [customAlert, setCustomAlert] = useState({
@@ -572,7 +572,7 @@ const renderListView = () => {
   };
   const updateJobOrderStatus = async (jobOrderId, status) => {
     try {
-      const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
+      const jobOrderManager = new JobOrderManager(userId, userName || 'Farmer');
       await jobOrderManager.updateJobOrderStatus(jobOrderId, status);
       await fetchEvents();
       return true;
@@ -584,7 +584,7 @@ const renderListView = () => {
 
 const completeJobOrder = async (jobOrderId, notes = '') => {
   try {
-    const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
+    const jobOrderManager = new JobOrderManager(userId, userName || 'Farmer User');
     await jobOrderManager.completeJobOrder(jobOrderId, notes);
     
     await fetchEvents();
@@ -1078,11 +1078,14 @@ completed: jobOrders.filter(e => e.status === 'completed').length
 const jobOrderStats = getJobOrderStats();
 return (
 <div className="fc-main-layout">
-<FarmerSidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+<FarmerSidebar 
+activeMenu={activeMenu}
+setActiveMenu={setActiveMenu} 
+userType={userRole}
+/>
   <div className="fc-container">
-    {/* Header */}
     <div className="fc-header">
-      <h1 className="fc-greeting">Hello, Farmer!</h1>
+      <h1 className="fc-greeting">Hello, {userName || 'Farmer'}</h1>
 
       <div className="fc-header-actions">
         <div className="fc-search-container">
@@ -1483,7 +1486,7 @@ return (
                             onConfirm: async () => {
                               try {
                                 const jobId = selectedEvent.jobOrderId || selectedEvent.id.replace('joborder-', '');
-                                const jobOrderManager = new JobOrderManager(userId, 'Farmer User');
+                                const jobOrderManager = new JobOrderManager(userId, userName  || 'Farmer User');
                                 await jobOrderManager.cancelJobOrder(jobId, 'Cancelled by user');
                                 await fetchEvents();
                                 setSelectedEvent(null);

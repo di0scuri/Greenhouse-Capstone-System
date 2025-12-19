@@ -5,6 +5,7 @@ import { collection, getDocs, addDoc, serverTimestamp } from "firebase/firestore
 import { db } from "../firebase";
 import AddItemModal from "../modals/AddItemModal";
 import EditItemModal from "../modals/EditItemModal";
+import { useUser } from "../contexts/UserContext"; // Import UserContext
 import { 
   FaSearch, 
   FaBell, 
@@ -17,7 +18,8 @@ import {
 } from 'react-icons/fa';
 import { MdWarning } from 'react-icons/md';
 
-const Inventory = ({ userType = "admin" }) => {
+const Inventory = () => {
+  const { userRole } = useUser(); // Get userRole from context
   const [activeMenu, setActiveMenu] = useState("Inventory");
   const [activeTab, setActiveTab] = useState("Seed");
   const [searchTerm, setSearchTerm] = useState("");
@@ -123,7 +125,7 @@ const Inventory = ({ userType = "admin" }) => {
       <Sidebar
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole} // Use userRole from context
       />
 
       <div className="production-main-ad">

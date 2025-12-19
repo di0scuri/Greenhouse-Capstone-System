@@ -14,8 +14,10 @@ import {
   FaArrowDown,
   FaArrowRight
 } from 'react-icons/fa'
+import { useUser } from '../contexts/UserContext'
 
-const FinanceCosting = ({ userType = 'admin' }) => {
+const FinanceCosting = () => {
+
   const [activeMenu, setActiveMenu] = useState('Costing & Pricing')
   const [searchTerm, setSearchTerm] = useState('')
   const [inventoryLogs, setInventoryLogs] = useState([])
@@ -207,7 +209,7 @@ const FinanceCosting = ({ userType = 'admin' }) => {
       <Sidebar 
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole}
       />
 
       {/* Main Content */}

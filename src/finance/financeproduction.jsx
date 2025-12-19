@@ -14,7 +14,7 @@ import {
   orderBy 
 } from 'firebase/firestore'
 import { db } from '../firebase'
-
+import { useUser } from '../contexts/UserContext'
 import { MdReceipt, MdAdd, MdEdit, MdDelete } from 'react-icons/md'
 import { FaSeedling } from 'react-icons/fa'
 
@@ -65,9 +65,9 @@ const getAreaOccupied = (plant) => {
 };
 
 
-const FinanceProduction = ({ userType = 'admin' }) => {
-  const hasAccess = userType === 'admin' || userType === 'finance'
-  
+const FinanceProduction = () => {
+  const { userRole, loading: userLoading } = useUser();
+  const hasAccess = userRole === 'admin' || userRole === 'finance'
   const [activeMenu, setActiveMenu] = useState('Plant Production')
   const [searchTerm, setSearchTerm] = useState('')
   const [plants, setPlants] = useState([])
@@ -134,7 +134,7 @@ const FinanceProduction = ({ userType = 'admin' }) => {
         <Sidebar 
           activeMenu={activeMenu}
           setActiveMenu={setActiveMenu}
-          userType={userType}
+          userType={userRole}
         />
         <div className="production-main" style={{ 
           display: 'flex', 

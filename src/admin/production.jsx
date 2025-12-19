@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import './production.css'
 import Sidebar from './sidebar'
+import {useRole} from '../contexts/RoleContext'
 import { 
   collection, 
   addDoc, 
@@ -65,10 +66,10 @@ const getAreaOccupied = (plant) => {
 };
 
 
-const PlantProduction = ({ userType = 'admin' }) => {
-  const hasAccess = userType === 'admin' || userType === 'finance'
-  
+const PlantProduction = () => {
+  const { userRole, userName,loading: userLoading } = useRole()  
   const [activeMenu, setActiveMenu] = useState('Plant Production')
+  const hasAccess = userRole && (userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'finance')
   const [searchTerm, setSearchTerm] = useState('')
   const [plants, setPlants] = useState([])
   const [selectedPlant, setSelectedPlant] = useState(null)
@@ -134,7 +135,7 @@ const PlantProduction = ({ userType = 'admin' }) => {
         <Sidebar 
           activeMenu={activeMenu}
           setActiveMenu={setActiveMenu}
-          userType={userType}
+          userType={userRole}
         />
         <div className="production-main" style={{ 
           display: 'flex', 
@@ -194,7 +195,7 @@ const PlantProduction = ({ userType = 'admin' }) => {
         receiptNumber: expenseData.receiptNumber || '',
         vendor: expenseData.vendor || '',
         notes: expenseData.notes || '',
-        addedBy: expenseData.addedBy || 'admin',
+        addedBy: userName || 'admin',
         createdAt: serverTimestamp(),
         lastModifiedAt: serverTimestamp()
       }
@@ -472,7 +473,7 @@ const PlantProduction = ({ userType = 'admin' }) => {
       await addPlantExpense(selectedPlant.id, {
         ...expenseFormData,
         plantName: selectedPlant.name,
-        addedBy: userType
+        addedBy: userName || 'admin'
       })
       
       showAlert(
@@ -1113,7 +1114,7 @@ const PlantProduction = ({ userType = 'admin' }) => {
       estimatedYield: estimatedYield,
       costPerUnit: costPerUnit,
       profitMargin: 0,
-      lastModifiedBy: userType,
+      lastModifiedBy: userName || 'admin',
       lastModifiedAt: serverTimestamp()
     }
 
@@ -1160,7 +1161,7 @@ const PlantProduction = ({ userType = 'admin' }) => {
         totalProductionCost: grandTotal,
         costPerUnit: costPerUnit,
         lastCostingUpdate: serverTimestamp(),
-        lastCostingBy: userType
+        lastCostingBy: userName || 'admin'
       })
 
       setShowCostingModal(false)

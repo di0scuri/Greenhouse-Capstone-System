@@ -19,8 +19,10 @@ import {
   MdEdit,
   MdSave
 } from 'react-icons/md'
+import { useUser } from '../contexts/UserContext' // Import UserContext
 
 const PlantMasterList = ({ userType = 'admin' }) => {
+  const { userRole, loading: userLoading } = useUser()
   const [activeMenu, setActiveMenu] = useState('PlantList')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPlant, setSelectedPlant] = useState(null)
@@ -243,7 +245,7 @@ const PlantMasterList = ({ userType = 'admin' }) => {
       <Sidebar 
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole}
       />
 
       <div className="plantlist-main">

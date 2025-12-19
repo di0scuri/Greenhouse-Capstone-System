@@ -3,6 +3,7 @@ import Sidebar from './sidebar'
 import './costing.css'
 import { collection, getDocs, query, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
+import { useUser } from '../contexts/UserContext' // Import UserContext
 import { 
   FaSearch, 
   FaBell, 
@@ -18,7 +19,8 @@ import {
 } from 'react-icons/fa'
 
 // Costing Component
-const Costing = ({ userType = 'admin' }) => {
+const Costing = () => {
+  const { userRole } = useUser(); // Get userRole
   const [activeMenu, setActiveMenu] = useState('Costing & Pricing')
   const [searchTerm, setSearchTerm] = useState('')
   const [productionCosts, setProductionCosts] = useState([])
@@ -573,7 +575,7 @@ const Costing = ({ userType = 'admin' }) => {
       <Sidebar 
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole} // Use userRole from context
       />
 
       <div className="costing-main">

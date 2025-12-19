@@ -15,8 +15,10 @@ import {
   MdScience,
   MdClose
 } from 'react-icons/md'
+import { useUser } from './UserContext'
 
-const Sensors = ({ userType = 'admin' }) => {
+const Sensors = () => {
+  const { userRole, loading: userLoading } = useUser()
   const [activeMenu, setActiveMenu] = useState('Sensors')
   const [searchTerm, setSearchTerm] = useState('')
   const [sensors, setSensors] = useState([])
@@ -267,7 +269,7 @@ const fetchSensors = async () => {
       <Sidebar 
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole}
       />
 
       <div className="sensors-main">

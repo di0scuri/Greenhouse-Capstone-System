@@ -26,8 +26,10 @@ import {
   MdAssessment,
   MdTimeline
 } from 'react-icons/md'
+import { useUser } from '../contexts/UserContext'
 
-const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
+const FarmerPlants = () => {
+  const { userRole, loading: userLoading } = useUser();
   const [activeMenu, setActiveMenu] = useState('FarmerPlants')
   const [searchTerm, setSearchTerm] = useState('')
   const [showFertilizerModal, setShowFertilizerModal] = useState(false)
@@ -253,7 +255,7 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
   if (loading) {
     return (
       <div className="planting-container">
-        <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} userType={userType} />
+        <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} userType={userRole} />
         <div className="planting-content">
           <div className="loading">Loading...</div>
         </div>
@@ -263,7 +265,7 @@ const FarmerPlants = ({ userType = 'admin', userId = 'default-user' }) => {
 
   return (
     <div className="planting-container">
-      <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} userType={userType} />
+      <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} userType={userRole} />
       
       <div className="planting-content">
         <div className="planting-header">

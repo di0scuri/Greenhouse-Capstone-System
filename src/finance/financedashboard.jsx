@@ -16,8 +16,10 @@ import {
   FaSeedling,
   FaMoneyBillWave
 } from 'react-icons/fa'
+import { useUser } from '../contexts/UserContext'
 
-const FinanceDashboard = ({ userType = 'finance' }) => {
+const FinanceDashboard = () => {
+  const { userRole, loading: userLoading } = useUser()
   const [activeMenu, setActiveMenu] = useState('Costing & Pricing')
   const [searchTerm, setSearchTerm] = useState('')
   const [productionCosts, setProductionCosts] = useState([])
@@ -572,7 +574,7 @@ const FinanceDashboard = ({ userType = 'finance' }) => {
       <Sidebar 
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole}
       />
 
       <div className="costing-main">

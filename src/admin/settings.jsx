@@ -5,6 +5,7 @@ import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp
 import { db, auth } from '../firebase'
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { initializeApp } from 'firebase/app'
+import {useUser} from '../contexts/UserContext'
 import { 
   MdSearch,
   MdNotifications,
@@ -19,7 +20,8 @@ import {
   MdMoreVert
 } from 'react-icons/md'
 
-const Settings = ({ userType = 'admin' }) => {
+const Settings = () => {
+  const { userRole, loading: userLoading } = useUser()
   const [activeMenu, setActiveMenu] = useState('Settings')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedUsers, setSelectedUsers] = useState([])
@@ -386,7 +388,7 @@ const CustomPopup = ({ message, type = 'success', onClose }) => {
       <Sidebar 
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole}
       />
 
       <div className="settings-main">

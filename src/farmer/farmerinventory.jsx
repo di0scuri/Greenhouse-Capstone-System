@@ -16,8 +16,10 @@ import {
   FaCheckCircle
 } from 'react-icons/fa';
 import { MdWarning } from 'react-icons/md';
+import { useUser } from "../contexts/UserContext";
 
-const FarmerInventory = ({ userType = "admin", userId = "default-user" }) => {
+const FarmerInventory = () => {
+  const { userId, userRole,} = useUser();
   const [activeMenu, setActiveMenu] = useState("FarmerInventory");
   const [activeTab, setActiveTab] = useState("Seed");
   const [searchTerm, setSearchTerm] = useState("");
@@ -152,7 +154,7 @@ const FarmerInventory = ({ userType = "admin", userId = "default-user" }) => {
       <Sidebar
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole}
       />
 
       <div className="inventory-main">

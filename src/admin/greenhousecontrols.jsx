@@ -14,13 +14,14 @@ import {
 } from 'react-icons/md'
 
 import Sidebar from "./sidebar"; 
-
+import { useUser } from "../contexts/UserContext"; // Import UserContext
 
 import './sensors.css'
 import './greenhousecontrols.css'
 
-const GreenhouseControls = ({ userType = 'admin' }) => {
-  const hasAccess = userType === 'admin' || userType === 'farmer'
+const GreenhouseControls = () => {
+  const { userRole } = useUser(); // Get userRole
+  const hasAccess = userRole === 'admin' || userRole === 'farmer'
   const [searchTerm, setSearchTerm] = useState('')
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -214,7 +215,7 @@ const GreenhouseControls = ({ userType = 'admin' }) => {
 
     {/* SIDEBAR - SAME AS COSTING */}
     <Sidebar 
-      userType={userType}
+      userType={userRole} // Use userRole from context
     />
 
     {/* MAIN CONTENT */}

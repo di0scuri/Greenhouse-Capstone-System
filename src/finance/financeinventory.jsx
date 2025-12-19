@@ -16,8 +16,10 @@ import {
   FaCheckCircle
 } from 'react-icons/fa';
 import { MdWarning } from 'react-icons/md';
+import { useUser } from "../contexts/UserContext";
 
-const FinanceInventory = ({ userType = "finance" }) => {
+const FinanceInventory = () => {
+  const { userRole, loading: userLoading } = useUser();
   const [activeMenu, setActiveMenu] = useState("Inventory");
   const [activeTab, setActiveTab] = useState("Seed");
   const [searchTerm, setSearchTerm] = useState("");
@@ -123,7 +125,7 @@ const FinanceInventory = ({ userType = "finance" }) => {
       <Sidebar
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
-        userType={userType}
+        userType={userRole}
       />
 
       <div className="production-main-ad">

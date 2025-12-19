@@ -11,11 +11,12 @@ import {
   FaSearch, FaBell, FaThermometerHalf, FaTint, FaSeedling
 } from 'react-icons/fa';
 import { MdCheckBoxOutlineBlank } from 'react-icons/md';
+import { useUser } from '../contexts/UserContext';
 
-const FarmerDashboard = ({ userType = 'farmer' }) => {
+const FarmerDashboard = () => {
+  const { currentUser, userName, userRole, loading: userLoading } = useUser();
   const [authLoading, setAuthLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
 
   const [activeMenu, setActiveMenu] = useState('Overview');
@@ -30,6 +31,10 @@ const FarmerDashboard = ({ userType = 'farmer' }) => {
   const [tasks, setTasks] = useState([]);
   const [harvests, setHarvests] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  if (userLoading) {
+    return <div className="loading-indicator">Loading Farmer Dashboard...</div>;
+  }
 
   // 1. Authentication Check
   useEffect(() => {
@@ -211,13 +216,17 @@ const FarmerDashboard = ({ userType = 'farmer' }) => {
 
   return (
     <div className="dashboard-container-ad">
-      <FarmerSidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+      <FarmerSidebar 
+      activeMenu={activeMenu} 
+      setActiveMenu={setActiveMenu} 
+      userType={userRole}
+      />
 
       <div className="main-content">
         {/* Header */}
         <div className="dashboard-header">
           <div className="header-left">
-            <h1>Welcome, {currentUser?.displayName || 'Farmer'}!</h1>
+            <h1>Welcome, {userName || 'Farmer'}!</h1>
             <p className="date-text">{formatDateTime(currentDateTime)}</p>
             <p className="time-text">
               {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
