@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import './production.css'
 import Sidebar from './sidebar'
-import {useRole} from '../contexts/UserContext'
+import {userRole} from '../contexts/UserContext'
 import { 
   collection, 
   addDoc, 
@@ -67,7 +67,7 @@ const getAreaOccupied = (plant) => {
 
 
 const PlantProduction = () => {
-  const { userRole, userName,loading: userLoading } = useRole()  
+  const { userRole, userName,loading: userLoading } = userRole()  
   const [activeMenu, setActiveMenu] = useState('Plant Production')
   const hasAccess = userRole && (userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'finance')
   const [searchTerm, setSearchTerm] = useState('')
