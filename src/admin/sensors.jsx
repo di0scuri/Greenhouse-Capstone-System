@@ -15,7 +15,7 @@ import {
   MdScience,
   MdClose
 } from 'react-icons/md'
-import { useUser } from './UserContext'
+import { useUser } from '../contexts/UserContext'
 
 const Sensors = () => {
   const { userRole, loading: userLoading } = useUser()
